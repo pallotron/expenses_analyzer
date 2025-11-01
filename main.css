@@ -1,0 +1,41 @@
+/* main.css */
+
+Screen {
+    layout: vertical;
+    overflow-y: auto;
+}
+
+.title {
+    content-align: center middle;
+    width: 100%;
+    height: 3;
+    background: $primary;
+    color: $text;
+}
+
+.label {
+    margin-top: 1;
+}
+
+#import_dialog {
+    padding: 1;
+    width: 80%;
+    height: 80%;
+    border: thick $primary;
+    background: $surface;
+}
+
+#log_viewer {
+    height: 10;
+    border-top: tall $primary;
+}
+
+.summary-grid {
+    layout: grid;
+    grid-size: 2;
+    grid-columns: 3fr 7fr; /* 30% and 70% split */
+}
+
+.-hidden {
+    display: none;
+}

@@ -76,9 +76,24 @@ uv run python main.py
 
 Here’s a glimpse of what Expense Analyzer looks like in action.
 
-| Summary Screen                             | Transactions Screen                                  | Categorize Merchants                                      |
-| ------------------------------------------ | ---------------------------------------------------- | --------------------------------------------------------- |
-| ![Summary Screen](screenshots/Summary.svg) | ![Transactions Screen](screenshots/Transactions.svg) | ![Categorize Screen](screenshots/CategorizeMerchants.svg) |
+### Summary screen
+
+![Summary Screen](screenshots/Summary.svg)
+
+View your expenses summarized by year and month, with a breakdown by category.
+Cells are clickable to drill down into more detailed views.
+
+### Transactions screen
+
+![Transactions Screen](screenshots/Transactions.svg)
+
+Browse through your individual transactions with ease. Filter by date, category, or merchant to find exactly what you're looking for.
+
+### Categorization Screen
+
+![Categorize Screen](screenshots/CategorizeMerchants.svg)
+
+Easily categorize new merchants that the application hasn't seen before. You can assign categories quickly to keep your data organized.
 
 ## Importing Data
 

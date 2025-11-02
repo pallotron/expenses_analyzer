@@ -4,7 +4,9 @@ import json
 import logging
 
 
-def get_gemini_category_suggestions_for_merchants(merchant_names: list[str]) -> dict[str, str]:
+def get_gemini_category_suggestions_for_merchants(
+    merchant_names: list[str],
+) -> dict[str, str]:
     """
     Uses the Gemini API to suggest categories for a list of merchant names.
     """
@@ -15,7 +17,7 @@ def get_gemini_category_suggestions_for_merchants(merchant_names: list[str]) -> 
 
     genai.configure(api_key=api_key)
 
-    model = genai.GenerativeModel('gemini-flash-latest')
+    model = genai.GenerativeModel("gemini-flash-latest")
 
     # Create a formatted string of merchant names
     merchant_list_str = "\n".join([f"- {name}" for name in merchant_names])
@@ -48,10 +50,14 @@ def get_gemini_category_suggestions_for_merchants(merchant_names: list[str]) -> 
     """
 
     try:
-        logging.info(f"Requesting category suggestions for {len(merchant_names)} merchants from Gemini.")
+        logging.info(
+            f"Requesting category suggestions for {len(merchant_names)} merchants from Gemini."
+        )
         response = model.generate_content(prompt)
         # Clean the response to extract only the JSON part
-        cleaned_response = response.text.strip().replace("```json", "").replace("```", "").strip()
+        cleaned_response = (
+            response.text.strip().replace("```json", "").replace("```", "").strip()
+        )
         # Parse the JSON string into a Python dictionary
         categories = json.loads(cleaned_response)
         logging.info(f"Received {len(categories)} category suggestions from Gemini.")

@@ -21,9 +21,9 @@ if not LOG_FILE.exists():
 # --- Logging Setup ---
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(levelname)s - %(message)s",
     filename=LOG_FILE,
-    filemode='a'
+    filemode="a",
 )
 logging.info("Application starting...")
 # ---

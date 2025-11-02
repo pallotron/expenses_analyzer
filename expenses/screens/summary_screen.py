@@ -159,11 +159,13 @@ class SummaryScreen(BaseScreen):
     def update_all_year_category_view(self, year: int):
         """Populates the table in the 'All Year' tab."""
         table = self.query_one(f"#category_breakdown_{year}_all", DataTable)
+        title_widget = self.query_one(f"#all_year_container_{year} .table_title", Static)
         cursor_row = table.cursor_row
         table.clear(columns=True)
         table.add_columns("Category", "Amount")
 
         year_df = self.transactions[self.transactions["Date"].dt.year == year]
+        total = 0.0
         if not year_df.empty:
             category_summary = year_df.groupby("Category")["Amount"].sum().reset_index()
             category_summary = category_summary.sort_values(by="Amount", ascending=False)
@@ -179,18 +181,21 @@ class SummaryScreen(BaseScreen):
                 table.add_row(*styled_row, key=category)
 
             total = category_summary["Amount"].sum()
-            table.add_row("[bold]Total[/bold]", f"[bold]{total:,.2f}[/bold]")
+        
+        title_widget.update(f"Category breakdown (Total: {total:,.2f})")
         table.move_cursor(row=cursor_row)
 
     def update_month_view(self, year: int, month: int):
         """Populates the left-hand table with a monthly category breakdown."""
         category_table = self.query_one(f"#category_breakdown_{year}_{month}", DataTable)
+        title_widget = self.query_one(f"#month_{year}_{month} .table_title", Static)
         cursor_row = category_table.cursor_row
         category_table.clear(columns=True)
         category_table.add_columns("Category", "Amount")
         month_df = self.transactions[(self.transactions["Date"].dt.year == year) & (
             self.transactions["Date"].dt.month == month)]
 
+        total = 0.0
         if not month_df.empty:
             category_summary = month_df.groupby("Category")["Amount"].sum().reset_index()
             category_summary = category_summary.sort_values(by="Amount", ascending=False)
@@ -206,10 +211,8 @@ class SummaryScreen(BaseScreen):
                 category_table.add_row(*styled_row, key=category)
 
             total = category_summary["Amount"].sum()
-            category_table.add_row("[bold]Total[/bold]", f"[bold]{total:,.2f}[/bold]")
 
-        title_widget = self.query_one(f"#month_{year}_{month} .table_title", Static)
-        title_widget.update("Category breakdown")
+        title_widget.update(f"Category breakdown (Total: {total:,.2f})")
         category_table.move_cursor(row=cursor_row)
 
     def _populate_monthly_breakdown(self, table: DataTable, year: int):

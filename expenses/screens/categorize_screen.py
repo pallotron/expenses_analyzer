@@ -1,7 +1,8 @@
 from typing import List, Dict
 import pandas as pd
 from textual.app import ComposeResult
-from textual.widgets import Static, Button, Input, DataTable
+from textual.widgets import Static, Button, DataTable, ListView, ListItem, Label
+from expenses.widgets.clearable_input import ClearableInput as Input
 from textual.containers import Vertical, Horizontal
 from textual.suggester import Suggester
 from textual.binding import Binding

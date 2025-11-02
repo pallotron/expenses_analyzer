@@ -76,6 +76,12 @@ DataTable .datatable--row-even {
     height: 1fr;
 }
 
+#category_suggestions_list {
+    max-height: 10;
+    width: 40;
+    border: thick $accent;
+}
+
 .filter-bar {
     height: auto;
     padding: 1 0;

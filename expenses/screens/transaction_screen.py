@@ -1,6 +1,7 @@
 import logging
 import pandas as pd
-from textual.widgets import DataTable, Static, Input, Button
+from textual.widgets import DataTable, Static, Button
+from expenses.widgets.clearable_input import ClearableInput as Input
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from rich.style import Style

@@ -1,7 +1,7 @@
 from typing import List, Dict
 import pandas as pd
 from textual.app import ComposeResult
-from textual.widgets import Static, Button, DataTable, ListView, ListItem, Label
+from textual.widgets import Static, Button, DataTable
 from expenses.widgets.clearable_input import ClearableInput as Input
 from textual.containers import Vertical, Horizontal
 from textual.suggester import Suggester
@@ -10,11 +10,16 @@ from rich.style import Style
 from rich.text import Text
 
 from expenses.screens.base_screen import BaseScreen
-from expenses.data_handler import load_transactions_from_parquet, load_categories, save_categories
+from expenses.data_handler import (
+    load_transactions_from_parquet,
+    load_categories,
+    save_categories,
+)
 
 
 class SimpleWordSuggester(Suggester):
     """A simple suggester that suggests words from a predefined list."""
+
     def __init__(self, words: List[str]):
         super().__init__()
         self.words = words
@@ -52,18 +57,18 @@ class CategorizeScreen(BaseScreen):
                 Horizontal(
                     Input(placeholder="Filter merchants...", id="merchant_filter"),
                     Input(placeholder="Filter categories...", id="category_filter"),
-                    classes="filter-bar"
+                    classes="filter-bar",
                 ),
                 Horizontal(
                     Input(placeholder="Enter new category...", id="category_input"),
                     Button("Apply to Selected", id="apply_button"),
                     Button("Save Categories", id="save_categories_button"),
-                    classes="action-bar"
+                    classes="action-bar",
                 ),
                 Static("Press SPACE to select/deselect rows.", classes="help-text"),
-                id="controls_container"
+                id="controls_container",
             ),
-            DataTable(id="categorization_table", cursor_type="row", zebra_stripes=True)
+            DataTable(id="categorization_table", cursor_type="row", zebra_stripes=True),
         )
 
     def on_mount(self) -> None:
@@ -80,9 +85,12 @@ class CategorizeScreen(BaseScreen):
         saved_categories = load_categories()
 
         if not self.transactions.empty:
-            unique_merchants = self.transactions['Merchant'].dropna().unique().tolist()
+            unique_merchants = self.transactions["Merchant"].dropna().unique().tolist()
             self.all_merchant_data = [
-                {"Merchant": merchant, "Category": saved_categories.get(merchant, "Uncategorized")}
+                {
+                    "Merchant": merchant,
+                    "Category": saved_categories.get(merchant, "Uncategorized"),
+                }
                 for merchant in unique_merchants
             ]
         else:
@@ -98,16 +106,21 @@ class CategorizeScreen(BaseScreen):
         filtered_data = self.all_merchant_data
         if merchant_filter:
             filtered_data = [
-                item for item in filtered_data
+                item
+                for item in filtered_data
                 if merchant_filter in item["Merchant"].lower()
             ]
         if category_filter:
             filtered_data = [
-                item for item in filtered_data
+                item
+                for item in filtered_data
                 if category_filter in item["Category"].lower()
             ]
 
-        filtered_data.sort(key=lambda x: x[self.sort_column].lower(), reverse=(self.sort_order == "desc"))
+        filtered_data.sort(
+            key=lambda x: x[self.sort_column].lower(),
+            reverse=(self.sort_order == "desc"),
+        )
         self.merchant_data = filtered_data
         self.selected_rows.clear()
         self.update_categorization_table()
@@ -120,8 +133,12 @@ class CategorizeScreen(BaseScreen):
 
     def update_suggester(self) -> None:
         """Update the suggester with existing categories."""
-        all_categories = sorted(list(set(item["Category"] for item in self.all_merchant_data)))
-        self.query_one("#category_input", Input).suggester = SimpleWordSuggester(all_categories)
+        all_categories = sorted(
+            list(set(item["Category"] for item in self.all_merchant_data))
+        )
+        self.query_one("#category_input", Input).suggester = SimpleWordSuggester(
+            all_categories
+        )
 
     def update_categorization_table(self) -> None:
         table = self.query_one("#categorization_table", DataTable)
@@ -137,10 +154,10 @@ class CategorizeScreen(BaseScreen):
         selected_style = Style(bgcolor="yellow", color="black")
         for i, item in enumerate(self.merchant_data):
             style = selected_style if i in self.selected_rows else ""
-            
+
             styled_row = [
-                Text(item['Merchant'], style=style),
-                Text(item["Category"], style=style)
+                Text(item["Merchant"], style=style),
+                Text(item["Category"], style=style),
             ]
             table.add_row(*styled_row, key=str(i))
 
@@ -171,7 +188,9 @@ class CategorizeScreen(BaseScreen):
         if event.button.id == "apply_button":
             new_category = self.query_one("#category_input", Input).value.strip()
             if new_category and self.selected_rows:
-                selected_merchants = {self.merchant_data[i]["Merchant"] for i in self.selected_rows}
+                selected_merchants = {
+                    self.merchant_data[i]["Merchant"] for i in self.selected_rows
+                }
 
                 for i in range(len(self.all_merchant_data)):
                     if self.all_merchant_data[i]["Merchant"] in selected_merchants:

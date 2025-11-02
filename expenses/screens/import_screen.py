@@ -21,8 +21,11 @@ class ImportScreen(BaseScreen):
             Static("Import CSV File", classes="title"),
             VerticalScroll(
                 Static("CSV File Path:"),
-                Input(placeholder="Press 'Browse' to select a file...",
-                      id="file_path_input", disabled=True),
+                Input(
+                    placeholder="Press 'Browse' to select a file...",
+                    id="file_path_input",
+                    disabled=True,
+                ),
                 Button("Browse", id="browse_button"),
                 Static("File Preview:", classes="label", id="file_preview_label"),
                 DataTable(id="file_preview"),
@@ -31,13 +34,15 @@ class ImportScreen(BaseScreen):
                 Select([], id="date_select"),
                 Static("Merchant Column:"),
                 Select([], id="merchant_select"),
-                Checkbox("Suggest categories for new merchants with AI",
-                         id="suggest_categories_checkbox"),
+                Checkbox(
+                    "Suggest categories for new merchants with AI",
+                    id="suggest_categories_checkbox",
+                ),
                 Static("Amount Column:"),
                 Select([], id="amount_select"),
                 Button("Import Transactions", id="import_button", disabled=True),
             ),
-            id="import_dialog"
+            id="import_dialog",
         )
 
     def on_mount(self) -> None:
@@ -101,23 +106,33 @@ class ImportScreen(BaseScreen):
             date_col = self.query_one("#date_select", Select).value
             merchant_col = self.query_one("#merchant_select", Select).value
             amount_col = self.query_one("#amount_select", Select).value
-            suggest_categories = self.query_one("#suggest_categories_checkbox", Checkbox).value
+            suggest_categories = self.query_one(
+                "#suggest_categories_checkbox", Checkbox
+            ).value
 
             transactions_to_append = []
             logging.info("--- Starting CSV Import Row-by-Row ---")
 
             for index, row in self.df.iterrows():
-                logging.info(f"\n[Row {index}] Processing original row: {row.to_dict()}")
+                logging.info(
+                    f"\n[Row {index}] Processing original row: {row.to_dict()}"
+                )
 
                 # --- Date Parsing ---
-                date_val = pd.to_datetime(row[date_col], errors='coerce', dayfirst=True)
+                date_val = pd.to_datetime(row[date_col], errors="coerce", dayfirst=True)
                 if pd.isna(date_val):
-                    logging.warning(f"[Row {index}] SKIPPING: Could not parse date '{row[date_col]}'")
+                    logging.warning(
+                        f"[Row {index}] SKIPPING: Could not parse date '{row[date_col]}'"
+                    )
                     continue
 
                 # --- Merchant Parsing ---
                 merchant_val = row[merchant_col]
-                if not merchant_val or pd.isna(merchant_val) or str(merchant_val).strip() == "":
+                if (
+                    not merchant_val
+                    or pd.isna(merchant_val)
+                    or str(merchant_val).strip() == ""
+                ):
                     logging.warning(f"[Row {index}] SKIPPING: Merchant name is empty.")
                     continue
 
@@ -127,32 +142,44 @@ class ImportScreen(BaseScreen):
 
                 # --- Expense Filtering ---
                 if amount_val >= 0:
-                    logging.info(f"[Row {index}] SKIPPING: Amount is not a debit/expense (>= 0).")
+                    logging.info(
+                        f"[Row {index}] SKIPPING: Amount is not a debit/expense (>= 0)."
+                    )
                     continue
 
                 # --- Special PayPal Debit Check ---
-                if 'Balance Impact' in self.df.columns and \
-                   row['Balance Impact'] != 'Debit':
-                    logging.info(f"[Row {index}] SKIPPING: PayPal transaction is not a 'Debit'. "
-                                 f"Balance Impact was '{row['Balance Impact']}'.")
+                if (
+                    "Balance Impact" in self.df.columns
+                    and row["Balance Impact"] != "Debit"
+                ):
+                    logging.info(
+                        f"[Row {index}] SKIPPING: PayPal transaction is not a 'Debit'. "
+                        f"Balance Impact was '{row['Balance Impact']}'."
+                    )
                     continue
 
                 # --- Add to list ---
                 final_amount = abs(amount_val)
                 transaction = {
-                    'Date': date_val,
-                    'Merchant': str(merchant_val),
-                    'Amount': final_amount
+                    "Date": date_val,
+                    "Merchant": str(merchant_val),
+                    "Amount": final_amount,
                 }
                 transactions_to_append.append(transaction)
-                logging.info(f"[Row {index}] SUCCESS: Adding transaction: {transaction}")
+                logging.info(
+                    f"[Row {index}] SUCCESS: Adding transaction: {transaction}"
+                )
 
             if transactions_to_append:
                 processed_df = pd.DataFrame(transactions_to_append)
                 append_transactions(processed_df, suggest_categories=suggest_categories)
-                logging.info(f"--- Finished CSV Import: Appended {len(processed_df)} rows to parquet file. ---")
+                logging.info(
+                    f"--- Finished CSV Import: Appended {len(processed_df)} rows to parquet file. ---"
+                )
             else:
-                logging.info("--- Finished CSV Import: No valid transactions found to append. ---")
+                logging.info(
+                    "--- Finished CSV Import: No valid transactions found to append. ---"
+                )
 
             self.app.pop_screen()
 

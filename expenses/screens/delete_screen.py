@@ -31,15 +31,22 @@ class DeleteScreen(BaseScreen):
         yield Horizontal(
             Input(placeholder="Start Date (YYYY-MM-DD)", id="date_min_filter"),
             Input(placeholder="End Date (YYYY-MM-DD)", id="date_max_filter"),
-            classes="filter-bar"
+            classes="filter-bar",
         )
-        yield Input(placeholder="Enter merchant pattern (regex or glob)", id="pattern_input")
+        yield Input(
+            placeholder="Enter merchant pattern (regex or glob)", id="pattern_input"
+        )
         with RadioSet(id="pattern_type"):
             yield RadioButton("Regex", value="regex", id="regex_button")
             yield RadioButton("Glob", value="glob", id="glob_button")
         yield Horizontal(
             Button("Preview Deletions", id="preview_button", variant="primary"),
-            Button("Delete Transactions", id="delete_button", variant="error", disabled=True),
+            Button(
+                "Delete Transactions",
+                id="delete_button",
+                variant="error",
+                disabled=True,
+            ),
             classes="button-bar",
         )
         yield Static("", id="preview_summary")
@@ -56,7 +63,9 @@ class DeleteScreen(BaseScreen):
         elif event.button.id == "delete_button":
             self.delete_transactions()
 
-    def _apply_date_filters(self, df: pd.DataFrame, date_min_str: str, date_max_str: str) -> pd.DataFrame:
+    def _apply_date_filters(
+        self, df: pd.DataFrame, date_min_str: str, date_max_str: str
+    ) -> pd.DataFrame:
         """Applies date filters to the DataFrame."""
         filtered_df = df.copy()
         if date_min_str:
@@ -76,11 +85,15 @@ class DeleteScreen(BaseScreen):
     def preview_deletions(self):
         """Preview transactions that match the pattern within the given time frame."""
         pattern = self.query_one("#pattern_input", Input).value
-        pattern_type = "regex" if self.query_one("#regex_button", RadioButton).value else "glob"
+        pattern_type = (
+            "regex" if self.query_one("#regex_button", RadioButton).value else "glob"
+        )
         date_min_str = self.query_one("#date_min_filter", Input).value
         date_max_str = self.query_one("#date_max_filter", Input).value
 
-        filtered_transactions = self._apply_date_filters(self.transactions, date_min_str, date_max_str)
+        filtered_transactions = self._apply_date_filters(
+            self.transactions, date_min_str, date_max_str
+        )
 
         # Apply merchant pattern filter
         if pattern:
@@ -88,7 +101,9 @@ class DeleteScreen(BaseScreen):
                 pattern = re.escape(pattern).replace("\\*", ".*")
             try:
                 matching_transactions = filtered_transactions[
-                    filtered_transactions["Merchant"].str.contains(pattern, case=False, na=False)
+                    filtered_transactions["Merchant"].str.contains(
+                        pattern, case=False, na=False
+                    )
                 ]
             except re.error as e:
                 self.query_one("#preview_summary").update(f"Invalid regex: {e}")
@@ -116,7 +131,9 @@ class DeleteScreen(BaseScreen):
             )
             self.query_one("#delete_button", Button).disabled = False
         else:
-            self.query_one("#preview_summary").update("No transactions match the pattern or time frame.")
+            self.query_one("#preview_summary").update(
+                "No transactions match the pattern or time frame."
+            )
             self.query_one("#delete_button", Button).disabled = True
 
     def delete_transactions(self):

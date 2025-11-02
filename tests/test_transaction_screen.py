@@ -5,6 +5,7 @@ from expenses.screens.transaction_screen import TransactionScreen
 
 class MockInput:
     """A mock Input widget with a value attribute."""
+
     def __init__(self, value: str):
         self.value = value
 
@@ -107,6 +108,7 @@ def test_apply_filters_to_transactions(transaction_screen):
 
 class MockDataTable:
     """A mock DataTable widget with a cursor_row attribute."""
+
     def __init__(self):
         self.cursor_row = 0
         self.columns = []
@@ -123,12 +125,16 @@ class MockDataTable:
     def add_rows(self, rows):
         self.rows.extend(rows)
 
+    def add_row(self, *row, key):
+        self.rows.append({"key": key, "row": row})
+
     def move_cursor(self, row):
         self.cursor_row = row
 
 
 class MockStatic:
     """A mock Static widget with an update method."""
+
     def update(self, content):
         pass
 

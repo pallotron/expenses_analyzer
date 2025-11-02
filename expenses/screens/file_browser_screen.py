@@ -10,6 +10,8 @@ class FileBrowserScreen(BaseScreen):
     def compose_content(self) -> ComposeResult:
         yield DirectoryTree("./", id="file_tree")
 
-    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+    def on_directory_tree_file_selected(
+        self, event: DirectoryTree.FileSelected
+    ) -> None:
         """Called when a file is selected."""
         self.dismiss(str(event.path))

@@ -1,7 +1,9 @@
 import pandas as pd
 from pathlib import Path
 
-TRANSACTIONS_FILE = Path.home() / ".config" / "expenses_analyzer" / "transactions.parquet"
+TRANSACTIONS_FILE = (
+    Path.home() / ".config" / "expenses_analyzer" / "transactions.parquet"
+)
 
 
 def validate_parquet_file():
@@ -35,24 +37,26 @@ def validate_parquet_file():
     print("\n--- Duplicate Rows ---")
     print(f"Number of duplicate rows: {df.duplicated().sum()}")
 
-    if 'Amount' in df.columns:
+    if "Amount" in df.columns:
         print("\n--- Amount Column Summary ---")
-        if pd.api.types.is_numeric_dtype(df['Amount']):
-            print(df['Amount'].describe())
+        if pd.api.types.is_numeric_dtype(df["Amount"]):
+            print(df["Amount"].describe())
         else:
             print("'Amount' column is not numeric. Investigating...")
-            numeric_amount = pd.to_numeric(df['Amount'], errors='coerce')
-            non_numeric_rows = df[numeric_amount.isnull() & df['Amount'].notnull()]
-            print(f"Found {len(non_numeric_rows)} non-numeric values in 'Amount' column.")
+            numeric_amount = pd.to_numeric(df["Amount"], errors="coerce")
+            non_numeric_rows = df[numeric_amount.isnull() & df["Amount"].notnull()]
+            print(
+                f"Found {len(non_numeric_rows)} non-numeric values in 'Amount' column."
+            )
             if not non_numeric_rows.empty:
                 print("Rows with non-numeric 'Amount' values:")
                 print(non_numeric_rows.to_string())
 
-    if 'Merchant' in df.columns:
+    if "Merchant" in df.columns:
         print("\n--- Merchant Column Summary ---")
         print(f"Number of unique merchants: {df['Merchant'].nunique()}")
         print("Top 10 merchants by transaction count:")
-        print(df['Merchant'].value_counts().head(10))
+        print(df["Merchant"].value_counts().head(10))
 
 
 if __name__ == "__main__":

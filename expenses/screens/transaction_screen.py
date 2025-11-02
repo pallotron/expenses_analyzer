@@ -7,7 +7,11 @@ from textual.containers import Horizontal
 from rich.style import Style
 from rich.text import Text
 
-from expenses.data_handler import load_transactions_from_parquet, load_categories, delete_transactions
+from expenses.data_handler import (
+    load_transactions_from_parquet,
+    load_categories,
+    delete_transactions,
+)
 from expenses.screens.base_screen import BaseScreen
 from textual.binding import Binding
 
@@ -22,7 +26,9 @@ class TransactionScreen(BaseScreen):
         Binding("space", "toggle_selection", "Toggle Selection"),
     ]
 
-    def __init__(self, category: str = None, year: int = None, month: int = None, **kwargs):
+    def __init__(
+        self, category: str = None, year: int = None, month: int = None, **kwargs
+    ):
         super().__init__(**kwargs)
         self.filter_category = category
         self.filter_year = year if year is not None else datetime.now().year
@@ -47,38 +53,47 @@ class TransactionScreen(BaseScreen):
             Input(placeholder="Filter by Merchant...", id="merchant_filter"),
             Input(placeholder="Min Amount...", id="amount_min_filter"),
             Input(placeholder="Max Amount...", id="amount_max_filter"),
-            Input(placeholder="Filter by Category...", id="category_filter",
-                  value=self.filter_category or ""),
+            Input(
+                placeholder="Filter by Category...",
+                id="category_filter",
+                value=self.filter_category or "",
+            ),
             id="filters",
         )
         yield Horizontal(
             Static(id="total_display", classes="total"),
             Button("Delete Selected", id="delete_button", variant="error"),
-            classes="button-bar"
+            classes="button-bar",
         )
         yield DataTable(id="transaction_table", zebra_stripes=True)
 
     def on_mount(self) -> None:
         """Load data and populate the table when the screen is mounted."""
-        logging.info(f"TransactionScreen mounted with filters: year={self.filter_year}, "
-                     f"month={self.filter_month}, category='{self.filter_category}'")
+        logging.info(
+            f"TransactionScreen mounted with filters: year={self.filter_year}, "
+            f"month={self.filter_month}, category='{self.filter_category}'"
+        )
 
         # Pre-fill date filters if year and/or month are provided
         if self.filter_year:
             if self.filter_month:
-                start_date = pd.Timestamp(f'{self.filter_year}-{self.filter_month}-01')
+                start_date = pd.Timestamp(f"{self.filter_year}-{self.filter_month}-01")
                 end_date = start_date + pd.offsets.MonthEnd(1)
             else:  # Year-to-date view
-                start_date = pd.Timestamp(f'{self.filter_year}-01-01')
-                end_date = pd.Timestamp(f'{self.filter_year}-12-31')
-            self.query_one("#date_min_filter", Input).value = start_date.strftime('%Y-%m-%d')
-            self.query_one("#date_max_filter", Input).value = end_date.strftime('%Y-%m-%d')
+                start_date = pd.Timestamp(f"{self.filter_year}-01-01")
+                end_date = pd.Timestamp(f"{self.filter_year}-12-31")
+            self.query_one("#date_min_filter", Input).value = start_date.strftime(
+                "%Y-%m-%d"
+            )
+            self.query_one("#date_max_filter", Input).value = end_date.strftime(
+                "%Y-%m-%d"
+            )
 
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
 
         if not self.transactions.empty:
-            self.transactions['Date'] = pd.to_datetime(self.transactions['Date'])
+            self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
 
         logging.info(f"Loaded {len(self.transactions)} total transactions.")
 
@@ -91,7 +106,7 @@ class TransactionScreen(BaseScreen):
         self.categories = load_categories()
 
         if not self.transactions.empty:
-            self.transactions['Date'] = pd.to_datetime(self.transactions['Date'])
+            self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
 
         self.populate_table()
 
@@ -168,7 +183,7 @@ class TransactionScreen(BaseScreen):
         self.display_df = display_df
 
         # --- Calculate and Display Total ---
-        total_amount = self.display_df['Amount'].sum()
+        total_amount = self.display_df["Amount"].sum()
         total_display.update(f"Total: {total_amount:,.2f}")
 
         # --- Sorting ---
@@ -180,12 +195,19 @@ class TransactionScreen(BaseScreen):
         # --- Add Columns with Correct Headers and Widths ---
         column_widths = {"Date": 12, "Amount": 15, "Category": 20}
         for col_name in self.columns:
-            icon = (" ▲" if self.sort_order == "asc" and col_name == self.sort_column
-                    else " ▼" if self.sort_order == "desc" and col_name == self.sort_column else "")
+            icon = (
+                " ▲"
+                if self.sort_order == "asc" and col_name == self.sort_column
+                else (
+                    " ▼"
+                    if self.sort_order == "desc" and col_name == self.sort_column
+                    else ""
+                )
+            )
             table.add_column(
                 f"{col_name}{icon}",
                 key=col_name,
-                width=column_widths.get(col_name)  # Merchant will have width=None
+                width=column_widths.get(col_name),  # Merchant will have width=None
             )
 
         # --- Format and Add Rows ---
@@ -195,11 +217,11 @@ class TransactionScreen(BaseScreen):
 
             row_data = [
                 row["Date"].strftime("%Y-%m-%d") if pd.notna(row["Date"]) else "",
-                row['Merchant'] or '',
-                f"{row['Amount']:,.2f}" if pd.notna(row['Amount']) else "",
-                row["Category"] or ""
+                row["Merchant"] or "",
+                f"{row['Amount']:,.2f}" if pd.notna(row["Amount"]) else "",
+                row["Category"] or "",
             ]
-            
+
             styled_row = [Text(str(cell), style=style) for cell in row_data]
             table.add_row(*styled_row, key=str(i))
 

@@ -113,6 +113,16 @@ To get started, you'll need to import your transaction data. The application sup
 
 4. **Confirm Import**: After mapping the columns, review the transactions and confirm the import. New transactions will be added to your records.
 
+## Data Processing with Pandas and Parquet
+
+Under the hood, Expense Analyzer uses powerful and efficient libraries to handle your financial data.
+
+- **Data Import and Cleaning**: When you import a CSV file, the data is loaded into a **Pandas DataFrame**. This allows for flexible and powerful data manipulation. The application cleans the data, standardizes column names, and handles different data types to ensure consistency.
+
+- **Storage**: Once processed, your transaction data is stored in the **Parquet** format. Parquet is a columnar storage file format that is highly efficient for analytics. It offers excellent compression and performance, which means your data is stored compactly and can be queried quickly. This is especially useful as your transaction history grows over time.
+
+- **Data Access**: Whenever you view your transactions or summaries, the application reads the Parquet file back into a Pandas DataFrame to perform calculations and display the data. This ensures that the application remains fast and responsive, even with large datasets.
+
 ## Automatic Categorization with Gemini
 
 The application can use the Google Gemini API to automatically suggest categories for new merchants it hasn't seen before. This is an optional feature.

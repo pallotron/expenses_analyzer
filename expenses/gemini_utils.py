@@ -9,8 +9,8 @@ def get_gemini_category_suggestions_for_merchants(merchant_names: list[str]) -> 
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        logging.error("GEMINI_API_KEY environment variable not set.")
-        raise ValueError("GEMINI_API_KEY environment variable not set.")
+        logging.warning("GEMINI_API_KEY not set. Skipping category suggestions.")
+        return {}
 
     genai.configure(api_key=api_key)
 

@@ -6,10 +6,7 @@ from typing import Dict, List
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
 
 
-# --- Configuration ---
-CONFIG_DIR = Path.home() / ".config" / "expenses_analyzer"
-CATEGORIES_FILE = CONFIG_DIR / "categories.json"
-TRANSACTIONS_FILE = CONFIG_DIR / "transactions.parquet"
+from expenses.config import CONFIG_DIR, CATEGORIES_FILE, TRANSACTIONS_FILE
 
 # --- Helper Functions ---
 def clean_amount(amount_series: pd.Series) -> pd.Series:

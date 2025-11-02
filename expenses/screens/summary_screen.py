@@ -4,6 +4,10 @@ from textual.containers import Horizontal, Vertical
 import pandas as pd
 from datetime import datetime
 
+from textual.binding import Binding
+from rich.style import Style
+from rich.text import Text
+
 from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import load_transactions_from_parquet, load_categories
 
@@ -11,9 +15,14 @@ from expenses.data_handler import load_transactions_from_parquet, load_categorie
 class SummaryScreen(BaseScreen):
     """A summary screen with transactions per year and month."""
 
+    BINDINGS = [
+        Binding("space", "toggle_selection", "Toggle Selection"),
+    ]
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.load_and_prepare_data()
+        self.selected_rows = set()
 
     def load_and_prepare_data(self):
         """Loads and prepares transaction and category data."""
@@ -90,6 +99,7 @@ class SummaryScreen(BaseScreen):
             year = int(active_year_id.split("_")[1])
             self.update_all_year_category_view(year)
             self.update_all_year_monthly_view(year)
+            self.query_one(f"#category_breakdown_{year}_all", DataTable).focus()
 
     def on_tabbed_content_tab_activated(
         self, event: TabbedContent.TabActivated
@@ -113,9 +123,43 @@ class SummaryScreen(BaseScreen):
                 month = int(pane_id[2])
                 self.update_month_view(year, month)
 
+    def action_toggle_selection(self) -> None:
+        """Toggle selection for the current row in the focused table."""
+        focused_widget = self.app.focused
+        if not isinstance(focused_widget, DataTable) or focused_widget.cursor_row is None:
+            return
+
+        table = focused_widget
+        # The category is always in the first column.
+        row_key = str(table.get_cell_at((table.cursor_row, 0)))
+
+        if "Total" in row_key:  # Don't select total rows
+            return
+
+        if row_key in self.selected_rows:
+            self.selected_rows.remove(row_key)
+        else:
+            self.selected_rows.add(row_key)
+
+        # Refresh the current view to show the selection
+        year_tabs = self.query_one("#year_tabs", TabbedContent)
+        year = int(year_tabs.active.split("_")[1])
+        month_tabs = self.query_one(f"#month_tabs_{year}", TabbedContent)
+        active_month_pane_id = month_tabs.active.split("_")
+
+        if active_month_pane_id[-1] == "all":
+            if table.id.startswith("category_breakdown"):
+                self.update_all_year_category_view(year)
+            elif table.id.startswith("monthly_breakdown"):
+                self.update_all_year_monthly_view(year)
+        else:
+            month = int(active_month_pane_id[-1])
+            self.update_month_view(year, month)
+
     def update_all_year_category_view(self, year: int):
         """Populates the table in the 'All Year' tab."""
         table = self.query_one(f"#category_breakdown_{year}_all", DataTable)
+        cursor_row = table.cursor_row
         table.clear(columns=True)
         table.add_columns("Category", "Amount")
 
@@ -123,14 +167,25 @@ class SummaryScreen(BaseScreen):
         if not year_df.empty:
             category_summary = year_df.groupby("Category")["Amount"].sum().reset_index()
             category_summary = category_summary.sort_values(by="Amount", ascending=False)
+
+            selected_style = Style(bgcolor="yellow", color="black")
             for _, row in category_summary.iterrows():
-                table.add_row(row["Category"], f"{row['Amount']:,.2f}")
+                category = row["Category"]
+                style = selected_style if category in self.selected_rows else ""
+                styled_row = [
+                    Text(category, style=style),
+                    Text(f"{row['Amount']:,.2f}", style=style)
+                ]
+                table.add_row(*styled_row, key=category)
+
             total = category_summary["Amount"].sum()
             table.add_row("[bold]Total[/bold]", f"[bold]{total:,.2f}[/bold]")
+        table.move_cursor(row=cursor_row)
 
     def update_month_view(self, year: int, month: int):
         """Populates the left-hand table with a monthly category breakdown."""
         category_table = self.query_one(f"#category_breakdown_{year}_{month}", DataTable)
+        cursor_row = category_table.cursor_row
         category_table.clear(columns=True)
         category_table.add_columns("Category", "Amount")
         month_df = self.transactions[(self.transactions["Date"].dt.year == year) & (
@@ -139,13 +194,23 @@ class SummaryScreen(BaseScreen):
         if not month_df.empty:
             category_summary = month_df.groupby("Category")["Amount"].sum().reset_index()
             category_summary = category_summary.sort_values(by="Amount", ascending=False)
+
+            selected_style = Style(bgcolor="yellow", color="black")
             for _, row in category_summary.iterrows():
-                category_table.add_row(row["Category"], f"{row['Amount']:,.2f}")
+                category = row["Category"]
+                style = selected_style if category in self.selected_rows else ""
+                styled_row = [
+                    Text(category, style=style),
+                    Text(f"{row['Amount']:,.2f}", style=style)
+                ]
+                category_table.add_row(*styled_row, key=category)
+
             total = category_summary["Amount"].sum()
             category_table.add_row("[bold]Total[/bold]", f"[bold]{total:,.2f}[/bold]")
 
         title_widget = self.query_one(f"#month_{year}_{month} .table_title", Static)
         title_widget.update("Category breakdown")
+        category_table.move_cursor(row=cursor_row)
 
     def _populate_monthly_breakdown(self, table: DataTable, year: int):
         """Helper function to populate a table with monthly breakdown data, with categories as rows."""
@@ -204,13 +269,17 @@ class SummaryScreen(BaseScreen):
 
             # Add the data for each category
             category_data = monthly_summary
+            selected_style = Style(bgcolor="yellow", color="black")
             for category_name, row in category_data.iterrows():
+                style = selected_style if category_name in self.selected_rows else ""
                 row_values = [row['Total'], row['Average']] + \
                              [row[col] for col in month_columns]
-                table.add_row(
-                    category_name,
-                    *[f"{val:,.2f}" for val in row_values]
-                )
+
+                styled_cells = [Text(category_name, style=style)]
+                styled_cells.extend([Text(f"{val:,.2f}", style=style) for val in row_values])
+
+                table.add_row(*styled_cells, key=category_name)
+
 
     def update_all_year_monthly_view(self, year: int):
         """Populates the right-hand table in the 'All Year' tab."""
@@ -222,29 +291,48 @@ class SummaryScreen(BaseScreen):
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
         """Handle cell selection to navigate to the transaction screen."""
-        # Get the year from the active year tab
         year_tabs = self.query_one("#year_tabs", TabbedContent)
         year = int(year_tabs.active.split("_")[1])
 
-        # Get the month from the active month tab
-        month_tabs_id = f"#month_tabs_{year}"
-        month_tabs = self.query_one(month_tabs_id, TabbedContent)
-        active_month_pane_id = month_tabs.active.split("_")
-
-        month = None
-        if active_month_pane_id[-1] != "all":
-            month = int(active_month_pane_id[-1])
-
-        # Get the category from the selected row
-        table = event.data_table
+        table_id = event.data_table.id
         row_key = event.cell_key.row_key
-        category = str(table.get_row(row_key)[0])
+        category_renderable = event.data_table.get_row(row_key)[0]
+        category_string = str(category_renderable)
 
-        # Don't navigate if the user clicks the total row
-        if "Total" in category:
+        category = None
+        month = None
+
+        # Logic for Monthly Breakdown table
+        if table_id and table_id.startswith("monthly_breakdown"):
+            column_key = event.cell_key.column_key
+            column = event.data_table.columns[column_key]
+            month_name = str(column.label)
+
+            if month_name in ["Total", "Average", "Category"]:
+                return
+
+            try:
+                month = datetime.strptime(month_name, "%b").month
+            except ValueError:
+                return  # Not a month column
+
+            if "Total" not in category_string:
+                category = category_string
+
+        # Logic for Category Breakdown tables
+        elif table_id and table_id.startswith("category_breakdown"):
+            if "Total" in category_string:
+                return
+
+            category = category_string
+            month_tabs_id = f"#month_tabs_{year}"
+            month_tabs = self.query_one(month_tabs_id, TabbedContent)
+            active_month_pane_id = month_tabs.active.split("_")
+            if active_month_pane_id[-1] != "all":
+                month = int(active_month_pane_id[-1])
+        else:
             return
 
-        # Navigate to the transaction screen with the filters
         self.app.push_screen(
             self.app.SCREENS["transactions"](
                 category=category,

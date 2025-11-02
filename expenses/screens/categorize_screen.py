@@ -5,6 +5,8 @@ from textual.widgets import Static, Button, Input, DataTable
 from textual.containers import Vertical, Horizontal
 from textual.suggester import Suggester
 from textual.binding import Binding
+from rich.style import Style
+from rich.text import Text
 
 from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import load_transactions_from_parquet, load_categories, save_categories
@@ -65,6 +67,7 @@ class CategorizeScreen(BaseScreen):
 
     def on_mount(self) -> None:
         self.load_data_and_update_display()
+        self.query_one("#categorization_table", DataTable).focus()
 
     def on_screen_resume(self, event) -> None:
         """Called when the screen is resumed, e.g., after an import."""
@@ -130,9 +133,15 @@ class CategorizeScreen(BaseScreen):
             table.add_row("No merchants to categorize.", "")
             return
 
+        selected_style = Style(bgcolor="yellow", color="black")
         for i, item in enumerate(self.merchant_data):
-            prefix = "* " if i in self.selected_rows else ""
-            table.add_row(f"{prefix}{item['Merchant']}", item["Category"])
+            style = selected_style if i in self.selected_rows else ""
+            
+            styled_row = [
+                Text(item['Merchant'], style=style),
+                Text(item["Category"], style=style)
+            ]
+            table.add_row(*styled_row, key=str(i))
 
         if self.merchant_data:
             table.move_cursor(row=cursor_row)

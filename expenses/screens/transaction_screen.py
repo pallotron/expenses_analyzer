@@ -3,10 +3,15 @@ import pandas as pd
 from textual.widgets import DataTable, Static, Input, Button
 from textual.app import ComposeResult
 from textual.containers import Horizontal
+from rich.style import Style
+from rich.text import Text
 
 from expenses.data_handler import load_transactions_from_parquet, load_categories, delete_transactions
 from expenses.screens.base_screen import BaseScreen
 from textual.binding import Binding
+
+
+from datetime import datetime
 
 
 class TransactionScreen(BaseScreen):
@@ -19,7 +24,7 @@ class TransactionScreen(BaseScreen):
     def __init__(self, category: str = None, year: int = None, month: int = None, **kwargs):
         super().__init__(**kwargs)
         self.filter_category = category
-        self.filter_year = year
+        self.filter_year = year if year is not None else datetime.now().year
         self.filter_month = month
         self.columns = ["Date", "Merchant", "Amount", "Category"]
         self.sort_column = "Date"
@@ -56,6 +61,18 @@ class TransactionScreen(BaseScreen):
         """Load data and populate the table when the screen is mounted."""
         logging.info(f"TransactionScreen mounted with filters: year={self.filter_year}, "
                      f"month={self.filter_month}, category='{self.filter_category}'")
+
+        # Pre-fill date filters if year and/or month are provided
+        if self.filter_year:
+            if self.filter_month:
+                start_date = pd.Timestamp(f'{self.filter_year}-{self.filter_month}-01')
+                end_date = start_date + pd.offsets.MonthEnd(1)
+            else:  # Year-to-date view
+                start_date = pd.Timestamp(f'{self.filter_year}-01-01')
+                end_date = pd.Timestamp(f'{self.filter_year}-12-31')
+            self.query_one("#date_min_filter", Input).value = start_date.strftime('%Y-%m-%d')
+            self.query_one("#date_max_filter", Input).value = end_date.strftime('%Y-%m-%d')
+
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
 
@@ -64,13 +81,8 @@ class TransactionScreen(BaseScreen):
 
         logging.info(f"Loaded {len(self.transactions)} total transactions.")
 
-        # Apply initial filters from constructor
-        if self.filter_year:
-            self.transactions = self.transactions[self.transactions['Date'].dt.year == self.filter_year]
-        if self.filter_month:
-            self.transactions = self.transactions[self.transactions['Date'].dt.month == self.filter_month]
-
         self.populate_table()
+        self.query_one("#transaction_table", DataTable).focus()
 
     def on_screen_resume(self, event) -> None:
         """Called when the screen is resumed, e.g., after an import."""
@@ -79,12 +91,6 @@ class TransactionScreen(BaseScreen):
 
         if not self.transactions.empty:
             self.transactions['Date'] = pd.to_datetime(self.transactions['Date'])
-
-        # Re-apply initial filters
-        if self.filter_year:
-            self.transactions = self.transactions[self.transactions['Date'].dt.year == self.filter_year]
-        if self.filter_month:
-            self.transactions = self.transactions[self.transactions['Date'].dt.month == self.filter_month]
 
         self.populate_table()
 
@@ -182,27 +188,41 @@ class TransactionScreen(BaseScreen):
             )
 
         # --- Format and Add Rows ---
-        rows = []
+        selected_style = Style(bgcolor="yellow", color="black")
         for i, row in self.display_df.iterrows():
-            prefix = "* " if i in self.selected_rows else ""
-            rows.append([
+            style = selected_style if i in self.selected_rows else ""
+
+            row_data = [
                 row["Date"].strftime("%Y-%m-%d") if pd.notna(row["Date"]) else "",
-                f"{prefix}{row['Merchant'] or ''}",
+                row['Merchant'] or '',
                 f"{row['Amount']:,.2f}" if pd.notna(row['Amount']) else "",
                 row["Category"] or ""
-            ])
-        table.add_rows(rows)
+            ]
+            
+            styled_row = [Text(str(cell), style=style) for cell in row_data]
+            table.add_row(*styled_row, key=str(i))
 
     def action_toggle_selection(self) -> None:
         """Toggle selection for the current row."""
         table = self.query_one("#transaction_table", DataTable)
-        if table.cursor_row is not None:
-            row_index = self.display_df.index[table.cursor_row]
-            if row_index in self.selected_rows:
-                self.selected_rows.remove(row_index)
-            else:
-                self.selected_rows.add(row_index)
-            self.populate_table()
+        if table.cursor_row is None:
+            return
+
+        # Get the original index from the unfiltered DataFrame
+        row_index = self.display_df.index[table.cursor_row]
+
+        if row_index in self.selected_rows:
+            self.selected_rows.remove(row_index)
+        else:
+            self.selected_rows.add(row_index)
+
+        # After modification, we need to update the specific row in the table
+        # to reflect the change (e.g., adding/removing a '*' prefix).
+        # We can achieve this by re-populating the table and restoring the cursor
+        # position.
+        cursor_row = table.cursor_row
+        self.populate_table()
+        table.move_cursor(row=cursor_row)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""

@@ -69,8 +69,18 @@ Please contribute if you can or report bugs/issues!
 To run the application, use the following command:
 
 ```bash
-uv run python main.py
+uv run python expenses/app.py
 ```
+
+## Additional Tools
+
+The project includes additional scripts in the `tools/` directory that can be used to interact with the application's data directly.
+
+- **`tools/validate_data.py`**: This script provides an example of how to access and validate the `transactions.parquet` database file. It performs checks for data quality, missing values, and duplicates, and provides summaries of key columns. You can run it using:
+
+  ```bash
+  uv run python tools/validate_data.py
+  ```
 
 ## Screenshots
 

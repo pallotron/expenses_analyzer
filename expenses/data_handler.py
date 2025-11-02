@@ -1,12 +1,11 @@
 import pandas as pd
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
-
-
 from expenses.config import CONFIG_DIR, CATEGORIES_FILE, TRANSACTIONS_FILE
+
 
 # --- Helper Functions ---
 def clean_amount(amount_series: pd.Series) -> pd.Series:
@@ -14,11 +13,12 @@ def clean_amount(amount_series: pd.Series) -> pd.Series:
     # Convert (amount) to -amount
     s = s.str.replace(r'\((.*)\)', r'-\1', regex=True)
     # Remove currency symbols and spaces
-    s = s.str.replace(r'[€$,\s]', '', regex=True)
+    s = s.str.replace(r'[€$£,\s]', '', regex=True)
     # Convert to numeric, coercing errors (e.g., '-' will become NaN)
     numeric_series = pd.to_numeric(s, errors='coerce')
     # Treat NaN (from '-' or other non-numeric values) as 0
     return numeric_series.fillna(0)
+
 
 # --- Category Management ---
 def load_categories() -> Dict[str, str]:
@@ -30,10 +30,12 @@ def load_categories() -> Dict[str, str]:
         except json.JSONDecodeError:
             return {}
 
+
 def save_categories(categories: Dict[str, str]) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(CATEGORIES_FILE, 'w') as f:
         json.dump(categories, f, indent=4)
+
 
 # --- Transaction Loading & Saving ---
 def load_transactions_from_parquet() -> pd.DataFrame:
@@ -41,9 +43,11 @@ def load_transactions_from_parquet() -> pd.DataFrame:
         return pd.DataFrame(columns=['Date', 'Merchant', 'Amount'])
     return pd.read_parquet(TRANSACTIONS_FILE)
 
+
 def save_transactions_to_parquet(df: pd.DataFrame) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     df.to_parquet(TRANSACTIONS_FILE, index=False)
+
 
 def append_transactions(new_transactions: pd.DataFrame, suggest_categories: bool = False) -> None:
     """Appends new transactions to the main parquet file, handling duplicates."""
@@ -55,7 +59,6 @@ def append_transactions(new_transactions: pd.DataFrame, suggest_categories: bool
         if merchants_to_categorize:
             # Get all suggestions in a single API call
             suggested_categories = get_gemini_category_suggestions_for_merchants(merchants_to_categorize)
-            
             # Update the main categories dictionary with the new suggestions
             if suggested_categories:
                 categories.update(suggested_categories)
@@ -63,7 +66,6 @@ def append_transactions(new_transactions: pd.DataFrame, suggest_categories: bool
 
     existing_transactions = load_transactions_from_parquet()
     combined = pd.concat([existing_transactions, new_transactions], ignore_index=True)
-    
     # Standardize data types before dropping duplicates
     combined['Date'] = pd.to_datetime(combined['Date'])
     combined['Amount'] = pd.to_numeric(combined['Amount'], errors='coerce').fillna(0.0)
@@ -72,8 +74,8 @@ def append_transactions(new_transactions: pd.DataFrame, suggest_categories: bool
 
     # De-duplicate based on all columns
     combined.drop_duplicates(subset=['Date', 'Merchant', 'Amount'], inplace=True)
-    
     save_transactions_to_parquet(combined)
+
 
 def load_transactions_from_csvs() -> pd.DataFrame:
     """
@@ -114,7 +116,6 @@ def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:
     transactions_to_delete['Amount'] = pd.to_numeric(transactions_to_delete['Amount'], errors='coerce').fillna(0.0)
     transactions_to_delete['Amount'] = transactions_to_delete['Amount'].round(2)
     transactions_to_delete['Merchant'] = transactions_to_delete['Merchant'].astype(str)
-
 
     # Perform an anti-join to keep only the rows that are not in transactions_to_delete
     merged = pd.merge(existing_transactions, transactions_to_delete,

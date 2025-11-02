@@ -3,6 +3,7 @@ from pathlib import Path
 
 TRANSACTIONS_FILE = Path.home() / ".config" / "expenses_analyzer" / "transactions.parquet"
 
+
 def validate_parquet_file():
     """
     Validates the transactions.parquet file for data quality issues.

@@ -28,6 +28,7 @@ logging.basicConfig(
 logging.info("Application starting...")
 # ---
 
+
 class ExpensesApp(App):
     """A textual app to manage expenses."""
 

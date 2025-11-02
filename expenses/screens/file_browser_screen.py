@@ -3,6 +3,7 @@ from textual.widgets import DirectoryTree
 
 from expenses.screens.base_screen import BaseScreen
 
+
 class FileBrowserScreen(BaseScreen):
     """A screen for browsing files."""
 

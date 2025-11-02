@@ -20,6 +20,7 @@ logging.basicConfig(
 logging.info("Application starting...")
 # ---
 
+
 class ExpensesApp(App):
     """A textual app to manage expenses."""
 
@@ -59,6 +60,7 @@ class ExpensesApp(App):
         """An action to quit the app."""
         logging.info("Application shutting down.")
         self.exit()
+
 
 if __name__ == "__main__":
     app = ExpensesApp()

@@ -50,12 +50,14 @@ class SummaryScreen(BaseScreen):
                                 Horizontal(
                                     Vertical(
                                         Static("Category breakdown", classes="table_title"),
-                                        DataTable(id=f"category_breakdown_{year}_all", zebra_stripes=True),
+                                        DataTable(id=f"category_breakdown_{year}_all",
+                                                  zebra_stripes=True),
                                         classes="category-breakdown",
                                     ),
                                     Vertical(
                                         Static("Monthly Breakdown", classes="table_title"),
-                                        DataTable(id=f"monthly_breakdown_{year}_all", zebra_stripes=True),
+                                        DataTable(id=f"monthly_breakdown_{year}_all",
+                                                  zebra_stripes=True),
                                         classes="monthly-breakdown",
                                     ),
                                     classes="summary-grid"
@@ -69,7 +71,8 @@ class SummaryScreen(BaseScreen):
                             with TabPane(month_name, id=f"month_{year}_{month}"):
                                 yield Vertical(
                                     Static("Category breakdown", classes="table_title"),
-                                    DataTable(id=f"category_breakdown_{year}_{month}", zebra_stripes=True),
+                                    DataTable(id=f"category_breakdown_{year}_{month}",
+                                              zebra_stripes=True),
                                     classes="single_month_container"
                                 )
 
@@ -102,15 +105,13 @@ class SummaryScreen(BaseScreen):
         elif event.tabbed_content.id.startswith("month_tabs_"):
             year = int(event.tabbed_content.id.split("_")[2])
             pane_id = event.pane.id.split("_")
-            
+
             if pane_id[-1] == "all":
                 self.update_all_year_category_view(year)
                 self.update_all_year_monthly_view(year)
             else:
                 month = int(pane_id[2])
                 self.update_month_view(year, month)
-
-
 
     def update_all_year_category_view(self, year: int):
         """Populates the table in the 'All Year' tab."""
@@ -127,14 +128,13 @@ class SummaryScreen(BaseScreen):
             total = category_summary["Amount"].sum()
             table.add_row("[bold]Total[/bold]", f"[bold]{total:,.2f}[/bold]")
 
-
-
     def update_month_view(self, year: int, month: int):
         """Populates the left-hand table with a monthly category breakdown."""
         category_table = self.query_one(f"#category_breakdown_{year}_{month}", DataTable)
         category_table.clear(columns=True)
         category_table.add_columns("Category", "Amount")
-        month_df = self.transactions[(self.transactions["Date"].dt.year == year) & (self.transactions["Date"].dt.month == month)]
+        month_df = self.transactions[(self.transactions["Date"].dt.year == year) & (
+            self.transactions["Date"].dt.month == month)]
 
         if not month_df.empty:
             category_summary = month_df.groupby("Category")["Amount"].sum().reset_index()
@@ -166,7 +166,7 @@ class SummaryScreen(BaseScreen):
             for m in range(1, 13):
                 if m not in monthly_summary.columns:
                     monthly_summary[m] = 0
-            
+
             # Sort columns chronologically
             monthly_summary = monthly_summary[sorted(monthly_summary.columns)]
 
@@ -185,9 +185,9 @@ class SummaryScreen(BaseScreen):
 
             # Add a 'Total' row for the sum of each month
             month_columns = list(month_map.values())
-            total_row_data = monthly_summary[month_columns].sum() # Sum only month columns
-            total_row_data['Total'] = total_row_data.sum() # Calculate total of totals
-            total_row_data['Average'] = total_row_data['Total'] / 12 # Calculate average of totals
+            total_row_data = monthly_summary[month_columns].sum()  # Sum only month columns
+            total_row_data['Total'] = total_row_data.sum()  # Calculate total of totals
+            total_row_data['Average'] = total_row_data['Total'] / 12  # Calculate average of totals
             total_row_data.name = "[bold]Total[/bold]"
 
             # Set up table columns
@@ -195,7 +195,8 @@ class SummaryScreen(BaseScreen):
             table.add_columns(*columns)
 
             # Add the 'Total' row first
-            total_row_values = [total_row_data['Total'], total_row_data['Average']] + [total_row_data[col] for col in month_columns]
+            total_row_values = [total_row_data['Total'], total_row_data['Average']] + \
+                               [total_row_data[col] for col in month_columns]
             table.add_row(
                 total_row_data.name,
                 *[f"[bold]{val:,.2f}[/bold]" for val in total_row_values]
@@ -204,7 +205,8 @@ class SummaryScreen(BaseScreen):
             # Add the data for each category
             category_data = monthly_summary
             for category_name, row in category_data.iterrows():
-                row_values = [row['Total'], row['Average']] + [row[col] for col in month_columns]
+                row_values = [row['Total'], row['Average']] + \
+                             [row[col] for col in month_columns]
                 table.add_row(
                     category_name,
                     *[f"{val:,.2f}" for val in row_values]
@@ -216,7 +218,7 @@ class SummaryScreen(BaseScreen):
             table = self.query_one(f"#monthly_breakdown_{year}_all", DataTable)
             self._populate_monthly_breakdown(table, year)
         except Exception:
-            pass # Table might not exist yet
+            pass  # Table might not exist yet
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
         """Handle cell selection to navigate to the transaction screen."""
@@ -228,7 +230,7 @@ class SummaryScreen(BaseScreen):
         month_tabs_id = f"#month_tabs_{year}"
         month_tabs = self.query_one(month_tabs_id, TabbedContent)
         active_month_pane_id = month_tabs.active.split("_")
-        
+
         month = None
         if active_month_pane_id[-1] != "all":
             month = int(active_month_pane_id[-1])
@@ -250,4 +252,3 @@ class SummaryScreen(BaseScreen):
                 month=month
             )
         )
-

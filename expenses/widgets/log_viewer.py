@@ -1,6 +1,6 @@
-import asyncio
 from textual.widgets import RichLog
 from expenses.config import LOG_FILE
+
 
 class LogViewer(RichLog):
     """A widget to display log files, updating in real-time."""
@@ -15,7 +15,7 @@ class LogViewer(RichLog):
         # Ensure the log file exists
         if not self._log_file_path.exists():
             self._log_file_path.touch()
-            
+
         self.set_interval(0.5, self._check_for_updates)
 
     async def _check_for_updates(self) -> None:

@@ -1,13 +1,12 @@
 import logging
 import pandas as pd
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.widgets import Button, Static, Input, DataTable, Select, Checkbox
 from textual.containers import Vertical, VerticalScroll
-from textual.screen import Screen
-from textual.events import Event
 
 from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import clean_amount, append_transactions
+
 
 class ImportScreen(BaseScreen):
     """A screen for importing and mapping CSV data."""
@@ -22,7 +21,8 @@ class ImportScreen(BaseScreen):
             Static("Import CSV File", classes="title"),
             VerticalScroll(
                 Static("CSV File Path:"),
-                Input(placeholder="Press 'Browse' to select a file...", id="file_path_input", disabled=True),
+                Input(placeholder="Press 'Browse' to select a file...",
+                      id="file_path_input", disabled=True),
                 Button("Browse", id="browse_button"),
                 Static("File Preview:", classes="label", id="file_preview_label"),
                 DataTable(id="file_preview"),
@@ -31,7 +31,8 @@ class ImportScreen(BaseScreen):
                 Select([], id="date_select"),
                 Static("Merchant Column:"),
                 Select([], id="merchant_select"),
-                Checkbox("Suggest categories for new merchants with AI", id="suggest_categories_checkbox"),
+                Checkbox("Suggest categories for new merchants with AI",
+                         id="suggest_categories_checkbox"),
                 Static("Amount Column:"),
                 Select([], id="amount_select"),
                 Button("Import Transactions", id="import_button", disabled=True),
@@ -119,7 +120,7 @@ class ImportScreen(BaseScreen):
                 if not merchant_val or pd.isna(merchant_val) or str(merchant_val).strip() == "":
                     logging.warning(f"[Row {index}] SKIPPING: Merchant name is empty.")
                     continue
-                
+
                 # --- Amount Parsing ---
                 amount_val = clean_amount(pd.Series([row[amount_col]]))[0]
                 logging.info(f"[Row {index}] Cleaned amount: {amount_val}")
@@ -128,10 +129,12 @@ class ImportScreen(BaseScreen):
                 if amount_val >= 0:
                     logging.info(f"[Row {index}] SKIPPING: Amount is not a debit/expense (>= 0).")
                     continue
-                
+
                 # --- Special PayPal Debit Check ---
-                if 'Balance Impact' in self.df.columns and row['Balance Impact'] != 'Debit':
-                    logging.info(f"[Row {index}] SKIPPING: PayPal transaction is not a 'Debit'. Balance Impact was '{row['Balance Impact']}'.")
+                if 'Balance Impact' in self.df.columns and \
+                   row['Balance Impact'] != 'Debit':
+                    logging.info(f"[Row {index}] SKIPPING: PayPal transaction is not a 'Debit'. "
+                                 f"Balance Impact was '{row['Balance Impact']}'.")
                     continue
 
                 # --- Add to list ---

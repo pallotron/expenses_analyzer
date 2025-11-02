@@ -93,7 +93,8 @@ Browse through your individual transactions with ease. Filter by date, category,
 
 ![Categorize Screen](screenshots/CategorizeMerchants.svg)
 
-Easily categorize new merchants that the application hasn't seen before. You can assign categories quickly to keep your data organized.
+Easily categorize new merchants that the application hasn't seen before or move existing merchants to different categories. You can assign categories quickly to keep your data organized.
+Toggle multiple selections with the spacebar, enter the new category, and click "Apply Category" to update all selected merchants at once, once you are happy click "Save Changes" to persist the changes on disk.
 
 ## Importing Data
 

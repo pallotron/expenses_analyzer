@@ -1,7 +1,8 @@
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import Header, Footer
+from textual.widgets import Footer
 from textual.containers import Vertical
+
 
 class BaseScreen(Screen):
     """A base screen with a common header and footer."""

@@ -3,6 +3,7 @@ import os
 import json
 import logging
 
+
 def get_gemini_category_suggestions_for_merchants(merchant_names: list[str]) -> dict[str, str]:
     """
     Uses the Gemini API to suggest categories for a list of merchant names.

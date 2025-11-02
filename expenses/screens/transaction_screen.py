@@ -2,7 +2,7 @@ import logging
 import pandas as pd
 from textual.widgets import DataTable, Static, Input, Button
 from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal
+from textual.containers import Horizontal
 
 from expenses.data_handler import load_transactions_from_parquet, load_categories, delete_transactions
 from expenses.screens.base_screen import BaseScreen
@@ -41,7 +41,8 @@ class TransactionScreen(BaseScreen):
             Input(placeholder="Filter by Merchant...", id="merchant_filter"),
             Input(placeholder="Min Amount...", id="amount_min_filter"),
             Input(placeholder="Max Amount...", id="amount_max_filter"),
-            Input(placeholder="Filter by Category...", id="category_filter", value=self.filter_category or ""),
+            Input(placeholder="Filter by Category...", id="category_filter",
+                  value=self.filter_category or ""),
             id="filters",
         )
         yield Horizontal(
@@ -53,13 +54,14 @@ class TransactionScreen(BaseScreen):
 
     def on_mount(self) -> None:
         """Load data and populate the table when the screen is mounted."""
-        logging.info(f"TransactionScreen mounted with filters: year={self.filter_year}, month={self.filter_month}, category='{self.filter_category}'")
+        logging.info(f"TransactionScreen mounted with filters: year={self.filter_year}, "
+                     f"month={self.filter_month}, category='{self.filter_category}'")
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
 
         if not self.transactions.empty:
             self.transactions['Date'] = pd.to_datetime(self.transactions['Date'])
-        
+
         logging.info(f"Loaded {len(self.transactions)} total transactions.")
 
         # Apply initial filters from constructor
@@ -67,8 +69,6 @@ class TransactionScreen(BaseScreen):
             self.transactions = self.transactions[self.transactions['Date'].dt.year == self.filter_year]
         if self.filter_month:
             self.transactions = self.transactions[self.transactions['Date'].dt.month == self.filter_month]
-        
-        logging.info(f"Transactions after filtering: {len(self.transactions)}")
 
         self.populate_table()
 
@@ -92,6 +92,52 @@ class TransactionScreen(BaseScreen):
         """Called when any input's value changes to re-filter the table."""
         self.populate_table()
 
+    def _apply_filters_to_transactions(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Applies all filters from the input widgets to the transactions DataFrame."""
+        filtered_df = df.copy()
+
+        filter_configs = [
+            ("#date_min_filter", "Date", ">=", pd.to_datetime),
+            ("#date_max_filter", "Date", "<=", pd.to_datetime),
+            ("#merchant_filter", "Merchant", "contains", str),
+            ("#amount_min_filter", "Amount", ">=", float),
+            ("#amount_max_filter", "Amount", "<=", float),
+        ]
+
+        for css_id, column, op, converter in filter_configs:
+            value = self.query_one(css_id, Input).value
+            if not value:
+                continue
+
+            try:
+                converted_value = converter(value)
+                if op == ">=":
+                    filtered_df = filtered_df[filtered_df[column] >= converted_value]
+                elif op == "<=":
+                    filtered_df = filtered_df[filtered_df[column] <= converted_value]
+                elif op == "contains":
+                    filtered_df = filtered_df[
+                        filtered_df[column].str.contains(
+                            converted_value, case=False, na=False
+                        )
+                    ]
+            except (ValueError, TypeError):
+                pass
+
+        category_filter = self.query_one("#category_filter", Input).value
+        if category_filter:
+            # If the filter is the one passed from the summary, do an exact match
+            if category_filter == self.filter_category:
+                filtered_df = filtered_df[filtered_df["Category"] == category_filter]
+            # Otherwise, do a substring search for manual typing
+            else:
+                filtered_df = filtered_df[
+                    filtered_df["Category"].str.contains(
+                        category_filter, case=False, na=False
+                    )
+                ]
+        return filtered_df
+
     def populate_table(self) -> None:
         """Populate the transaction table with data, applying filters."""
         table = self.query_one("#transaction_table", DataTable)
@@ -110,53 +156,7 @@ class TransactionScreen(BaseScreen):
         )
 
         # --- Filtering ---
-        date_min_str = self.query_one("#date_min_filter", Input).value
-        date_max_str = self.query_one("#date_max_filter", Input).value
-        merchant_filter = self.query_one("#merchant_filter", Input).value
-        amount_min_str = self.query_one("#amount_min_filter", Input).value
-        amount_max_str = self.query_one("#amount_max_filter", Input).value
-        category_filter = self.query_one("#category_filter", Input).value
-
-        if date_min_str:
-            try:
-                date_min = pd.to_datetime(date_min_str)
-                display_df = display_df[display_df["Date"] >= date_min]
-            except ValueError:
-                pass  # Ignore invalid date values
-        if date_max_str:
-            try:
-                date_max = pd.to_datetime(date_max_str)
-                display_df = display_df[display_df["Date"] <= date_max]
-            except ValueError:
-                pass  # Ignore invalid date values
-
-        if merchant_filter:
-            display_df = display_df[
-                display_df["Merchant"].str.contains(merchant_filter, case=False, na=False)
-            ]
-        
-        if amount_min_str:
-            try:
-                amount_min = float(amount_min_str)
-                display_df = display_df[display_df["Amount"] >= amount_min]
-            except ValueError:
-                pass  # Ignore invalid float values
-        if amount_max_str:
-            try:
-                amount_max = float(amount_max_str)
-                display_df = display_df[display_df["Amount"] <= amount_max]
-            except ValueError:
-                pass # Ignore invalid float values
-
-        if category_filter:
-            # If the filter is the one passed from the summary, do an exact match
-            if category_filter == self.filter_category:
-                display_df = display_df[display_df["Category"] == category_filter]
-            # Otherwise, do a substring search for manual typing
-            else:
-                display_df = display_df[
-                    display_df["Category"].str.contains(category_filter, case=False, na=False)
-                ]
+        display_df = self._apply_filters_to_transactions(display_df)
 
         self.display_df = display_df
 
@@ -173,7 +173,8 @@ class TransactionScreen(BaseScreen):
         # --- Add Columns with Correct Headers and Widths ---
         column_widths = {"Date": 12, "Amount": 15, "Category": 20}
         for col_name in self.columns:
-            icon = " ▲" if self.sort_order == "asc" and col_name == self.sort_column else " ▼" if self.sort_order == "desc" and col_name == self.sort_column else ""
+            icon = (" ▲" if self.sort_order == "asc" and col_name == self.sort_column
+                    else " ▼" if self.sort_order == "desc" and col_name == self.sort_column else "")
             table.add_column(
                 f"{col_name}{icon}",
                 key=col_name,
@@ -219,7 +220,7 @@ class TransactionScreen(BaseScreen):
             if delete:
                 delete_transactions(transactions_to_delete)
                 self.selected_rows.clear()
-                self.on_screen_resume(None) # Reload data
+                self.on_screen_resume(None)  # Reload data
 
         count = len(transactions_to_delete)
         total = transactions_to_delete["Amount"].sum()

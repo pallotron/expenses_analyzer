@@ -7,7 +7,7 @@ from textual.widgets import (
     RadioSet,
     RadioButton,
 )
-from textual.containers import Vertical, Horizontal
+from textual.containers import Horizontal
 
 from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import (
@@ -105,7 +105,7 @@ class DeleteScreen(BaseScreen):
                 self.query_one("#preview_table", DataTable).clear()
                 self.query_one("#preview_summary").update("Transactions deleted.")
                 self.query_one("#delete_button", Button).disabled = True
-                self.app.push_screen("summary") # Refresh summary view
+                self.app.push_screen("summary")  # Refresh summary view
 
         count = len(self.preview_df)
         total = self.preview_df["Amount"].sum()

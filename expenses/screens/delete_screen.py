@@ -7,7 +7,7 @@ from textual.widgets import (
     RadioSet,
     RadioButton,
 )
-from textual.containers import Vertical, Horizontal
+from textual.containers import Horizontal
 
 from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import (
@@ -56,6 +56,23 @@ class DeleteScreen(BaseScreen):
         elif event.button.id == "delete_button":
             self.delete_transactions()
 
+    def _apply_date_filters(self, df: pd.DataFrame, date_min_str: str, date_max_str: str) -> pd.DataFrame:
+        """Applies date filters to the DataFrame."""
+        filtered_df = df.copy()
+        if date_min_str:
+            try:
+                date_min = pd.to_datetime(date_min_str)
+                filtered_df = filtered_df[filtered_df["Date"] >= date_min]
+            except ValueError:
+                pass  # Ignore invalid date values
+        if date_max_str:
+            try:
+                date_max = pd.to_datetime(date_max_str)
+                filtered_df = filtered_df[filtered_df["Date"] <= date_max]
+            except ValueError:
+                pass  # Ignore invalid date values
+        return filtered_df
+
     def preview_deletions(self):
         """Preview transactions that match the pattern within the given time frame."""
         pattern = self.query_one("#pattern_input", Input).value
@@ -63,27 +80,12 @@ class DeleteScreen(BaseScreen):
         date_min_str = self.query_one("#date_min_filter", Input).value
         date_max_str = self.query_one("#date_max_filter", Input).value
 
-        filtered_transactions = self.transactions.copy()
-
-        # Apply date filters first
-        if date_min_str:
-            try:
-                date_min = pd.to_datetime(date_min_str)
-                filtered_transactions = filtered_transactions[filtered_transactions["Date"] >= date_min]
-            except ValueError:
-                pass  # Ignore invalid date values
-        if date_max_str:
-            try:
-                date_max = pd.to_datetime(date_max_str)
-                filtered_transactions = filtered_transactions[filtered_transactions["Date"] <= date_max]
-            except ValueError:
-                pass  # Ignore invalid date values
+        filtered_transactions = self._apply_date_filters(self.transactions, date_min_str, date_max_str)
 
         # Apply merchant pattern filter
         if pattern:
             if pattern_type == "glob":
                 pattern = re.escape(pattern).replace("\\*", ".*")
-            
             try:
                 matching_transactions = filtered_transactions[
                     filtered_transactions["Merchant"].str.contains(pattern, case=False, na=False)
@@ -129,7 +131,7 @@ class DeleteScreen(BaseScreen):
                 self.query_one("#preview_table", DataTable).clear()
                 self.query_one("#preview_summary").update("Transactions deleted.")
                 self.query_one("#delete_button", Button).disabled = True
-                self.app.push_screen("summary") # Refresh summary view
+                self.app.push_screen("summary")  # Refresh summary view
 
         count = len(self.preview_df)
         total = self.preview_df["Amount"].sum()

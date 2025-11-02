@@ -1,12 +1,14 @@
-from typing import List, Dict, Set
+from typing import List, Dict
 import pandas as pd
 from textual.app import ComposeResult
-from textual.widgets import Static, Button, Input, Label, DataTable
+from textual.widgets import Static, Button, Input, DataTable
 from textual.containers import Vertical, Horizontal
 from textual.suggester import Suggester
+from textual.binding import Binding
 
 from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import load_transactions_from_parquet, load_categories, save_categories
+
 
 class SimpleWordSuggester(Suggester):
     """A simple suggester that suggests words from a predefined list."""
@@ -22,7 +24,6 @@ class SimpleWordSuggester(Suggester):
                 return word
         return None
 
-from textual.binding import Binding
 
 class CategorizeScreen(BaseScreen):
     """A screen for categorizing merchants."""
@@ -104,7 +105,6 @@ class CategorizeScreen(BaseScreen):
 
         filtered_data.sort(key=lambda x: x[self.sort_column].lower(), reverse=(self.sort_order == "desc"))
         self.merchant_data = filtered_data
-        
         self.selected_rows.clear()
         self.update_categorization_table()
         self.update_suggester()
@@ -155,7 +155,6 @@ class CategorizeScreen(BaseScreen):
         else:
             self.sort_column = column_name
             self.sort_order = "asc"
-        
         self.apply_filters_and_sort()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -167,7 +166,6 @@ class CategorizeScreen(BaseScreen):
                 for i in range(len(self.all_merchant_data)):
                     if self.all_merchant_data[i]["Merchant"] in selected_merchants:
                         self.all_merchant_data[i]["Category"] = new_category
-                
                 self.apply_filters_and_sort()
 
         elif event.button.id == "save_categories_button":

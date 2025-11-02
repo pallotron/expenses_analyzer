@@ -28,7 +28,7 @@ jobs:
     - name: Install dependencies
       run: |
         # Add uv to the PATH
-        source $HOME/.local/bin/env
+        export PATH="$HOME/.cargo/bin:$PATH"
         # Create a virtual environment
         uv venv
         # Install dependencies from requirements.txt

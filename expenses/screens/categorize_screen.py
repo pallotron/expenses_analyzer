@@ -1,4 +1,5 @@
 import pandas as pd
+from typing import List, Dict
 from textual.widgets import Static, Button, DataTable, Select
 from textual.containers import Vertical, Horizontal
 from textual.binding import Binding

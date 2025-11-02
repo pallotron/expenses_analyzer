@@ -1,10 +1,5 @@
 import pandas as pd
 import json
-from pathlib import Path
-from typing import Dict
-
-from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
-import json
 import importlib.resources
 from pathlib import Path
 from typing import Dict

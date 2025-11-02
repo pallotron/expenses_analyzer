@@ -1,4 +1,4 @@
-from expenses.app import ExpensesApp
+from .app import ExpensesApp
 
 
 def main() -> None:

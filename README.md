@@ -28,6 +28,10 @@ Please contribute if you can or report bugs/issues!
 
 ## Installation
 
+### System-Wide Installation
+
+With the project now packaged, you can install it system-wide using `pip`. This will add an `expenses-analyzer` command to your path.
+
 1. **Clone the repository:**
 
    ```bash
@@ -35,14 +39,68 @@ Please contribute if you can or report bugs/issues!
    cd expense-analyzer
    ```
 
-2. **Install `uv`:**
-   We recommend using `uv`, a fast Python package installer and resolver. If you don't have it, you can install it with Homebrew:
+2. **Install the package:**
+   For the best experience, it's recommended to install command-line tools with `pipx` to avoid dependency conflicts with other Python packages:
 
    ```bash
-   brew install uv
+   pipx install .
    ```
 
-3. **Ensure you have Python 3.12+:**
+   Alternatively, you can use `pip`:
+
+   ```bash
+   pip install .
+   ```
+
+3. **Run the application:**
+   You can now run the application from any directory:
+
+   ```bash
+   expenses-analyzer
+   ```
+
+### Developer Setup
+
+If you want to work on the code, you can follow the steps below to set up a development environment.
+
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/pallotron/expense-analyzer.git
+   cd expense-analyzer
+   ```
+
+2. **Ensure you have Python 3.12+:**
+
+   ```bash
+   python3 --version
+   ```
+
+3. **Create a virtual environment:**
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+4. **Install the dependencies:**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+#### Alternative Installation with `uv`
+
+If you have `uv` installed, you can follow these steps instead:
+
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/pallotron/expense-analyzer.git
+   cd expense-analyzer
+   ```
+
+2. **Ensure you have Python 3.12+:**
    You can check available Python versions with `uv`:
 
    ```bash
@@ -51,14 +109,14 @@ Please contribute if you can or report bugs/issues!
 
    If you don't have Python 3.12 or newer, please install it.
 
-4. **Create a virtual environment:**
+3. **Create a virtual environment:**
 
    ```bash
    uv venv
    source .venv/bin/activate
    ```
 
-5. **Install the dependencies:**
+4. **Install the dependencies:**
 
    ```bash
    uv pip install -r requirements.txt
@@ -66,10 +124,16 @@ Please contribute if you can or report bugs/issues!
 
 ## Usage
 
-To run the application, use the following command:
+To run the application after system-wide installation, simply use:
 
 ```bash
-uv run python expenses/app.py
+expenses-analyzer
+```
+
+If you are in a developer setup with `uv` activated, you can also use:
+
+```bash
+uv run expenses-analyzer
 ```
 
 ## Additional Tools

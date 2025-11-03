@@ -1,0 +1,4 @@
+# file: /Users/pallotron/code/expenses-analyzer/expenses/app.py
+# hypothesis_version: 6.145.0
+
+['Back', 'Categorize', 'Delete', 'Import', 'Quit', 'Summary', 'Transactions', '__main__', 'a', 'c', 'categorize', 'ctrl+q', 'd', 'delete', 'escape', 'file_browser', 'i', 'import', 'main.css', 'pop_screen', 'quit', 's', 'summary', 't', 'transactions', 'visible']

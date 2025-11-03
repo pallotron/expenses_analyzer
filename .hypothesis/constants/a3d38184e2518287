@@ -1,0 +1,4 @@
+# file: /Users/pallotron/code/expenses-analyzer/expenses/screens/summary_screen.py
+# hypothesis_version: 6.145.0
+
+[0.0, 100, 2000, '#year_tabs', '%B', '%b', '-', '=', 'All Year', 'Amount', 'Average', 'Bar', 'Category', 'Category breakdown', 'Date', 'Expenses Summary', 'MS', 'Merchant', 'Monthly Breakdown', 'Other', 'Percentage', 'Toggle Selection', 'Top Merchants', 'Total', '[bold]Total[/bold]', '_', 'all', 'black', 'category-breakdown', 'category_breakdown', 'dark_red', 'green', 'month_tabs_', 'monthly-breakdown', 'monthly_breakdown', 'red', 'space', 'sum', 'summary-grid', 'table_title', 'title', 'toggle_selection', 'transactions', 'year_tabs', 'yellow', '↑', '↓', '█', '░']

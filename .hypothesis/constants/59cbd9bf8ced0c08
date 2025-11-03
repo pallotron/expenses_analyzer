@@ -1,0 +1,4 @@
+# file: /Users/pallotron/code/expenses-analyzer/expenses/screens/delete_screen.py
+# hypothesis_version: 6.145.0
+
+['#date_max_filter', '#date_min_filter', '#delete_button', '#pattern_input', '#preview_summary', '#preview_table', '#regex_button', '%Y-%m-%d', '.*', '<=', '>=', 'Amount', 'Date', 'Delete Transactions', 'Glob', 'Merchant', 'Preview Deletions', 'Regex', '\\*', 'button-bar', 'coerce', 'date_max', 'date_max_filter', 'date_min', 'date_min_filter', 'delete_button', 'error', 'filter-bar', 'glob', 'glob_button', 'pattern_input', 'pattern_type', 'preview_button', 'preview_summary', 'preview_table', 'primary', 'regex', 'regex_button', 'summary', 'title']

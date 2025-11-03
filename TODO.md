@@ -13,17 +13,17 @@
 
 ### Testing & Quality Assurance
 
-- [x] Increase test coverage to 80%+ ✅ (currently 81%, 11 test files, 137 tests)
+- [x] Increase test coverage to 80%+ ✅ (currently 81%, 15 test files, 146 tests)
   - [x] Add tests for all screen components ✅
   - [x] Add tests for gemini_utils.py ✅
   - [x] Add tests for transaction_filter.py ✅
   - [x] Add integration tests for complete workflows ✅
   - [x] Add extended tests for transaction_screen.py ✅
   - [x] Add extended tests for data_handler.py ✅
-- [ ] Add test coverage reporting (pytest-cov)
-- [ ] Set up continuous integration test coverage badges
-- [ ] Add property-based testing for data handling functions
-- [ ] Add UI/TUI testing using Textual's testing framework
+- [x] Add test coverage reporting (pytest-cov) ✅
+- [x] Set up continuous integration test coverage badges ✅
+- [x] Add property-based testing for data handling functions ✅
+- [x] Add UI/TUI testing using Textual's testing framework ✅
 
 ### Data Integrity
 

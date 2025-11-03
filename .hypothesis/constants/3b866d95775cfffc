@@ -1,0 +1,4 @@
+# file: /Users/pallotron/code/expenses-analyzer/expenses/data_handler.py
+# hypothesis_version: 6.145.0
+
+[0.0, '-\\1', 'Amount', 'Date', 'Merchant', '[€$£,\\s]', '\\((.*)\\)', '_merge', 'coerce', 'expenses', 'left', 'left_only', 'r', 'w']

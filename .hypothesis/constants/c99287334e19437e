@@ -1,0 +1,4 @@
+# file: /Users/pallotron/code/expenses-analyzer/expenses/screens/import_screen.py
+# hypothesis_version: 6.145.0
+
+['#amount_select', '#date_select', '#file_path_input', '#file_preview', '#file_preview_label', '#import_button', '#map_columns_label', '#merchant_select', 'Amount', 'Amount Column:', 'Balance Impact', 'Browse', 'CSV File Path:', 'Date', 'Date Column:', 'Debit', 'File Preview:', 'Import CSV File', 'Import Transactions', 'Map Columns:', 'Merchant', 'Merchant Column:', 'amount_select', 'browse_button', 'coerce', 'date_select', 'file_browser', 'file_path_input', 'file_preview', 'file_preview_label', 'import_button', 'import_dialog', 'label', 'map_columns_label', 'merchant_select', 'title']

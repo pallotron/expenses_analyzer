@@ -25,6 +25,8 @@ dist/
 # Test output
 .pytest_cache/
 .coverage
+htmlcov/
+coverage.xml
 
 # uv lock file
 uv.lock

@@ -1,0 +1,4 @@
+# file: /Users/pallotron/code/expenses-analyzer/expenses/screens/transaction_screen.py
+# hypothesis_version: 6.145.0
+
+[' ▲', ' ▼', '#amount_max_filter', '#amount_min_filter', '#category_filter', '#date_max_filter', '#date_min_filter', '#merchant_filter', '#total_display', '#transaction_table', '%Y-%m-%d', '<=', '>=', 'Amount', 'Category', 'Date', 'Delete Selected', 'Max Amount...', 'Merchant', 'Min Amount...', 'Other', 'Toggle Selection', 'Total: 0.00', 'Transactions', 'amount_max', 'amount_max_filter', 'amount_min', 'amount_min_filter', 'asc', 'black', 'button-bar', 'category', 'category_filter', 'coerce', 'contains', 'date_max', 'date_max_filter', 'date_min', 'date_min_filter', 'delete_button', 'desc', 'error', 'filters', 'merchant', 'merchant_filter', 'space', 'title', 'toggle_selection', 'total', 'total_display', 'transaction_table', 'yellow']

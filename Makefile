@@ -6,7 +6,7 @@ BLACK := $(VENV_DIR)/bin/black
 PYTEST := $(VENV_DIR)/bin/pytest
 UV := uv
 
-.PHONY: all lint format test venv install
+.PHONY: all lint format test coverage venv install
 
 all: lint test
 
@@ -31,7 +31,7 @@ venv:
 	fi
 	@echo "Installing dependencies..."
 	$(UV) pip install -r requirements.txt
-	$(UV) pip install flake8 pytest black
+	$(UV) pip install flake8 pytest pytest-cov black hypothesis
 
 lint: venv
 	@echo "Running flake8 linting..."
@@ -45,3 +45,7 @@ format: venv
 test: venv
 	@echo "Running pytest tests..."
 	PYTHONPATH=. $(PYTEST)
+
+coverage: venv
+	@echo "Running pytest with coverage..."
+	PYTHONPATH=. $(PYTEST) --cov=expenses --cov-report=html --cov-report=term --cov-report=xml

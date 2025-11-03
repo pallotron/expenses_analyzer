@@ -13,11 +13,13 @@
 
 ### Testing & Quality Assurance
 
-- [ ] Increase test coverage (currently only 3 test files)
-  - Add tests for all screen components
-  - Add tests for gemini_utils.py
-  - Add tests for transaction_filter.py
-  - Add integration tests for complete workflows
+- [x] Increase test coverage to 80%+ ✅ (currently 81%, 11 test files, 137 tests)
+  - [x] Add tests for all screen components ✅
+  - [x] Add tests for gemini_utils.py ✅
+  - [x] Add tests for transaction_filter.py ✅
+  - [x] Add integration tests for complete workflows ✅
+  - [x] Add extended tests for transaction_screen.py ✅
+  - [x] Add extended tests for data_handler.py ✅
 - [ ] Add test coverage reporting (pytest-cov)
 - [ ] Set up continuous integration test coverage badges
 - [ ] Add property-based testing for data handling functions

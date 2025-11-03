@@ -6,9 +6,18 @@ BLACK := $(VENV_DIR)/bin/black
 PYTEST := $(VENV_DIR)/bin/pytest
 UV := uv
 
-.PHONY: all lint format test venv
+.PHONY: all lint format test venv install
 
 all: lint test
+
+install:
+	@echo "Installing with pipx..."
+	@if ! command -v pipx &> /dev/null; then \
+	    echo "pipx not found, installing..."; \
+	    python3 -m pip install --user pipx; \
+	    python3 -m pipx ensurepath; \
+	fi
+	pipx install . --force
 
 venv:
 	@echo "Setting up virtual environment..."

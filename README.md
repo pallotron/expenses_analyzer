@@ -40,16 +40,9 @@ With the project now packaged, you can install it system-wide using `pip`. This 
    ```
 
 2. **Install the package:**
-   For the best experience, it's recommended to install command-line tools with `pipx` to avoid dependency conflicts with other Python packages:
 
    ```bash
-   pipx install .
-   ```
-
-   Alternatively, you can use `pip`:
-
-   ```bash
-   pip install .
+   make install
    ```
 
 3. **Run the application:**
@@ -62,6 +55,8 @@ With the project now packaged, you can install it system-wide using `pip`. This 
 ### Developer Setup
 
 If you want to work on the code, you can follow the steps below to set up a development environment.
+
+As a convenience, you can also use `make install` which will create the virtual environment and install the required dependencies.
 
 1. **Clone the repository:**
 
@@ -89,53 +84,6 @@ If you want to work on the code, you can follow the steps below to set up a deve
    pip install -r requirements.txt
    ```
 
-#### Alternative Installation with `uv`
-
-If you have `uv` installed, you can follow these steps instead:
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/pallotron/expense-analyzer.git
-   cd expense-analyzer
-   ```
-
-2. **Ensure you have Python 3.12+:**
-   You can check available Python versions with `uv`:
-
-   ```bash
-   uv python list
-   ```
-
-   If you don't have Python 3.12 or newer, please install it.
-
-3. **Create a virtual environment:**
-
-   ```bash
-   uv venv
-   source .venv/bin/activate
-   ```
-
-4. **Install the dependencies:**
-
-   ```bash
-   uv pip install -r requirements.txt
-   ```
-
-## Usage
-
-To run the application after system-wide installation, simply use:
-
-```bash
-expenses-analyzer
-```
-
-If you are in a developer setup with `uv` activated, you can also use:
-
-```bash
-uv run expenses-analyzer
-```
-
 ## Additional Tools
 
 The project includes additional scripts in the `tools/` directory that can be used to interact with the application's data directly.
@@ -152,20 +100,24 @@ Here’s a glimpse of what Expense Analyzer looks like in action.
 
 ### Summary screen
 
-![Summary Screen](screenshots/Summary.svg)
+![Summary Screen](screenshots/summary.png)
+
+![Summary Screen](screenshots/summary-monthly.png)
 
 View your expenses summarized by year and month, with a breakdown by category.
 Cells are clickable to drill down into more detailed views.
+You can some bar charts to visualize your spending patterns over time.
+Trend indicators help you see how your spending is changing month over month.
 
 ### Transactions screen
 
-![Transactions Screen](screenshots/Transactions.svg)
+![Transactions Screen](screenshots/transactions.png)
 
 Browse through your individual transactions with ease. Filter by date, category, or merchant to find exactly what you're looking for.
 
 ### Categorization Screen
 
-![Categorize Screen](screenshots/CategorizeMerchants.svg)
+![Categorize Screen](screenshots/categorize-merchants.jpg)
 
 Easily categorize new merchants that the application hasn't seen before or move existing merchants to different categories. You can assign categories quickly to keep your data organized.
 Toggle multiple selections with the spacebar, enter the new category, and click "Apply Category" to update all selected merchants at once, once you are happy click "Save Changes" to persist the changes on disk.
@@ -176,7 +128,7 @@ To get started, you'll need to import your transaction data. The application sup
 
 1. **Navigate to the Import Screen**: Once the application is running, press `i` to go to the "Import" screen.
 
-   ![Import Screen](screenshots/Import-001-Start.svg)
+   ![Import Screen](screenshots/import-001-start.jpg)
 
 2. **Select your CSV file(s)**: Use the file browser to navigate to and select the CSV file(s) you wish to import.
 
@@ -184,7 +136,7 @@ To get started, you'll need to import your transaction data. The application sup
 
 3. **Map Columns**: The application will show a preview of your CSV and guide you through mapping your columns (e.g., 'Date', 'Merchant', 'Amount') to the application's internal fields.
 
-   ![Map Columns](screenshots/Import-003-CSV_File_Preview.svg)
+   ![Map Columns](screenshots/import-003-csv-preview.jpg)
 
 4. **Confirm Import**: After mapping the columns, review the transactions and confirm the import. New transactions will be added to your records.
 

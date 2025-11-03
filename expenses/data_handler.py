@@ -2,7 +2,6 @@ import logging
 import pandas as pd
 import json
 import importlib.resources
-from pathlib import Path
 from typing import Dict, List
 
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
@@ -115,34 +114,6 @@ def append_transactions(
     # De-duplicate based on all columns
     combined.drop_duplicates(subset=["Date", "Merchant", "Amount"], inplace=True)
     save_transactions_to_parquet(combined)
-
-
-def load_transactions_from_csvs() -> pd.DataFrame:
-    """
-    This function is for the initial summary view and should be replaced by
-    loading from the parquet file once data is imported.
-    """
-    root_dir = Path("./")
-    csv_files = list(root_dir.glob("*.csv"))
-
-    if not csv_files:
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount"])
-
-    # For simplicity in this initial phase, we'll just use the first CSV
-    # The import screen will handle proper mapping.
-    try:
-        df = pd.read_csv(csv_files[0])
-        # Basic cleaning, assuming column names for now
-        if "Date" in df.columns:
-            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-        if "Amount" in df.columns:
-            amount = clean_amount(df["Amount"])
-            if amount >= 0:
-                df["Amount"] = amount
-        return df
-    except Exception as e:
-        logging.error(f"Error loading CSV file: {e}")
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount"])
 
 
 def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:

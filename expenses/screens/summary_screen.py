@@ -13,6 +13,7 @@ from expenses.screens.base_screen import BaseScreen
 from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
 from expenses.data_handler import load_transactions_from_parquet, load_categories
 from expenses.analysis import calculate_trends
+from typing import Dict, Set, Optional, Any
 
 
 class SummaryScreen(BaseScreen, DataTableOperationsMixin):
@@ -22,15 +23,15 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         Binding("space", "toggle_selection", "Toggle Selection"),
     ]
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.load_and_prepare_data()
-        self.selected_rows = set()
+        self.selected_rows: Set[str] = set()
 
-    def load_and_prepare_data(self):
+    def load_and_prepare_data(self) -> None:
         """Loads and prepares transaction and category data."""
-        self.transactions = load_transactions_from_parquet()
-        self.categories = load_categories()
+        self.transactions: pd.DataFrame = load_transactions_from_parquet()
+        self.categories: Dict[str, str] = load_categories()
         if not self.transactions.empty:
             self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
             self.transactions["Category"] = (
@@ -116,7 +117,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             return
         self.call_after_refresh(self.update_initial_views)
 
-    def update_initial_views(self):
+    def update_initial_views(self) -> None:
         """Helper to populate the views after the initial layout is ready."""
         year_tabs = self.query_one("#year_tabs", TabbedContent)
         active_year_id = year_tabs.active
@@ -198,7 +199,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         num_blocks = int((amount / max_value) * bar_length)
         return "█" * num_blocks + "░" * (bar_length - num_blocks)
 
-    def update_all_year_category_view(self, year: int):
+    def update_all_year_category_view(self, year: int) -> None:
         """Populates the table in the 'All Year' tab."""
         table = self.query_one(f"#category_breakdown_{year}_all", DataTable)
         title_widget = self.query_one(
@@ -232,7 +233,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         title_widget.update(f"Category breakdown (Total: {total:,.2f})")
         table.move_cursor(row=cursor_row)
 
-    def update_month_view(self, year: int, month: int):
+    def update_month_view(self, year: int, month: int) -> None:
         """Populates the left-hand table with a monthly category breakdown."""
         category_table = self.query_one(
             f"#category_breakdown_{year}_{month}", DataTable
@@ -274,7 +275,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         title_widget.update(f"Category breakdown (Total: {total:,.2f})")
         category_table.move_cursor(row=cursor_row)
 
-    def update_top_merchants_view(self, year: int, month: int | None = None):
+    def update_top_merchants_view(self, year: int, month: Optional[int] = None) -> None:
         """Populates the top merchants table for a given period."""
         if month:
             table_id = f"top_merchants_{year}_{month}"
@@ -306,7 +307,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 category = self.categories.get(merchant, "Other")
                 table.add_row(merchant, category, f"{amount:,.2f}")
 
-    def _populate_monthly_breakdown(self, table: DataTable, year: int):
+    def _populate_monthly_breakdown(self, table: DataTable, year: int) -> None:
         """Helper function to populate a table with monthly breakdown data, with categories as rows."""
         try:
             table.clear(columns=True)
@@ -435,7 +436,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 f"An error occurred in _populate_monthly_breakdown: {e}", exc_info=True
             )
 
-    def update_all_year_monthly_view(self, year: int):
+    def update_all_year_monthly_view(self, year: int) -> None:
         """Populates the right-hand table in the 'All Year' tab."""
         try:
             table = self.query_one(f"#monthly_breakdown_{year}_all", DataTable)

@@ -2,6 +2,7 @@ import os
 from textual.app import ComposeResult
 from textual.widgets import DirectoryTree, Button
 from textual.containers import Vertical
+from typing import Any
 
 from expenses.screens.base_screen import BaseScreen
 

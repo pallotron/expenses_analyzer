@@ -1,12 +1,12 @@
 import pandas as pd
 from pathlib import Path
 
-TRANSACTIONS_FILE = (
+TRANSACTIONS_FILE: Path = (
     Path.home() / ".config" / "expenses_analyzer" / "transactions.parquet"
 )
 
 
-def validate_parquet_file():
+def validate_parquet_file() -> None:
     """
     Validates the transactions.parquet file for data quality issues.
     """

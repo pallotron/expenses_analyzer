@@ -2,13 +2,14 @@ import google.generativeai as genai
 import os
 import json
 import logging
+from typing import List, Dict
 
 from expenses.config import CATEGORIES_FILE
 
 
 def get_gemini_category_suggestions_for_merchants(
-    merchant_names: list[str],
-) -> dict[str, str]:
+    merchant_names: List[str],
+) -> Dict[str, str]:
     """
     Uses the Gemini API to suggest categories for a list of merchant names.
     """

@@ -4,6 +4,7 @@ from textual.app import ComposeResult
 from textual.widgets import Button, Static, Input, DataTable, Select, Checkbox
 from textual.containers import Vertical, VerticalScroll
 
+from typing import Any
 from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import clean_amount, append_transactions
 
@@ -11,10 +12,10 @@ from expenses.data_handler import clean_amount, append_transactions
 class ImportScreen(BaseScreen):
     """A screen for importing and mapping CSV data."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.file_path = None
-        self.df = None
+        self.file_path: str | None = None
+        self.df: pd.DataFrame | None = None
 
     def compose_content(self) -> ComposeResult:
         yield Vertical(
@@ -65,7 +66,7 @@ class ImportScreen(BaseScreen):
         elif event.button.id == "import_button":
             self.import_data()
 
-    def load_and_preview_csv(self):
+    def load_and_preview_csv(self) -> None:
         """Load the selected CSV, display a preview, and populate column selectors."""
         if not self.file_path:
             return
@@ -97,7 +98,7 @@ class ImportScreen(BaseScreen):
         except Exception as e:
             logging.error(f"Error loading file: {e}")
 
-    def import_data(self):
+    def import_data(self) -> None:
         """Process and import the transactions from the mapped columns."""
         if self.df is None:
             return

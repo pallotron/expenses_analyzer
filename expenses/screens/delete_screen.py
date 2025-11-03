@@ -17,15 +17,16 @@ from expenses.data_handler import (
 from expenses.transaction_filter import apply_filters
 import pandas as pd
 import re
+from typing import Any
 
 
 class DeleteScreen(BaseScreen):
     """A screen to delete transactions based on a merchant pattern."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.transactions = load_transactions_from_parquet()
-        self.preview_df = pd.DataFrame()
+        self.transactions: pd.DataFrame = load_transactions_from_parquet()
+        self.preview_df: pd.DataFrame = pd.DataFrame()
 
     def compose_content(self) -> ComposeResult:
         yield Static("Delete Transactions", classes="title")
@@ -62,9 +63,9 @@ class DeleteScreen(BaseScreen):
         if event.button.id == "preview_button":
             self.preview_deletions()
         elif event.button.id == "delete_button":
-            self.delete_transactions()
+            self.delete_transactions_method()
 
-    def preview_deletions(self):
+    def preview_deletions(self) -> None:
         """Preview transactions that match the pattern within the given time frame."""
         pattern = self.query_one("#pattern_input", Input).value
         pattern_type = (
@@ -121,7 +122,7 @@ class DeleteScreen(BaseScreen):
             )
             self.query_one("#delete_button", Button).disabled = True
 
-    def delete_transactions(self):
+    def delete_transactions_method(self) -> None:
         """Delete the previewed transactions after confirmation."""
         if self.preview_df.empty:
             return

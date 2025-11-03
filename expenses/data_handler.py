@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import importlib.resources
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
 from expenses.config import (
@@ -38,7 +38,7 @@ def load_categories() -> Dict[str, str]:
             return {}
 
 
-def load_default_categories() -> list[str]:
+def load_default_categories() -> List[str]:
     # User's custom default categories file takes precedence
     if DEFAULT_CATEGORIES_FILE.exists():
         with open(DEFAULT_CATEGORIES_FILE, "r") as f:

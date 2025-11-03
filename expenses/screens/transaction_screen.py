@@ -1,8 +1,10 @@
 import logging
 from expenses.transaction_filter import apply_filters
 import pandas as pd
+from typing import Dict
 from textual.widgets import DataTable, Static, Button
-from expenses.widgets.clearable_input import ClearableInput as Input
+from expenses.widgets.clearable_input import ClearableInput
+from textual.widgets import Input
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from rich.style import Style
@@ -16,7 +18,7 @@ from expenses.data_handler import (
 from expenses.screens.base_screen import BaseScreen
 from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
 from textual.binding import Binding
-
+from typing import Any
 
 from datetime import datetime
 
@@ -29,17 +31,19 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
     ]
 
     def __init__(
-        self, category: str = None, year: int = None, month: int = None, **kwargs
-    ):
+        self, category: str | None = None, year: int | None = None, month: int | None = None, **kwargs: Any
+    ) -> None:
         super().__init__(**kwargs)
-        self.filter_category = category
-        self.filter_year = year if year is not None else datetime.now().year
-        self.filter_month = month
-        self.columns = ["Date", "Merchant", "Amount", "Category"]
-        self.sort_column = "Date"
-        self.sort_order = "desc"
-        self.selected_rows = set()
-        self.display_df = pd.DataFrame()
+        self.filter_category: str | None = category
+        self.filter_year: int = year if year is not None else datetime.now().year
+        self.filter_month: int | None = month
+        self.columns: list[str] = ["Date", "Merchant", "Amount", "Category"]
+        self.sort_column: str = "Date"
+        self.sort_order: str = "desc"
+        self.selected_rows: set[int] = set()
+        self.display_df: pd.DataFrame = pd.DataFrame()
+        self.transactions: pd.DataFrame = pd.DataFrame()
+        self.categories: Dict[str, str] = {}
 
     def compose_content(self) -> ComposeResult:
         title = "Transactions"
@@ -50,12 +54,12 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         yield Static(title, classes="title")
         yield Horizontal(
-            Input(placeholder="Start Date (YYYY-MM-DD)", id="date_min_filter"),
-            Input(placeholder="End Date (YYYY-MM-DD)", id="date_max_filter"),
-            Input(placeholder="Filter by Merchant...", id="merchant_filter"),
-            Input(placeholder="Min Amount...", id="amount_min_filter"),
-            Input(placeholder="Max Amount...", id="amount_max_filter"),
-            Input(
+            ClearableInput(placeholder="Start Date (YYYY-MM-DD)", id="date_min_filter"),
+            ClearableInput(placeholder="End Date (YYYY-MM-DD)", id="date_max_filter"),
+            ClearableInput(placeholder="Filter by Merchant...", id="merchant_filter"),
+            ClearableInput(placeholder="Min Amount...", id="amount_min_filter"),
+            ClearableInput(placeholder="Max Amount...", id="amount_max_filter"),
+            ClearableInput(
                 placeholder="Filter by Category...",
                 id="category_filter",
                 value=self.filter_category or "",
@@ -84,10 +88,10 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             else:  # Year-to-date view
                 start_date = pd.Timestamp(f"{self.filter_year}-01-01")
                 end_date = pd.Timestamp(f"{self.filter_year}-12-31")
-            self.query_one("#date_min_filter", Input).value = start_date.strftime(
+            self.query_one("#date_min_filter", ClearableInput).value = start_date.strftime(
                 "%Y-%m-%d"
             )
-            self.query_one("#date_max_filter", Input).value = end_date.strftime(
+            self.query_one("#date_max_filter", ClearableInput).value = end_date.strftime(
                 "%Y-%m-%d"
             )
 
@@ -102,7 +106,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         self.populate_table()
         self.query_one("#transaction_table", DataTable).focus()
 
-    def on_screen_resume(self, event) -> None:
+    def on_screen_resume(self, event: Any) -> None:
         """Called when the screen is resumed, e.g., after an import."""
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
@@ -139,39 +143,39 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 "Date",
                 ">=",
                 pd.to_datetime(
-                    self.query_one("#date_min_filter", Input).value, errors="coerce"
+                    self.query_one("#date_min_filter", ClearableInput).value, errors="coerce"
                 ),
             ),
             "date_max": (
                 "Date",
                 "<=",
                 pd.to_datetime(
-                    self.query_one("#date_max_filter", Input).value, errors="coerce"
+                    self.query_one("#date_max_filter", ClearableInput).value, errors="coerce"
                 ),
             ),
             "merchant": (
                 "Merchant",
                 "contains",
-                self.query_one("#merchant_filter", Input).value,
+                self.query_one("#merchant_filter", ClearableInput).value,
             ),
             "amount_min": (
                 "Amount",
                 ">=",
                 pd.to_numeric(
-                    self.query_one("#amount_min_filter", Input).value, errors="coerce"
+                    self.query_one("#amount_min_filter", ClearableInput).value, errors="coerce"
                 ),
             ),
             "amount_max": (
                 "Amount",
                 "<=",
                 pd.to_numeric(
-                    self.query_one("#amount_max_filter", Input).value, errors="coerce"
+                    self.query_one("#amount_max_filter", ClearableInput).value, errors="coerce"
                 ),
             ),
             "category": (
                 "Category",
                 "contains",
-                self.query_one("#category_filter", Input).value,
+                self.query_one("#category_filter", ClearableInput).value,
             ),
         }
         display_df = self.transactions.copy()
@@ -253,7 +257,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         if event.button.id == "delete_button":
             self.delete_selected_transactions()
 
-    def delete_selected_transactions(self):
+    def delete_selected_transactions(self) -> None:
         """Delete the selected transactions after confirmation."""
         if not self.selected_rows:
             return

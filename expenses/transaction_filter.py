@@ -1,7 +1,8 @@
 import pandas as pd
+from typing import Dict, Tuple, Any
 
 
-def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
+def apply_filters(df: pd.DataFrame, filters: Dict[str, Tuple[str, str, Any]]) -> pd.DataFrame:
     """Applies a set of filters to a DataFrame.
 
     Args:

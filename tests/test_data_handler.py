@@ -1,12 +1,12 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pandas as pd
 from expenses.data_handler import clean_amount, append_transactions, delete_transactions
 
 
 class TestDataHandler(unittest.TestCase):
 
-    def test_clean_amount(self):
+    def test_clean_amount(self) -> None:
         # Test cases for the clean_amount function
         data = {
             "no_change": ["123.45", "67.89", "100"],
@@ -37,7 +37,7 @@ class TestDataHandler(unittest.TestCase):
 
     @patch("expenses.data_handler.load_transactions_from_parquet")
     @patch("expenses.data_handler.save_transactions_to_parquet")
-    def test_append_transactions_no_duplicates(self, mock_save, mock_load):
+    def test_append_transactions_no_duplicates(self, mock_save: MagicMock, mock_load: MagicMock) -> None:
         # Test appending new, unique transactions
         existing_df = pd.DataFrame(
             {
@@ -65,7 +65,7 @@ class TestDataHandler(unittest.TestCase):
 
     @patch("expenses.data_handler.load_transactions_from_parquet")
     @patch("expenses.data_handler.save_transactions_to_parquet")
-    def test_delete_single_transaction(self, mock_save, mock_load):
+    def test_delete_single_transaction(self, mock_save: MagicMock, mock_load: MagicMock) -> None:
         # Test deleting a single transaction
         existing_df = pd.DataFrame(
             {
@@ -90,7 +90,7 @@ class TestDataHandler(unittest.TestCase):
 
     @patch("expenses.data_handler.load_transactions_from_parquet")
     @patch("expenses.data_handler.save_transactions_to_parquet")
-    def test_delete_multiple_transactions(self, mock_save, mock_load):
+    def test_delete_multiple_transactions(self, mock_save: MagicMock, mock_load: MagicMock) -> None:
         # Test deleting multiple transactions
         existing_df = pd.DataFrame(
             {
@@ -115,7 +115,7 @@ class TestDataHandler(unittest.TestCase):
 
     @patch("expenses.data_handler.load_transactions_from_parquet")
     @patch("expenses.data_handler.save_transactions_to_parquet")
-    def test_delete_non_existent_transaction(self, mock_save, mock_load):
+    def test_delete_non_existent_transaction(self, mock_save: MagicMock, mock_load: MagicMock) -> None:
         # Test attempting to delete a transaction that doesn't exist
         existing_df = pd.DataFrame(
             {

@@ -1,4 +1,5 @@
 import logging
+from expenses.transaction_filter import apply_filters
 import pandas as pd
 from textual.widgets import DataTable, Static, Button
 from expenses.widgets.clearable_input import ClearableInput as Input
@@ -13,13 +14,14 @@ from expenses.data_handler import (
     delete_transactions,
 )
 from expenses.screens.base_screen import BaseScreen
+from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
 from textual.binding import Binding
 
 
 from datetime import datetime
 
 
-class TransactionScreen(BaseScreen):
+class TransactionScreen(BaseScreen, DataTableOperationsMixin):
     """The main screen for displaying all transactions."""
 
     BINDINGS = [
@@ -114,52 +116,6 @@ class TransactionScreen(BaseScreen):
         """Called when any input's value changes to re-filter the table."""
         self.populate_table()
 
-    def _apply_filters_to_transactions(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Applies all filters from the input widgets to the transactions DataFrame."""
-        filtered_df = df.copy()
-
-        filter_configs = [
-            ("#date_min_filter", "Date", ">=", pd.to_datetime),
-            ("#date_max_filter", "Date", "<=", pd.to_datetime),
-            ("#merchant_filter", "Merchant", "contains", str),
-            ("#amount_min_filter", "Amount", ">=", float),
-            ("#amount_max_filter", "Amount", "<=", float),
-        ]
-
-        for css_id, column, op, converter in filter_configs:
-            value = self.query_one(css_id, Input).value
-            if not value:
-                continue
-
-            try:
-                converted_value = converter(value)
-                if op == ">=":
-                    filtered_df = filtered_df[filtered_df[column] >= converted_value]
-                elif op == "<=":
-                    filtered_df = filtered_df[filtered_df[column] <= converted_value]
-                elif op == "contains":
-                    filtered_df = filtered_df[
-                        filtered_df[column].str.contains(
-                            converted_value, case=False, na=False
-                        )
-                    ]
-            except (ValueError, TypeError):
-                pass
-
-        category_filter = self.query_one("#category_filter", Input).value
-        if category_filter:
-            # If the filter is the one passed from the summary, do an exact match
-            if category_filter == self.filter_category:
-                filtered_df = filtered_df[filtered_df["Category"] == category_filter]
-            # Otherwise, do a substring search for manual typing
-            else:
-                filtered_df = filtered_df[
-                    filtered_df["Category"].str.contains(
-                        category_filter, case=False, na=False
-                    )
-                ]
-        return filtered_df
-
     def populate_table(self) -> None:
         """Populate the transaction table with data, applying filters."""
         table = self.query_one("#transaction_table", DataTable)
@@ -178,7 +134,52 @@ class TransactionScreen(BaseScreen):
         )
 
         # --- Filtering ---
-        display_df = self._apply_filters_to_transactions(display_df)
+        filters = {
+            "date_min": (
+                "Date",
+                ">=",
+                pd.to_datetime(
+                    self.query_one("#date_min_filter", Input).value, errors="coerce"
+                ),
+            ),
+            "date_max": (
+                "Date",
+                "<=",
+                pd.to_datetime(
+                    self.query_one("#date_max_filter", Input).value, errors="coerce"
+                ),
+            ),
+            "merchant": (
+                "Merchant",
+                "contains",
+                self.query_one("#merchant_filter", Input).value,
+            ),
+            "amount_min": (
+                "Amount",
+                ">=",
+                pd.to_numeric(
+                    self.query_one("#amount_min_filter", Input).value, errors="coerce"
+                ),
+            ),
+            "amount_max": (
+                "Amount",
+                "<=",
+                pd.to_numeric(
+                    self.query_one("#amount_max_filter", Input).value, errors="coerce"
+                ),
+            ),
+            "category": (
+                "Category",
+                "contains",
+                self.query_one("#category_filter", Input).value,
+            ),
+        }
+        display_df = self.transactions.copy()
+        display_df = apply_filters(display_df, filters)
+
+        display_df["Category"] = (
+            display_df["Merchant"].map(self.categories).fillna("Other")
+        )
 
         self.display_df = display_df
 
@@ -272,14 +273,6 @@ class TransactionScreen(BaseScreen):
             check_delete,
         )
 
-    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
-        """Handle header clicks to change sorting."""
-        column_name = self.columns[event.column_index]
-
-        if column_name == self.sort_column:
-            self.sort_order = "asc" if self.sort_order == "desc" else "desc"
-        else:
-            self.sort_column = column_name
-            self.sort_order = "asc"
-
+    def update_table(self) -> None:
+        """Update the table."""
         self.populate_table()

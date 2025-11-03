@@ -22,28 +22,5 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Install dependencies
-        run: |
-          # Add uv to the PATH
-          export PATH="$HOME/.cargo/bin:$PATH"
-          # Create a virtual environment
-          uv venv
-          # Install dependencies from requirements.txt
-          uv pip install -r requirements.txt
-          # Install testing and linting tools
-          uv pip install flake8 pytest
-
-      - name: Lint with flake8
-        run: |
-          source .venv/bin/activate
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=110 --statistics
-
-      - name: Test with pytest
-        run: |
-          source .venv/bin/activate
-          export PYTHONPATH=$GITHUB_WORKSPACE
-          pytest
+      - name: Lint and Test
+        run: make all

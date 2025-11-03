@@ -57,7 +57,9 @@ def load_default_categories() -> list[str]:
                 with open(DEFAULT_CATEGORIES_FILE, "w") as user_f:
                     json.dump(default_categories, user_f, indent=4)
             except IOError:
-                logging.warning("Could not save default categories to user config directory.")
+                logging.warning(
+                    "Could not save default categories to user config directory."
+                )
             return default_categories
     except (FileNotFoundError, json.JSONDecodeError):
         return []

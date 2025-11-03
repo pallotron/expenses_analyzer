@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+
 def calculate_trends(data: List[float]) -> List[Tuple[float, str]]:
     """
     Calculates the trend for a series of numbers by comparing each number
@@ -15,15 +16,15 @@ def calculate_trends(data: List[float]) -> List[Tuple[float, str]]:
     if not data:
         return []
 
-    trends = [(data[0], '-')]  # First item has no trend
+    trends = [(data[0], "-")]  # First item has no trend
     for i in range(1, len(data)):
-        previous = data[i-1]
+        previous = data[i - 1]
         current = data[i]
         if current > previous:
-            trend = '↑'
+            trend = "↑"
         elif current < previous:
-            trend = '↓'
+            trend = "↓"
         else:
-            trend = '='
+            trend = "="
         trends.append((current, trend))
     return trends

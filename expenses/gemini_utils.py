@@ -31,7 +31,9 @@ def get_gemini_category_suggestions_for_merchants(
                     existing_categories = data["categories"]
                 elif isinstance(data, list):
                     existing_categories = data
-            logging.info(f"Loaded {len(existing_categories)} existing categories from {CATEGORIES_FILE}.")
+            logging.info(
+                f"Loaded {len(existing_categories)} existing categories from {CATEGORIES_FILE}."
+            )
         except json.JSONDecodeError as e:
             logging.error(f"Error decoding categories.json: {e}")
         except Exception as e:

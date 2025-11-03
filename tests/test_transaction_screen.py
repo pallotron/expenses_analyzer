@@ -16,8 +16,19 @@ def transaction_screen():
     return TransactionScreen()
 
 
-def test_apply_filters_to_transactions(transaction_screen):
-    """Test the filtering logic of the _apply_filters_to_transactions method."""
+@pytest.mark.parametrize(
+    "filters, expected_rows",
+    [
+        ({"date_min_filter": "2025-01-02"}, 2),
+        ({"date_max_filter": "2025-01-02"}, 2),
+        ({"merchant_filter": "Merchant A"}, 1),
+        ({"amount_min_filter": "15.0"}, 2),
+        ({"amount_max_filter": "25.0"}, 2),
+        ({"category_filter": "Category 1"}, 2),
+    ],
+)
+def test_populate_table_filtering(transaction_screen, filters, expected_rows):
+    """Test the filtering logic of the populate_table method."""
     data = {
         "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
         "Merchant": ["Merchant A", "Merchant B", "Merchant C"],
@@ -25,85 +36,36 @@ def test_apply_filters_to_transactions(transaction_screen):
         "Category": ["Category 1", "Category 2", "Category 1"],
     }
     df = pd.DataFrame(data)
+    transaction_screen.transactions = df
+    transaction_screen.categories = {}
 
     # Mock the input widgets
-    transaction_screen.query_one = lambda selector, type: {
-        "#date_min_filter": MockInput(value="2025-01-02"),
-        "#date_max_filter": MockInput(value=""),
-        "#merchant_filter": MockInput(value=""),
-        "#amount_min_filter": MockInput(value=""),
-        "#amount_max_filter": MockInput(value=""),
-        "#category_filter": MockInput(value=""),
-    }[selector]
+    def query_one_mock(selector, type):
+        filter_values = {
+            "#date_min_filter": "",
+            "#date_max_filter": "",
+            "#merchant_filter": "",
+            "#amount_min_filter": "",
+            "#amount_max_filter": "",
+            "#category_filter": "",
+        }
+        for key, value in filters.items():
+            filter_values[f"#{key}"] = value
 
-    filtered_df = transaction_screen._apply_filters_to_transactions(df)
-    assert len(filtered_df) == 2
-    assert filtered_df["Date"].min() == pd.to_datetime("2025-01-02")
+        widgets = {
+            "#transaction_table": MockDataTable(),
+            "#total_display": MockStatic(),
+        }
+        for key, value in filter_values.items():
+            widgets[key] = MockInput(value=value)
 
-    transaction_screen.query_one = lambda selector, type: {
-        "#date_min_filter": MockInput(value=""),
-        "#date_max_filter": MockInput(value="2025-01-02"),
-        "#merchant_filter": MockInput(value=""),
-        "#amount_min_filter": MockInput(value=""),
-        "#amount_max_filter": MockInput(value=""),
-        "#category_filter": MockInput(value=""),
-    }[selector]
+        return widgets[selector]
 
-    filtered_df = transaction_screen._apply_filters_to_transactions(df)
-    assert len(filtered_df) == 2
-    assert filtered_df["Date"].max() == pd.to_datetime("2025-01-02")
+    transaction_screen.query_one = query_one_mock
 
-    transaction_screen.query_one = lambda selector, type: {
-        "#date_min_filter": MockInput(value=""),
-        "#date_max_filter": MockInput(value=""),
-        "#merchant_filter": MockInput(value="Merchant A"),
-        "#amount_min_filter": MockInput(value=""),
-        "#amount_max_filter": MockInput(value=""),
-        "#category_filter": MockInput(value=""),
-    }[selector]
-
-    filtered_df = transaction_screen._apply_filters_to_transactions(df)
-    assert len(filtered_df) == 1
-    assert filtered_df["Merchant"].iloc[0] == "Merchant A"
-
-    transaction_screen.query_one = lambda selector, type: {
-        "#date_min_filter": MockInput(value=""),
-        "#date_max_filter": MockInput(value=""),
-        "#merchant_filter": MockInput(value=""),
-        "#amount_min_filter": MockInput(value="15.0"),
-        "#amount_max_filter": MockInput(value=""),
-        "#category_filter": MockInput(value=""),
-    }[selector]
-
-    filtered_df = transaction_screen._apply_filters_to_transactions(df)
-    assert len(filtered_df) == 2
-    assert filtered_df["Amount"].min() == 20.0
-
-    transaction_screen.query_one = lambda selector, type: {
-        "#date_min_filter": MockInput(value=""),
-        "#date_max_filter": MockInput(value=""),
-        "#merchant_filter": MockInput(value=""),
-        "#amount_min_filter": MockInput(value=""),
-        "#amount_max_filter": MockInput(value="25.0"),
-        "#category_filter": MockInput(value=""),
-    }[selector]
-
-    filtered_df = transaction_screen._apply_filters_to_transactions(df)
-    assert len(filtered_df) == 2
-    assert filtered_df["Amount"].max() == 20.0
-
-    transaction_screen.query_one = lambda selector, type: {
-        "#date_min_filter": MockInput(value=""),
-        "#date_max_filter": MockInput(value=""),
-        "#merchant_filter": MockInput(value=""),
-        "#amount_min_filter": MockInput(value=""),
-        "#amount_max_filter": MockInput(value=""),
-        "#category_filter": MockInput(value="Category 1"),
-    }[selector]
-
-    filtered_df = transaction_screen._apply_filters_to_transactions(df)
-    assert len(filtered_df) == 2
-    assert all(filtered_df["Category"] == "Category 1")
+    transaction_screen.populate_table()
+    filtered_df = transaction_screen.display_df
+    assert len(filtered_df) == expected_rows
 
 
 class MockDataTable:

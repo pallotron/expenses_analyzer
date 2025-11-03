@@ -8,6 +8,7 @@ from rich.style import Style
 from rich.text import Text
 
 from expenses.screens.base_screen import BaseScreen
+from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
 from expenses.data_handler import (
     load_transactions_from_parquet,
     load_categories,
@@ -17,7 +18,7 @@ from expenses.data_handler import (
 from expenses.widgets.clearable_input import ClearableInput as Input
 
 
-class CategorizeScreen(BaseScreen):
+class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
     """A screen for categorizing merchants."""
 
     BINDINGS = [
@@ -93,9 +94,9 @@ class CategorizeScreen(BaseScreen):
         else:
             self.all_merchant_data = []
 
-        self.apply_filters_and_sort()
+        self.populate_table()
 
-    def apply_filters_and_sort(self) -> None:
+    def populate_table(self) -> None:
         """Apply filters and sorting to the merchant data."""
         merchant_filter = self.query_one("#merchant_filter", Input).value.lower()
         category_filter = self.query_one("#category_filter", Input).value.lower()
@@ -120,19 +121,19 @@ class CategorizeScreen(BaseScreen):
         )
         self.merchant_data = filtered_data
         self.selected_rows.clear()
-        self.update_categorization_table()
+        self.update_table()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle changes to the filter inputs."""
         if event.input.id in ("merchant_filter", "category_filter"):
-            self.apply_filters_and_sort()
+            self.populate_table()
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Handle changes to the category select."""
         if event.select.id == "category_select":
             self.query_one("#category_input", Input).value = str(event.value)
 
-    def update_categorization_table(self) -> None:
+    def update_table(self) -> None:
         table = self.query_one("#categorization_table", DataTable)
         # Preserve cursor position
         cursor_row = table.cursor_row
@@ -156,26 +157,6 @@ class CategorizeScreen(BaseScreen):
         if self.merchant_data:
             table.move_cursor(row=cursor_row)
 
-    def action_toggle_selection(self) -> None:
-        """Toggle selection for the current row."""
-        table = self.query_one("#categorization_table", DataTable)
-        if table.cursor_row is not None:
-            if table.cursor_row in self.selected_rows:
-                self.selected_rows.remove(table.cursor_row)
-            else:
-                self.selected_rows.add(table.cursor_row)
-            self.update_categorization_table()
-
-    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
-        """Handle column header presses for sorting."""
-        column_name = str(event.label)
-        if column_name == self.sort_column:
-            self.sort_order = "desc" if self.sort_order == "asc" else "asc"
-        else:
-            self.sort_column = column_name
-            self.sort_order = "asc"
-        self.apply_filters_and_sort()
-
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "apply_button":
             new_category = self.query_one("#category_input", Input).value.strip()
@@ -187,7 +168,7 @@ class CategorizeScreen(BaseScreen):
                 for i in range(len(self.all_merchant_data)):
                     if self.all_merchant_data[i]["Merchant"] in selected_merchants:
                         self.all_merchant_data[i]["Category"] = new_category
-                self.apply_filters_and_sort()
+                self.populate_table()
 
         elif event.button.id == "save_categories_button":
             # Convert merchant_data back to the dictionary format for saving

@@ -14,6 +14,7 @@ from expenses.data_handler import (
     load_transactions_from_parquet,
     delete_transactions,
 )
+from expenses.transaction_filter import apply_filters
 import pandas as pd
 import re
 
@@ -63,25 +64,6 @@ class DeleteScreen(BaseScreen):
         elif event.button.id == "delete_button":
             self.delete_transactions()
 
-    def _apply_date_filters(
-        self, df: pd.DataFrame, date_min_str: str, date_max_str: str
-    ) -> pd.DataFrame:
-        """Applies date filters to the DataFrame."""
-        filtered_df = df.copy()
-        if date_min_str:
-            try:
-                date_min = pd.to_datetime(date_min_str)
-                filtered_df = filtered_df[filtered_df["Date"] >= date_min]
-            except ValueError:
-                pass  # Ignore invalid date values
-        if date_max_str:
-            try:
-                date_max = pd.to_datetime(date_max_str)
-                filtered_df = filtered_df[filtered_df["Date"] <= date_max]
-            except ValueError:
-                pass  # Ignore invalid date values
-        return filtered_df
-
     def preview_deletions(self):
         """Preview transactions that match the pattern within the given time frame."""
         pattern = self.query_one("#pattern_input", Input).value
@@ -91,9 +73,12 @@ class DeleteScreen(BaseScreen):
         date_min_str = self.query_one("#date_min_filter", Input).value
         date_max_str = self.query_one("#date_max_filter", Input).value
 
-        filtered_transactions = self._apply_date_filters(
-            self.transactions, date_min_str, date_max_str
-        )
+        filters = {
+            "date_min": ("Date", ">=", pd.to_datetime(date_min_str, errors="coerce")),
+            "date_max": ("Date", "<=", pd.to_datetime(date_max_str, errors="coerce")),
+        }
+
+        filtered_transactions = apply_filters(self.transactions, filters)
 
         # Apply merchant pattern filter
         if pattern:

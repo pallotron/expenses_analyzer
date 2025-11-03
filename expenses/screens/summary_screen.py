@@ -10,11 +10,12 @@ from rich.style import Style
 from rich.text import Text
 
 from expenses.screens.base_screen import BaseScreen
+from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
 from expenses.data_handler import load_transactions_from_parquet, load_categories
 from expenses.analysis import calculate_trends
 
 
-class SummaryScreen(BaseScreen):
+class SummaryScreen(BaseScreen, DataTableOperationsMixin):
     """A summary screen with transactions per year and month."""
 
     BINDINGS = [
@@ -490,3 +491,17 @@ class SummaryScreen(BaseScreen):
         self.app.push_screen(
             self.app.SCREENS["transactions"](category=category, year=year, month=month)
         )
+
+    def update_table(self) -> None:
+        """Update the table."""
+        year_tabs = self.query_one("#year_tabs", TabbedContent)
+        year = int(year_tabs.active.split("_")[1])
+        month_tabs = self.query_one(f"#month_tabs_{year}", TabbedContent)
+        active_month_pane_id = month_tabs.active.split("_")
+
+        if active_month_pane_id[-1] == "all":
+            self.update_all_year_category_view(year)
+            self.update_all_year_monthly_view(year)
+        else:
+            month = int(active_month_pane_id[-1])
+            self.update_month_view(year, month)

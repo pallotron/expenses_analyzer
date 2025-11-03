@@ -3,6 +3,8 @@ import os
 import json
 import logging
 
+from expenses.config import CATEGORIES_FILE
+
 
 def get_gemini_category_suggestions_for_merchants(
     merchant_names: list[str],
@@ -19,13 +21,37 @@ def get_gemini_category_suggestions_for_merchants(
 
     model = genai.GenerativeModel("gemini-flash-latest")
 
+    # Load existing categories from config file
+    existing_categories = []
+    if CATEGORIES_FILE.exists():
+        try:
+            with open(CATEGORIES_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and "categories" in data:
+                    existing_categories = data["categories"]
+                elif isinstance(data, list):
+                    existing_categories = data
+            logging.info(f"Loaded {len(existing_categories)} existing categories from {CATEGORIES_FILE}.")
+        except json.JSONDecodeError as e:
+            logging.error(f"Error decoding categories.json: {e}")
+        except Exception as e:
+            logging.error(f"Error reading categories.json: {e}")
+
+    category_guidance = ""
+    if existing_categories:
+        category_guidance = (
+            "Please use one of the following categories if appropriate: "
+            + ", ".join(existing_categories)
+            + ". If none are suitable, you may suggest a new, concise category."
+        )
+
     # Create a formatted string of merchant names
     merchant_list_str = "\n".join([f"- {name}" for name in merchant_names])
 
     prompt = f"""
     You are an AI assistant that categorizes merchant names for personal finance tracking.
     Given a list of merchant names, return a single JSON object that maps each merchant name
-    to a concise, relevant category.
+    to a concise, relevant category. {category_guidance}
 
     Example Input:
     - Starbucks

@@ -22,7 +22,7 @@ if not LOG_FILE.exists():
 # --- Logging Setup ---
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
     filename=LOG_FILE,
     filemode="a",
 )

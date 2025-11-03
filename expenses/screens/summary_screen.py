@@ -10,6 +10,7 @@ from rich.text import Text
 
 from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import load_transactions_from_parquet, load_categories
+from expenses.analysis import calculate_trends
 
 
 class SummaryScreen(BaseScreen):
@@ -67,6 +68,11 @@ class SummaryScreen(BaseScreen):
                                             id=f"category_breakdown_{year}_all",
                                             zebra_stripes=True,
                                         ),
+                                        Static("Top Merchants", classes="table_title"),
+                                        DataTable(
+                                            id=f"top_merchants_{year}_all",
+                                            zebra_stripes=True,
+                                        ),
                                         classes="category-breakdown",
                                     ),
                                     Vertical(
@@ -94,6 +100,11 @@ class SummaryScreen(BaseScreen):
                                         id=f"category_breakdown_{year}_{month}",
                                         zebra_stripes=True,
                                     ),
+                                    Static("Top Merchants", classes="table_title"),
+                                    DataTable(
+                                        id=f"top_merchants_{year}_{month}",
+                                        zebra_stripes=True,
+                                    ),
                                     classes="single_month_container",
                                 )
 
@@ -111,6 +122,7 @@ class SummaryScreen(BaseScreen):
             year = int(active_year_id.split("_")[1])
             self.update_all_year_category_view(year)
             self.update_all_year_monthly_view(year)
+            self.update_top_merchants_view(year)
             self.query_one(f"#category_breakdown_{year}_all", DataTable).focus()
 
     def on_tabbed_content_tab_activated(
@@ -123,6 +135,7 @@ class SummaryScreen(BaseScreen):
             year = int(event.pane.id.split("_")[1])
             self.update_all_year_category_view(year)
             self.update_all_year_monthly_view(year)
+            self.update_top_merchants_view(year)
 
         elif event.tabbed_content.id.startswith("month_tabs_"):
             year = int(event.tabbed_content.id.split("_")[2])
@@ -131,9 +144,11 @@ class SummaryScreen(BaseScreen):
             if pane_id[-1] == "all":
                 self.update_all_year_category_view(year)
                 self.update_all_year_monthly_view(year)
+                self.update_top_merchants_view(year)
             else:
                 month = int(pane_id[2])
                 self.update_month_view(year, month)
+                self.update_top_merchants_view(year, month)
 
     def action_toggle_selection(self) -> None:
         """Toggle selection for the current row in the focused table."""
@@ -171,6 +186,16 @@ class SummaryScreen(BaseScreen):
             month = int(active_month_pane_id[-1])
             self.update_month_view(year, month)
 
+    def _get_spending_bar(
+        self, amount: float, max_value: float, bar_length: int = 20
+    ) -> str:
+        """Generates a text-based spending bar."""
+        if max_value == 0:
+            return " " * bar_length
+
+        num_blocks = int((amount / max_value) * bar_length)
+        return "█" * num_blocks + "░" * (bar_length - num_blocks)
+
     def update_all_year_category_view(self, year: int):
         """Populates the table in the 'All Year' tab."""
         table = self.query_one(f"#category_breakdown_{year}_all", DataTable)
@@ -179,7 +204,7 @@ class SummaryScreen(BaseScreen):
         )
         cursor_row = table.cursor_row
         table.clear(columns=True)
-        table.add_columns("Category", "Amount")
+        table.add_columns("Category", "Amount", "Percentage")
 
         year_df = self.transactions[self.transactions["Date"].dt.year == year]
         total = 0.0
@@ -189,17 +214,18 @@ class SummaryScreen(BaseScreen):
                 by="Amount", ascending=False
             )
 
+            total = category_summary["Amount"].sum()
             selected_style = Style(bgcolor="yellow", color="black")
             for _, row in category_summary.iterrows():
                 category = row["Category"]
                 style = selected_style if category in self.selected_rows else ""
+                percentage = (row["Amount"] / total) * 100 if total > 0 else 0
                 styled_row = [
                     Text(category, style=style),
                     Text(f"{row['Amount']:,.2f}", style=style),
+                    Text(f"{percentage:.2f}%", style=style),
                 ]
                 table.add_row(*styled_row, key=category)
-
-            total = category_summary["Amount"].sum()
 
         title_widget.update(f"Category breakdown (Total: {total:,.2f})")
         table.move_cursor(row=cursor_row)
@@ -212,7 +238,7 @@ class SummaryScreen(BaseScreen):
         title_widget = self.query_one(f"#month_{year}_{month} .table_title", Static)
         cursor_row = category_table.cursor_row
         category_table.clear(columns=True)
-        category_table.add_columns("Category", "Amount")
+        category_table.add_columns("Category", "Amount", "Percentage", "Bar")
         month_df = self.transactions[
             (self.transactions["Date"].dt.year == year)
             & (self.transactions["Date"].dt.month == month)
@@ -227,20 +253,55 @@ class SummaryScreen(BaseScreen):
                 by="Amount", ascending=False
             )
 
+            total = category_summary["Amount"].sum()
+            max_amount = category_summary["Amount"].max()
             selected_style = Style(bgcolor="yellow", color="black")
             for _, row in category_summary.iterrows():
                 category = row["Category"]
                 style = selected_style if category in self.selected_rows else ""
+                percentage = (row["Amount"] / total) * 100 if total > 0 else 0
+                bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=50)
                 styled_row = [
                     Text(category, style=style),
                     Text(f"{row['Amount']:,.2f}", style=style),
+                    Text(f"{percentage:.2f}%", style=style),
+                    Text(bar, style=style),
                 ]
                 category_table.add_row(*styled_row, key=category)
 
-            total = category_summary["Amount"].sum()
-
         title_widget.update(f"Category breakdown (Total: {total:,.2f})")
         category_table.move_cursor(row=cursor_row)
+
+    def update_top_merchants_view(self, year: int, month: int | None = None):
+        """Populates the top merchants table for a given period."""
+        if month:
+            table_id = f"top_merchants_{year}_{month}"
+            df = self.transactions[
+                (self.transactions["Date"].dt.year == year)
+                & (self.transactions["Date"].dt.month == month)
+            ]
+        else:
+            table_id = f"top_merchants_{year}_all"
+            df = self.transactions[self.transactions["Date"].dt.year == year]
+
+        try:
+            table = self.query_one(f"#{table_id}", DataTable)
+        except Exception:
+            return  # Table might not exist yet
+
+        table.clear(columns=True)
+        table.add_columns("Merchant", "Category", "Amount")
+
+        if not df.empty:
+            merchant_summary = (
+                df.groupby("Merchant")["Amount"]
+                .sum()
+                .sort_values(ascending=False)
+                .head(10)
+            )
+            for merchant, amount in merchant_summary.items():
+                category = self.categories.get(merchant, "Other")
+                table.add_row(merchant, category, f"{amount:,.2f}")
 
     def _populate_monthly_breakdown(self, table: DataTable, year: int):
         """Helper function to populate a table with monthly breakdown data, with categories as rows."""
@@ -272,8 +333,14 @@ class SummaryScreen(BaseScreen):
             # Add a 'Total' column for the year-to-date sum for each category
             monthly_summary["Total"] = monthly_summary.sum(axis=1)
 
-            # Add an 'Average' column
-            monthly_summary["Average"] = monthly_summary["Total"] / 12
+            # Count months with spending for each category to calculate a more accurate average
+            month_columns_for_avg = list(month_map.values())
+            non_zero_months = (monthly_summary[month_columns_for_avg] > 0).sum(axis=1)
+
+            # Add an 'Average' column, avoiding division by zero
+            monthly_summary["Average"] = (
+                monthly_summary["Total"].divide(non_zero_months).fillna(0)
+            )
 
             # Sort by total in descending order
             monthly_summary = monthly_summary.sort_values(by="Total", ascending=False)
@@ -307,14 +374,32 @@ class SummaryScreen(BaseScreen):
             selected_style = Style(bgcolor="yellow", color="black")
             for category_name, row in category_data.iterrows():
                 style = selected_style if category_name in self.selected_rows else ""
-                row_values = [row["Total"], row["Average"]] + [
-                    row[col] for col in month_columns
-                ]
-
+                
                 styled_cells = [Text(category_name, style=style)]
-                styled_cells.extend(
-                    [Text(f"{val:,.2f}", style=style) for val in row_values]
-                )
+                
+                # Format Total and Average columns
+                styled_cells.append(Text(f"{row['Total']:,.2f}", style=style))
+                styled_cells.append(Text(f"{row['Average']:,.2f}", style=style))
+
+                # Calculate trends and format month columns
+                monthly_values = [row[col] for col in month_columns]
+                trends = calculate_trends(monthly_values)
+                
+                trend_styles = {
+                    '↑': Style(bold=True, color="red"),
+                    '↓': Style(bold=True, color="green"),
+                    '=': Style(bold=True, color="yellow"),
+                    '-': Style(),
+                }
+
+                for amount, trend in trends:
+                    cell_text = Text(f"{amount:,.2f}", style=style)
+                    
+                    # Add month-over-month trend indicator
+                    if amount > 0: # Only show trend for non-zero amounts
+                        cell_text.append(f" {trend}", style=trend_styles.get(trend, Style()))
+                    
+                    styled_cells.append(cell_text)
 
                 table.add_row(*styled_cells, key=category_name)
 
@@ -322,6 +407,7 @@ class SummaryScreen(BaseScreen):
         """Populates the right-hand table in the 'All Year' tab."""
         try:
             table = self.query_one(f"#monthly_breakdown_{year}_all", DataTable)
+            table.fixed_columns = 3
             self._populate_monthly_breakdown(table, year)
         except Exception:
             pass  # Table might not exist yet

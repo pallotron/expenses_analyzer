@@ -157,20 +157,22 @@ SummaryScreen TabbedContent TabPane {
 
 .category-breakdown, .monthly-breakdown, .single_month_container {
     height: 1fr; /* Make containers fill their parent's height */
+    width: 1fr;
 }
 
 .category-breakdown > DataTable,
 .monthly-breakdown > DataTable,
 .single_month_container > DataTable {
     height: 1fr;
+    width: 1fr;
 }
 
 .category-breakdown {
-    width: 20%;
+    width: 60;
 }
 
 .monthly-breakdown {
-    width: 80%;
+    width: 1fr;
 }
 
 /* --- Transaction Screen --- */

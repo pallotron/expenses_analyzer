@@ -1,3 +1,4 @@
+import logging
 from textual.widgets import RichLog
 from expenses.config import LOG_FILE
 
@@ -38,6 +39,6 @@ class LogViewer(RichLog):
             # Handle case where log file might be deleted during runtime
             self.clear()
             self._last_size = 0
-        except Exception:
+        except Exception as e:
             # Silently ignore other potential errors like permission issues
-            pass
+            logging.debug(f"Error checking for log file updates: {e}")

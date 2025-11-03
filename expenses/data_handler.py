@@ -1,3 +1,4 @@
+import logging
 import pandas as pd
 import json
 import importlib.resources
@@ -56,8 +57,7 @@ def load_default_categories() -> list[str]:
                 with open(DEFAULT_CATEGORIES_FILE, "w") as user_f:
                     json.dump(default_categories, user_f, indent=4)
             except IOError:
-                # Log this error, but it's not fatal
-                pass
+                logging.warning("Could not save default categories to user config directory.")
             return default_categories
     except (FileNotFoundError, json.JSONDecodeError):
         return []
@@ -138,7 +138,8 @@ def load_transactions_from_csvs() -> pd.DataFrame:
             if amount >= 0:
                 df["Amount"] = amount
         return df
-    except Exception:
+    except Exception as e:
+        logging.error(f"Error loading CSV file: {e}")
         return pd.DataFrame(columns=["Date", "Merchant", "Amount"])
 
 

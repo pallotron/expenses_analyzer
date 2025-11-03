@@ -1,3 +1,4 @@
+import logging
 from textual.app import ComposeResult
 from textual.widgets import Static, TabbedContent, TabPane, DataTable
 from textual.containers import Horizontal, Vertical
@@ -286,7 +287,8 @@ class SummaryScreen(BaseScreen):
 
         try:
             table = self.query_one(f"#{table_id}", DataTable)
-        except Exception:
+        except Exception as e:
+            logging.warning(f"DataTable for {table_id} not found: {e}")
             return  # Table might not exist yet
 
         table.clear(columns=True)
@@ -305,10 +307,13 @@ class SummaryScreen(BaseScreen):
 
     def _populate_monthly_breakdown(self, table: DataTable, year: int):
         """Helper function to populate a table with monthly breakdown data, with categories as rows."""
-        table.clear(columns=True)
-        year_df = self.transactions[self.transactions["Date"].dt.year == year]
+        try:
+            table.clear(columns=True)
+            year_df = self.transactions[self.transactions["Date"].dt.year == year]
 
-        if not year_df.empty:
+            if year_df.empty:
+                return
+
             # Pivot to get categories as rows and months as columns
             monthly_summary = year_df.pivot_table(
                 index="Category",
@@ -318,49 +323,52 @@ class SummaryScreen(BaseScreen):
                 fill_value=0,
             )
 
-            # Ensure all 12 months are present, even if there's no data
+            # Ensure all 12 months are present
             for m in range(1, 13):
                 if m not in monthly_summary.columns:
                     monthly_summary[m] = 0
-
-            # Sort columns chronologically
             monthly_summary = monthly_summary[sorted(monthly_summary.columns)]
 
-            # Map month numbers to names
+            # Pre-calculate historical stats
+            all_monthly_summary = self.transactions.pivot_table(
+                index="Category",
+                columns=pd.Grouper(key="Date", freq="MS"),
+                values="Amount",
+                aggfunc="sum",
+                fill_value=0,
+            )
+            rolling_mean = (
+                all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
+                .mean()
+                .shift(1, axis=1)
+            )
+            rolling_std = (
+                all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
+                .std()
+                .shift(1, axis=1)
+                .fillna(0)
+            )
+
             month_map = {m: datetime(2000, m, 1).strftime("%b") for m in range(1, 13)}
             monthly_summary.rename(columns=month_map, inplace=True)
 
-            # Add a 'Total' column for the year-to-date sum for each category
             monthly_summary["Total"] = monthly_summary.sum(axis=1)
-
-            # Count months with spending for each category to calculate a more accurate average
             month_columns_for_avg = list(month_map.values())
             non_zero_months = (monthly_summary[month_columns_for_avg] > 0).sum(axis=1)
-
-            # Add an 'Average' column, avoiding division by zero
             monthly_summary["Average"] = (
                 monthly_summary["Total"].divide(non_zero_months).fillna(0)
             )
-
-            # Sort by total in descending order
             monthly_summary = monthly_summary.sort_values(by="Total", ascending=False)
 
-            # Add a 'Total' row for the sum of each month
             month_columns = list(month_map.values())
-            total_row_data = monthly_summary[
-                month_columns
-            ].sum()  # Sum only month columns
-            total_row_data["Total"] = total_row_data.sum()  # Calculate total of totals
-            total_row_data["Average"] = (
-                total_row_data["Total"] / 12
-            )  # Calculate average of totals
+            total_row_data = monthly_summary[month_columns].sum()
+            total_row_data["Total"] = total_row_data.sum()
+            total_row_data["Average"] = total_row_data["Total"] / 12
             total_row_data.name = "[bold]Total[/bold]"
 
-            # Set up table columns
             columns = ["Category", "Total", "Average"] + month_columns
             table.add_columns(*columns)
 
-            # Add the 'Total' row first
             total_row_values = [total_row_data["Total"], total_row_data["Average"]] + [
                 total_row_data[col] for col in month_columns
             ]
@@ -369,39 +377,62 @@ class SummaryScreen(BaseScreen):
                 *[f"[bold]{val:,.2f}[/bold]" for val in total_row_values],
             )
 
-            # Add the data for each category
             category_data = monthly_summary
             selected_style = Style(bgcolor="yellow", color="black")
+            trend_styles = {
+                "↑": Style(bold=True, color="red"),
+                "↓": Style(bold=True, color="green"),
+                "=": Style(bold=True, color="yellow"),
+                "-": Style(),
+            }
+
             for category_name, row in category_data.iterrows():
-                style = selected_style if category_name in self.selected_rows else ""
-                
+                style = (
+                    selected_style
+                    if category_name in self.selected_rows
+                    else Style.null()
+                )
                 styled_cells = [Text(category_name, style=style)]
-                
-                # Format Total and Average columns
                 styled_cells.append(Text(f"{row['Total']:,.2f}", style=style))
                 styled_cells.append(Text(f"{row['Average']:,.2f}", style=style))
 
-                # Calculate trends and format month columns
                 monthly_values = [row[col] for col in month_columns]
                 trends = calculate_trends(monthly_values)
-                
-                trend_styles = {
-                    '↑': Style(bold=True, color="red"),
-                    '↓': Style(bold=True, color="green"),
-                    '=': Style(bold=True, color="yellow"),
-                    '-': Style(),
-                }
 
-                for amount, trend in trends:
-                    cell_text = Text(f"{amount:,.2f}", style=style)
-                    
-                    # Add month-over-month trend indicator
-                    if amount > 0: # Only show trend for non-zero amounts
-                        cell_text.append(f" {trend}", style=trend_styles.get(trend, Style()))
-                    
+                for i, month_name in enumerate(month_columns):
+                    amount = monthly_values[i]
+                    trend = trends[i][1]
+                    month_num = datetime.strptime(month_name, "%b").month
+                    current_date = pd.Timestamp(f"{year}-{month_num}-01")
+
+                    cell_style = style
+                    if (
+                        category_name in rolling_mean.index
+                        and current_date in rolling_mean.columns
+                    ):
+                        historical_mean = rolling_mean.loc[category_name, current_date]
+                        historical_std = rolling_std.loc[category_name, current_date]
+                        if (
+                            pd.notna(historical_mean)
+                            and pd.notna(historical_std)
+                            and historical_mean > 0
+                            and historical_std > 0
+                            and amount > historical_mean + 2 * historical_std
+                        ):
+                            cell_style = style + Style(bgcolor="dark_red")
+
+                    cell_text = Text(f"{amount:,.2f}", style=cell_style)
+                    if amount > 0:
+                        cell_text.append(
+                            f" {trend}", style=trend_styles.get(trend, Style())
+                        )
                     styled_cells.append(cell_text)
 
                 table.add_row(*styled_cells, key=category_name)
+        except Exception as e:
+            logging.error(
+                f"An error occurred in _populate_monthly_breakdown: {e}", exc_info=True
+            )
 
     def update_all_year_monthly_view(self, year: int):
         """Populates the right-hand table in the 'All Year' tab."""
@@ -409,8 +440,8 @@ class SummaryScreen(BaseScreen):
             table = self.query_one(f"#monthly_breakdown_{year}_all", DataTable)
             table.fixed_columns = 3
             self._populate_monthly_breakdown(table, year)
-        except Exception:
-            pass  # Table might not exist yet
+        except Exception as e:
+            logging.warning(f"Error updating monthly breakdown for year {year}: {e}")
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
         """Handle cell selection to navigate to the transaction screen."""

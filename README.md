@@ -1,6 +1,6 @@
 # Expense Analyzer
 
-[![codecov](https://codecov.io/gh/pallotron/expenses-analyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/pallotron/expenses-analyzer)
+[![codecov](https://codecov.io/gh/pallotron/expenses_analyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/pallotron/expenses_analyzer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 

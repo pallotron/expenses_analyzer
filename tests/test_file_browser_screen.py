@@ -31,7 +31,8 @@ class TestFileBrowserScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = FileBrowserScreen()
+                # Allow test tmpdir as safe root
+                screen = FileBrowserScreen(safe_roots=[Path(tmpdir)])
                 await pilot.app.push_screen(screen)
 
                 # Set the tree to the subdirectory
@@ -44,8 +45,8 @@ class TestFileBrowserScreen(unittest.IsolatedAsyncioTestCase):
                 up_button.press()
                 await pilot.pause()
 
-                # Verify we moved to parent (tree.path is a Path object)
-                assert str(tree.path) == tmpdir
+                # Verify we moved to parent (compare resolved paths for macOS compatibility)
+                assert Path(tree.path).resolve() == Path(tmpdir).resolve()
 
     async def test_file_selection_dismisses_with_path(self) -> None:
         """Test that selecting a file dismisses screen with file path."""
@@ -56,7 +57,8 @@ class TestFileBrowserScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = FileBrowserScreen()
+                # Allow test tmpdir as safe root
+                screen = FileBrowserScreen(safe_roots=[Path(tmpdir)])
                 result = None
 
                 def callback(path):

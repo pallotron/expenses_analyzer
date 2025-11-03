@@ -34,11 +34,15 @@ def test_populate_table_filtering(transaction_screen: TransactionScreen, filters
         "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
         "Merchant": ["Merchant A", "Merchant B", "Merchant C"],
         "Amount": [10.0, 20.0, 30.0],
-        "Category": ["Category 1", "Category 2", "Category 1"],
     }
     df: pd.DataFrame = pd.DataFrame(data)
     transaction_screen.transactions = df
-    transaction_screen.categories = {}
+    # Set up categories mapping (Category column is added by populate_table)
+    transaction_screen.categories = {
+        "Merchant A": "Category 1",
+        "Merchant B": "Category 2",
+        "Merchant C": "Category 1",
+    }
 
     # Mock the input widgets
     def query_one_mock(selector: str, type: Any) -> Any:

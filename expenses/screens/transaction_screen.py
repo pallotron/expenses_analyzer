@@ -179,11 +179,13 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             ),
         }
         display_df = self.transactions.copy()
-        display_df = apply_filters(display_df, filters)
 
+        # Add Category column before filtering so category filters work
         display_df["Category"] = (
             display_df["Merchant"].map(self.categories).fillna("Other")
         )
+
+        display_df = apply_filters(display_df, filters)
 
         self.display_df = display_df
 

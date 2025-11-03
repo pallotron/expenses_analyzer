@@ -24,6 +24,7 @@ dist/
 
 # Test output
 .pytest_cache/
+.hypothesis/
 .coverage
 htmlcov/
 coverage.xml

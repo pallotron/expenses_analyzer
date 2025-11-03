@@ -7,7 +7,7 @@
 - [ ] Add input validation for CSV imports to prevent malicious file uploads
 - [ ] Implement data encryption for sensitive financial data at rest
 - [ ] Add configuration option to exclude sensitive merchants from logs
-- [ ] Sanitize file paths in file browser to prevent directory traversal attacks
+- [x] Sanitize file paths in file browser to prevent directory traversal attacks ✅
 - [ ] Add rate limiting for Gemini API calls to prevent excessive costs
 - [ ] Store API keys more securely (consider using keyring library)
 

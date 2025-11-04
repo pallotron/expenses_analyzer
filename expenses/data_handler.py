@@ -2,6 +2,7 @@ import logging
 import pandas as pd
 import json
 import importlib.resources
+from pathlib import Path
 from typing import Dict, List
 
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
@@ -14,6 +15,39 @@ from expenses.config import (
 
 
 # --- Helper Functions ---
+def _set_secure_permissions(file_path: Path) -> None:
+    """Set file to user-read-write only (600) for security.
+
+    On Unix-like systems, this prevents other users from reading sensitive data.
+    On Windows, this may not have effect but won't cause errors.
+    """
+    try:
+        file_path.chmod(0o600)
+    except (OSError, PermissionError, NotImplementedError) as e:
+        # Windows may not support Unix permissions - this is expected
+        # On Unix systems, failure to set permissions is a security concern
+        import platform
+        if platform.system() != "Windows":
+            logging.warning(
+                f"Could not set secure permissions on {file_path}: {e}. "
+                "File may be readable by other users."
+            )
+
+
+def _ensure_secure_config_dir() -> None:
+    """Ensure config directory exists with secure permissions (700)."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        CONFIG_DIR.chmod(0o700)
+    except (OSError, PermissionError, NotImplementedError) as e:
+        import platform
+        if platform.system() != "Windows":
+            logging.warning(
+                f"Could not set secure permissions on {CONFIG_DIR}: {e}. "
+                "Directory may be accessible by other users."
+            )
+
+
 def clean_amount(amount_series: pd.Series) -> pd.Series:
     s = amount_series.astype(str)
     # Convert (amount) to -amount
@@ -65,9 +99,10 @@ def load_default_categories() -> List[str]:
 
 
 def save_categories(categories: Dict[str, str]) -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    _ensure_secure_config_dir()
     with open(CATEGORIES_FILE, "w") as f:
         json.dump(categories, f, indent=4)
+    _set_secure_permissions(CATEGORIES_FILE)
 
 
 # --- Transaction Loading & Saving ---
@@ -78,14 +113,19 @@ def load_transactions_from_parquet() -> pd.DataFrame:
 
 
 def save_transactions_to_parquet(df: pd.DataFrame) -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    _ensure_secure_config_dir()
     df.to_parquet(TRANSACTIONS_FILE, index=False)
+    _set_secure_permissions(TRANSACTIONS_FILE)
 
 
 def append_transactions(
     new_transactions: pd.DataFrame, suggest_categories: bool = False
 ) -> None:
     """Appends new transactions to the main parquet file, handling duplicates."""
+    # Create auto-backup before modifying data
+    from expenses.backup import create_auto_backup
+    create_auto_backup()
+
     if suggest_categories:
         categories = load_categories()
         unique_new_merchants = new_transactions["Merchant"].unique()
@@ -120,6 +160,10 @@ def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:
     """Deletes transactions from the main parquet file."""
     if transactions_to_delete.empty:
         return
+
+    # Create auto-backup before deletion (critical operation)
+    from expenses.backup import create_auto_backup
+    create_auto_backup()
 
     existing_transactions = load_transactions_from_parquet()
 

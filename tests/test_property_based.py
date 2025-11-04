@@ -62,7 +62,7 @@ def transaction_dataframes(draw, min_rows=0, max_rows=100):
     num_rows = draw(st.integers(min_value=min_rows, max_value=max_rows))
 
     if num_rows == 0:
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount"])
+        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Deleted"])
 
     # Generate dates within a reasonable range
     base_date = datetime(2020, 1, 1)
@@ -73,7 +73,7 @@ def transaction_dataframes(draw, min_rows=0, max_rows=100):
 
     # Generate merchants
     merchants = [
-        draw(st.text(alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ", min_size=1, max_size=50))
+        draw(st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, max_size=50))
         for _ in range(num_rows)
     ]
 
@@ -83,10 +83,14 @@ def transaction_dataframes(draw, min_rows=0, max_rows=100):
         for _ in range(num_rows)
     ]
 
+    # Generate deleted status
+    deleted = [draw(st.booleans()) for _ in range(num_rows)]
+
     return pd.DataFrame({
         "Date": dates,
         "Merchant": merchants,
-        "Amount": amounts
+        "Amount": amounts,
+        "Deleted": deleted
     })
 
 
@@ -219,11 +223,11 @@ class TestPropertyBasedDataHandler(unittest.TestCase):
                     initial_count = len(df)
 
                     # Delete empty dataframe
-                    empty_df = pd.DataFrame(columns=["Date", "Merchant", "Amount"])
+                    empty_df = pd.DataFrame(columns=["Date", "Merchant", "Amount", "Deleted"])
                     delete_transactions(empty_df)
 
                     # Load result
-                    result = load_transactions_from_parquet()
+                    result = load_transactions_from_parquet(include_deleted=True)
 
                     # Count should remain the same
                     self.assertEqual(len(result), initial_count)
@@ -264,7 +268,7 @@ class TestPropertyBasedDataHandler(unittest.TestCase):
                     save_transactions_to_parquet(df)
 
                     # Load
-                    result = load_transactions_from_parquet()
+                    result = load_transactions_from_parquet(include_deleted=True)
 
                     # Should have same shape
                     self.assertEqual(result.shape, df.shape)

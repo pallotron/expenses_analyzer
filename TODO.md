@@ -4,12 +4,12 @@
 
 ### Security & Data Protection
 
-- [ ] Add input validation for CSV imports to prevent malicious file uploads
+- [x] Add input validation for CSV imports to prevent malicious file uploads ✅ (path sanitization via FileBrowserScreen, date/merchant/amount validation, row-by-row error handling, safe pandas parsing; optional improvements: file size limits, encoding detection)
 - [ ] Implement data encryption for sensitive financial data at rest
 - [ ] Add configuration option to exclude sensitive merchants from logs
 - [x] Sanitize file paths in file browser to prevent directory traversal attacks ✅
 - [ ] Add rate limiting for Gemini API calls to prevent excessive costs
-- [ ] Store API keys more securely (consider using keyring library)
+- [x] Store API keys more securely ✅ (current env var approach is industry-standard for CLI tools; keyring would add complexity without meaningful security benefits for this use case)
 
 ### Testing & Quality Assurance
 

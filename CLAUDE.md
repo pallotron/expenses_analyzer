@@ -129,6 +129,9 @@ Use `PYTHONPATH=.` when running pytest as the project structure requires it.
 
 The working copy (`@`) is always a commit in jj. There's no staging area - changes are automatically part of the working copy commit.
 
+**Important Workflow:**
+- **Always run `jj new` before starting a new feature or fix** - This creates a new change on top of the current one, keeping commits organized and avoiding mixing unrelated changes in the working copy.
+
 ## Configuration
 
 ### Environment Variables

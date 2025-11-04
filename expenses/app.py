@@ -12,6 +12,8 @@ from expenses.screens.transaction_screen import TransactionScreen
 from expenses.screens.delete_screen import DeleteScreen
 from expenses.screens.confirmation_screen import ConfirmationScreen
 from expenses.widgets.notification import Notification
+from expenses.data_handler import check_and_clear_corruption_flag
+from expenses.backup import attempt_auto_recovery, list_backups
 from typing import Callable
 
 # Ensure config directory and log file exist
@@ -62,6 +64,51 @@ class ExpensesApp(App):
     def on_mount(self) -> None:
         """Called when the app is first mounted."""
         self.push_screen("summary")
+
+        # Check for data corruption after screen loads
+        self.set_timer(0.5, self._check_for_corruption)
+
+    def _check_for_corruption(self) -> None:
+        """Check if corruption was detected during data loading."""
+        corruption_msg = check_and_clear_corruption_flag()
+        if corruption_msg:
+            # Check if backups are available
+            backups = list_backups()
+            if backups:
+                self.push_confirmation(
+                    f"⚠️  {corruption_msg}\n\n"
+                    f"Found {len(backups)} backup(s) available.\n"
+                    "Would you like to restore from the most recent backup?",
+                    self._handle_recovery_response
+                )
+            else:
+                self.show_notification(
+                    f"⚠️  {corruption_msg} - No backups available!",
+                    timeout=10
+                )
+                logging.error("Corruption detected but no backups available for recovery")
+
+    def _handle_recovery_response(self, should_recover: bool) -> None:
+        """Handle user's response to corruption recovery prompt."""
+        if should_recover:
+            logging.info("User requested automatic recovery from backup")
+            success = attempt_auto_recovery()
+            if success:
+                self.show_notification(
+                    "✓ Recovery successful! Please restart the application.",
+                    timeout=10
+                )
+            else:
+                self.show_notification(
+                    "✗ Recovery failed. Check logs for details.",
+                    timeout=10
+                )
+        else:
+            logging.info("User declined automatic recovery")
+            self.show_notification(
+                "Continuing with empty data. Check logs for recovery options.",
+                timeout=5
+            )
 
     def action_pop_screen(self) -> None:
         """Pop a screen from the stack, but not if it's the last one."""

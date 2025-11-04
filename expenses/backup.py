@@ -29,7 +29,7 @@ def create_auto_backup() -> Optional[Path]:
         logging.debug("No transactions file to backup")
         return None
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_file = AUTO_BACKUP_DIR / f"transactions_{timestamp}.parquet"
 
     try:
@@ -135,7 +135,11 @@ def list_backups() -> list[tuple[datetime, Path, int]]:
     for backup_file in AUTO_BACKUP_DIR.glob("transactions_*.parquet"):
         try:
             timestamp_str = backup_file.stem.replace("transactions_", "")
-            timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+            # Try parsing with microseconds first, fall back to without
+            try:
+                timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S_%f")
+            except ValueError:
+                timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
             size = backup_file.stat().st_size
             backups.append((timestamp, backup_file, size))
         except (ValueError, OSError) as e:
@@ -169,3 +173,32 @@ def get_backup_stats() -> dict[str, any]:
         "oldest": backups[-1][0] if backups else None,
         "newest": backups[0][0] if backups else None,
     }
+
+
+def attempt_auto_recovery() -> bool:
+    """Attempt to automatically recover from the most recent backup.
+
+    This function is called when a corrupted transactions file is detected.
+    It will restore from the newest available backup without user intervention.
+
+    Returns:
+        True if recovery was successful, False otherwise
+    """
+    backups = list_backups()
+
+    if not backups:
+        logging.error("No backups available for automatic recovery")
+        return False
+
+    # Get the most recent backup
+    newest_backup = backups[0][1]  # (timestamp, path, size)
+    logging.info(f"Attempting automatic recovery from {newest_backup.name}")
+
+    success = restore_from_backup(newest_backup)
+
+    if success:
+        logging.info("Automatic recovery successful")
+    else:
+        logging.error("Automatic recovery failed")
+
+    return success

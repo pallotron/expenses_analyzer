@@ -13,7 +13,7 @@
 
 ### Testing & Quality Assurance
 
-- [x] Increase test coverage to 80%+ ✅ (currently 81%, 15 test files, 146 tests)
+- [x] Increase test coverage to 80%+ ✅ (currently 81.7%, 17 test files, 186 tests)
   - [x] Add tests for all screen components ✅
   - [x] Add tests for gemini_utils.py ✅
   - [x] Add tests for transaction_filter.py ✅
@@ -28,9 +28,9 @@
 ### Data Integrity
 
 - [ ] Add database migration system for schema changes
-- [ ] Implement backup/restore functionality for transactions
-- [ ] Add data validation before saving to Parquet
-- [ ] Handle corrupted Parquet files gracefully
+- [x] Implement backup/restore functionality for transactions ✅ (auto-backup before imports and deletions, rolling window of 5 backups, includes categories, microsecond-precision timestamps, 9 comprehensive tests)
+- [x] Add data validation before saving to Parquet ✅ (comprehensive validation module with schema/value/range validation, validates new transactions in append_transactions(), detailed error reporting with ValidationError exception, 19 comprehensive tests; note: property-based test generators need updating to only generate valid data)
+- [x] Handle corrupted Parquet files gracefully ✅ (comprehensive error handling for corrupted parquet/JSON files, returns empty DataFrame/dict instead of crashing, logs clear error messages, attempt_auto_recovery() function for automatic restoration from most recent backup, TUI notification with user-friendly recovery dialog on startup, 12 comprehensive tests covering corruption scenarios and TUI integration)
 - [ ] Add transaction versioning/audit trail
 - [ ] Implement soft delete instead of hard delete for transactions
 

@@ -3,15 +3,20 @@ import pandas as pd
 import json
 import importlib.resources
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
 
+from expenses.backup import create_auto_backup
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
+from expenses.validation import validate_transaction_dataframe, ValidationError
 from expenses.config import (
     CONFIG_DIR,
     CATEGORIES_FILE,
     TRANSACTIONS_FILE,
     DEFAULT_CATEGORIES_FILE,
 )
+
+# Global flag to track if corruption was detected (for TUI notification)
+_corruption_detected: Optional[str] = None
 
 
 # --- Helper Functions ---
@@ -62,13 +67,30 @@ def clean_amount(amount_series: pd.Series) -> pd.Series:
 
 # --- Category Management ---
 def load_categories() -> Dict[str, str]:
+    """Load merchant-to-category mappings from JSON file.
+
+    Returns:
+        Dictionary mapping merchant names to categories, or empty dict if file
+        doesn't exist or is corrupted.
+    """
     if not CATEGORIES_FILE.exists():
         return {}
-    with open(CATEGORIES_FILE, "r") as f:
-        try:
+
+    try:
+        with open(CATEGORIES_FILE, "r") as f:
             return json.load(f)
-        except json.JSONDecodeError:
-            return {}
+    except json.JSONDecodeError as e:
+        logging.warning(
+            f"Categories file is corrupted (invalid JSON): {e}. "
+            "Returning empty categories. Consider restoring from backup."
+        )
+        return {}
+    except (OSError, IOError) as e:
+        logging.warning(
+            f"Could not read categories file: {e}. "
+            "Returning empty categories."
+        )
+        return {}
 
 
 def load_default_categories() -> List[str]:
@@ -107,23 +129,84 @@ def save_categories(categories: Dict[str, str]) -> None:
 
 # --- Transaction Loading & Saving ---
 def load_transactions_from_parquet() -> pd.DataFrame:
+    """Load transactions from parquet file with corruption detection.
+
+    Returns:
+        DataFrame with transactions, or empty DataFrame if file doesn't exist
+        or is corrupted.
+
+    Note:
+        If corruption is detected, logs a warning suggesting backup restoration.
+        The application will continue with an empty DataFrame rather than crashing.
+        Sets global _corruption_detected flag for TUI notification.
+    """
+    global _corruption_detected
+
     if not TRANSACTIONS_FILE.exists():
         return pd.DataFrame(columns=["Date", "Merchant", "Amount"])
-    return pd.read_parquet(TRANSACTIONS_FILE)
+
+    try:
+        return pd.read_parquet(TRANSACTIONS_FILE)
+    except Exception as e:
+        # Catch all parquet-related errors: ArrowInvalid, OSError, etc.
+        error_msg = f"Transactions file corrupted: {type(e).__name__}"
+        logging.error(
+            f"CRITICAL: Transactions file is corrupted and cannot be read: {e}. "
+            f"File: {TRANSACTIONS_FILE}. "
+            "Starting with empty transaction list. "
+            "You may be able to restore from auto-backup using the backup module."
+        )
+        # Set flag for TUI to display notification
+        _corruption_detected = error_msg
+        # Return empty DataFrame to allow application to continue
+        return pd.DataFrame(columns=["Date", "Merchant", "Amount"])
+
+
+def check_and_clear_corruption_flag() -> Optional[str]:
+    """Check if corruption was detected and clear the flag.
+
+    Returns:
+        Error message if corruption was detected, None otherwise.
+        This is a one-time check - the flag is cleared after reading.
+    """
+    global _corruption_detected
+    msg = _corruption_detected
+    _corruption_detected = None
+    return msg
 
 
 def save_transactions_to_parquet(df: pd.DataFrame) -> None:
+    """Save transactions to parquet file.
+
+    Args:
+        df: DataFrame to save
+
+    Note:
+        Validation should be done before calling this function (e.g., in append_transactions).
+        This function assumes the data is already validated.
+    """
     _ensure_secure_config_dir()
     df.to_parquet(TRANSACTIONS_FILE, index=False)
     _set_secure_permissions(TRANSACTIONS_FILE)
+    logging.debug(f"Saved {len(df)} transactions to {TRANSACTIONS_FILE}")
 
 
 def append_transactions(
     new_transactions: pd.DataFrame, suggest_categories: bool = False
 ) -> None:
-    """Appends new transactions to the main parquet file, handling duplicates."""
+    """Appends new transactions to the main parquet file, handling duplicates.
+
+    Args:
+        new_transactions: DataFrame of new transactions to append
+        suggest_categories: Whether to use AI to suggest categories for new merchants
+
+    Raises:
+        ValidationError: If new_transactions fails validation
+    """
+    # Validate new transactions before appending
+    validate_transaction_dataframe(new_transactions)
+
     # Create auto-backup before modifying data
-    from expenses.backup import create_auto_backup
     create_auto_backup()
 
     if suggest_categories:
@@ -162,7 +245,6 @@ def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:
         return
 
     # Create auto-backup before deletion (critical operation)
-    from expenses.backup import create_auto_backup
     create_auto_backup()
 
     existing_transactions = load_transactions_from_parquet()

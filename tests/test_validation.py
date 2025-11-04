@@ -114,19 +114,16 @@ class TestValidation(unittest.TestCase):
         errors_str = ' '.join(cm.exception.errors).lower()
         assert "non-numeric" in errors_str or "numeric" in errors_str
 
-    def test_negative_amounts_fail(self) -> None:
-        """Test that negative amounts fail validation."""
+    def test_negative_amounts_allowed(self) -> None:
+        """Test that negative amounts are allowed (for bank exports with expenses as negative)."""
         df = pd.DataFrame({
             "Date": [datetime(2025, 1, 1), datetime(2025, 1, 2)],
             "Merchant": ["Store A", "Store B"],
             "Amount": [10.50, -25.00]
         })
 
-        with self.assertRaises(ValidationError) as cm:
-            validate_transaction_dataframe(df)
-
-        errors_str = ' '.join(cm.exception.errors).lower()
-        assert "negative" in errors_str
+        # Should not raise - negative amounts are valid for bank exports
+        validate_transaction_dataframe(df)
 
     def test_too_large_amounts_fail(self) -> None:
         """Test that unreasonably large amounts fail validation."""

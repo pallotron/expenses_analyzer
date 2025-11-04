@@ -128,12 +128,15 @@ def save_categories(categories: Dict[str, str]) -> None:
 
 
 # --- Transaction Loading & Saving ---
-def load_transactions_from_parquet() -> pd.DataFrame:
+def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFrame:
     """Load transactions from parquet file with corruption detection.
+
+    Args:
+        include_deleted: If True, include soft-deleted transactions. Default False.
 
     Returns:
         DataFrame with transactions, or empty DataFrame if file doesn't exist
-        or is corrupted.
+        or is corrupted. By default, excludes soft-deleted transactions.
 
     Note:
         If corruption is detected, logs a warning suggesting backup restoration.
@@ -143,10 +146,20 @@ def load_transactions_from_parquet() -> pd.DataFrame:
     global _corruption_detected
 
     if not TRANSACTIONS_FILE.exists():
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount"])
+        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Deleted"])
 
     try:
-        return pd.read_parquet(TRANSACTIONS_FILE)
+        df = pd.read_parquet(TRANSACTIONS_FILE)
+
+        # Add Deleted column if it doesn't exist (backward compatibility)
+        if "Deleted" not in df.columns:
+            df["Deleted"] = False
+
+        # Filter out soft-deleted transactions unless explicitly requested
+        if not include_deleted:
+            df = df[df["Deleted"] == False].copy()
+
+        return df
     except Exception as e:
         # Catch all parquet-related errors: ArrowInvalid, OSError, etc.
         error_msg = f"Transactions file corrupted: {type(e).__name__}"
@@ -159,7 +172,7 @@ def load_transactions_from_parquet() -> pd.DataFrame:
         # Set flag for TUI to display notification
         _corruption_detected = error_msg
         # Return empty DataFrame to allow application to continue
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount"])
+        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Deleted"])
 
 
 def check_and_clear_corruption_flag() -> Optional[str]:
@@ -226,7 +239,13 @@ def append_transactions(
                 categories.update(suggested_categories)
                 save_categories(categories)
 
-    existing_transactions = load_transactions_from_parquet()
+    # Load existing transactions (including deleted ones to preserve soft-delete state)
+    existing_transactions = load_transactions_from_parquet(include_deleted=True)
+
+    # Add Deleted column to new transactions if not present
+    if "Deleted" not in new_transactions.columns:
+        new_transactions["Deleted"] = False
+
     combined = pd.concat([existing_transactions, new_transactions], ignore_index=True)
     # Standardize data types before dropping duplicates
     combined["Date"] = pd.to_datetime(combined["Date"])
@@ -234,20 +253,28 @@ def append_transactions(
     combined["Amount"] = combined["Amount"].round(2)
     combined["Merchant"] = combined["Merchant"].astype(str)
 
-    # De-duplicate based on all columns
+    # De-duplicate based on all columns (excluding Deleted to preserve existing records)
     combined.drop_duplicates(subset=["Date", "Merchant", "Amount"], inplace=True)
     save_transactions_to_parquet(combined)
 
 
 def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:
-    """Deletes transactions from the main parquet file."""
+    """Soft-deletes transactions by marking them as deleted.
+
+    Transactions are not physically removed from the file, but are marked
+    with Deleted=True and will be filtered out of normal queries.
+
+    Args:
+        transactions_to_delete: DataFrame with transactions to soft-delete
+    """
     if transactions_to_delete.empty:
         return
 
     # Create auto-backup before deletion (critical operation)
     create_auto_backup()
 
-    existing_transactions = load_transactions_from_parquet()
+    # Load ALL transactions including already soft-deleted ones
+    all_transactions = load_transactions_from_parquet(include_deleted=True)
 
     # Ensure dtypes are consistent before merge
     transactions_to_delete["Date"] = pd.to_datetime(transactions_to_delete["Date"])
@@ -257,17 +284,63 @@ def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:
     transactions_to_delete["Amount"] = transactions_to_delete["Amount"].round(2)
     transactions_to_delete["Merchant"] = transactions_to_delete["Merchant"].astype(str)
 
-    # Perform an anti-join to keep only the rows that are not in transactions_to_delete
+    # Mark transactions as deleted by merging and setting Deleted=True
+    # Use indicator to identify which rows to mark as deleted
     merged = pd.merge(
-        existing_transactions,
-        transactions_to_delete,
+        all_transactions,
+        transactions_to_delete[["Date", "Merchant", "Amount"]],
         on=["Date", "Merchant", "Amount"],
         how="left",
         indicator=True,
     )
 
-    updated_transactions = merged[merged["_merge"] == "left_only"].drop(
-        columns=["_merge"]
+    # Set Deleted=True for matched rows
+    merged.loc[merged["_merge"] == "both", "Deleted"] = True
+    updated_transactions = merged.drop(columns=["_merge"])
+
+    num_deleted = (updated_transactions["Deleted"] == True).sum()
+    logging.info(f"Soft-deleted {num_deleted} transactions")
+
+    save_transactions_to_parquet(updated_transactions)
+
+
+def restore_deleted_transactions(transactions_to_restore: pd.DataFrame) -> None:
+    """Restore soft-deleted transactions by setting Deleted=False.
+
+    Args:
+        transactions_to_restore: DataFrame with transactions to restore
+    """
+    if transactions_to_restore.empty:
+        return
+
+    # Create auto-backup before modification
+    create_auto_backup()
+
+    # Load ALL transactions including soft-deleted ones
+    all_transactions = load_transactions_from_parquet(include_deleted=True)
+
+    # Ensure dtypes are consistent before merge
+    transactions_to_restore["Date"] = pd.to_datetime(transactions_to_restore["Date"])
+    transactions_to_restore["Amount"] = pd.to_numeric(
+        transactions_to_restore["Amount"], errors="coerce"
+    ).fillna(0.0)
+    transactions_to_restore["Amount"] = transactions_to_restore["Amount"].round(2)
+    transactions_to_restore["Merchant"] = transactions_to_restore["Merchant"].astype(str)
+
+    # Mark transactions as NOT deleted by merging and setting Deleted=False
+    merged = pd.merge(
+        all_transactions,
+        transactions_to_restore[["Date", "Merchant", "Amount"]],
+        on=["Date", "Merchant", "Amount"],
+        how="left",
+        indicator=True,
     )
+
+    # Set Deleted=False for matched rows
+    merged.loc[merged["_merge"] == "both", "Deleted"] = False
+    updated_transactions = merged.drop(columns=["_merge"])
+
+    num_restored = (merged["_merge"] == "both").sum()
+    logging.info(f"Restored {num_restored} soft-deleted transactions")
 
     save_transactions_to_parquet(updated_transactions)

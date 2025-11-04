@@ -42,7 +42,7 @@ class TestCorruptionHandling(unittest.TestCase):
             df = load_transactions_from_parquet()
 
             assert df.empty
-            assert list(df.columns) == ["Date", "Merchant", "Amount"]
+            assert list(df.columns) == ["Date", "Merchant", "Amount", "Deleted"]
 
     def test_corrupted_categories_returns_empty_dict(self) -> None:
         """Test that corrupted categories file returns empty dict."""
@@ -129,7 +129,7 @@ class TestCorruptionHandling(unittest.TestCase):
             # Should return empty DataFrame
             corrupted_load = load_transactions_from_parquet()
             assert corrupted_load.empty
-            assert list(corrupted_load.columns) == ["Date", "Merchant", "Amount"]
+            assert list(corrupted_load.columns) == ["Date", "Merchant", "Amount", "Deleted"]
 
     def test_categories_ioerror_handling(self) -> None:
         """Test handling of IOError when reading categories."""
@@ -165,7 +165,7 @@ class TestCorruptionHandling(unittest.TestCase):
             # Should return empty DataFrame
             df = load_transactions_from_parquet()
             assert df.empty
-            assert list(df.columns) == ["Date", "Merchant", "Amount"]
+            assert list(df.columns) == ["Date", "Merchant", "Amount", "Deleted"]
 
     def test_truncated_parquet_file(self) -> None:
         """Test handling of truncated parquet file."""

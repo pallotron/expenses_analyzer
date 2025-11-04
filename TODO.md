@@ -29,10 +29,10 @@
 
 - [ ] Add database migration system for schema changes
 - [x] Implement backup/restore functionality for transactions ✅ (auto-backup before imports and deletions, rolling window of 5 backups, includes categories, microsecond-precision timestamps, 9 comprehensive tests)
-- [x] Add data validation before saving to Parquet ✅ (comprehensive validation module with schema/value/range validation, validates new transactions in append_transactions(), detailed error reporting with ValidationError exception, 19 comprehensive tests; note: property-based test generators need updating to only generate valid data)
+- [x] Add data validation before saving to Parquet ✅ (comprehensive validation module with schema/value/range validation, validates new transactions in append_transactions(), detailed error reporting with ValidationError exception, 19 comprehensive tests, allows negative amounts for bank exports; note: property-based test generators need updating to only generate valid data)
 - [x] Handle corrupted Parquet files gracefully ✅ (comprehensive error handling for corrupted parquet/JSON files, returns empty DataFrame/dict instead of crashing, logs clear error messages, attempt_auto_recovery() function for automatic restoration from most recent backup, TUI notification with user-friendly recovery dialog on startup, 12 comprehensive tests covering corruption scenarios and TUI integration)
 - [ ] Add transaction versioning/audit trail
-- [ ] Implement soft delete instead of hard delete for transactions
+- [x] Implement soft delete instead of hard delete for transactions ✅ (transactions marked with Deleted=True flag instead of physical removal, backward compatible with existing data, load_transactions_from_parquet() filters deleted by default with include_deleted parameter, restore_deleted_transactions() function to undelete, 12 comprehensive tests; preserves data for recovery and audit purposes)
 
 ## 📈 Medium Priority
 

@@ -107,21 +107,15 @@ def validate_transaction_dataframe(
                 f"Found {invalid_amounts.sum()} row(s) with non-numeric amounts"
             )
 
-        # Check for negative amounts (expenses should be positive)
+        # Check for unreasonably large amounts (in absolute value)
         valid_amounts = amounts[~invalid_amounts]
         if len(valid_amounts) > 0:
-            negative = valid_amounts < 0
-            if negative.any():
-                errors.append(
-                    f"Found {negative.sum()} row(s) with negative amounts "
-                    "(amounts should be positive for expenses)"
-                )
-
-            # Check for unreasonably large amounts
-            too_large = valid_amounts > max_amount
+            # Check absolute value against max_amount (allows negative values from banks)
+            abs_amounts = valid_amounts.abs()
+            too_large = abs_amounts > max_amount
             if too_large.any():
                 errors.append(
-                    f"Found {too_large.sum()} row(s) with amounts exceeding ${max_amount:,.2f}"
+                    f"Found {too_large.sum()} row(s) with amounts (absolute value) exceeding ${max_amount:,.2f}"
                 )
 
             # Check for zero amounts

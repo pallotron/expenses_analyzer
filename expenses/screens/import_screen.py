@@ -112,19 +112,18 @@ class ImportScreen(BaseScreen):
             ).value
 
             transactions_to_append = []
-            logging.info("--- Starting CSV Import Row-by-Row ---")
+            skip_counts = {"invalid_date": 0, "empty_merchant": 0, "not_expense": 0, "not_debit": 0}
+            logging.info("Starting CSV import...")
 
             for index, row in self.df.iterrows():
-                logging.info(
-                    f"\n[Row {index}] Processing original row: {row.to_dict()}"
-                )
+                logging.debug(f"Processing row {index}")
+                logging.debug(f"Raw row data: {row.to_dict()}")
 
                 # --- Date Parsing ---
                 date_val = pd.to_datetime(row[date_col], errors="coerce", dayfirst=True)
                 if pd.isna(date_val):
-                    logging.warning(
-                        f"[Row {index}] SKIPPING: Could not parse date '{row[date_col]}'"
-                    )
+                    skip_counts["invalid_date"] += 1
+                    logging.debug(f"Row {index}: Skipping - invalid date '{row[date_col]}'")
                     continue
 
                 # --- Merchant Parsing ---
@@ -134,18 +133,18 @@ class ImportScreen(BaseScreen):
                     or pd.isna(merchant_val)
                     or str(merchant_val).strip() == ""
                 ):
-                    logging.warning(f"[Row {index}] SKIPPING: Merchant name is empty.")
+                    skip_counts["empty_merchant"] += 1
+                    logging.debug(f"Row {index}: Skipping - empty merchant")
                     continue
 
                 # --- Amount Parsing ---
                 amount_val = clean_amount(pd.Series([row[amount_col]]))[0]
-                logging.info(f"[Row {index}] Cleaned amount: {amount_val}")
+                logging.debug(f"Row {index}: Cleaned amount: {amount_val}")
 
                 # --- Expense Filtering ---
                 if amount_val >= 0:
-                    logging.info(
-                        f"[Row {index}] SKIPPING: Amount is not a debit/expense (>= 0)."
-                    )
+                    skip_counts["not_expense"] += 1
+                    logging.debug(f"Row {index}: Skipping - not an expense (amount >= 0)")
                     continue
 
                 # --- Special PayPal Debit Check ---
@@ -153,10 +152,8 @@ class ImportScreen(BaseScreen):
                     "Balance Impact" in self.df.columns
                     and row["Balance Impact"] != "Debit"
                 ):
-                    logging.info(
-                        f"[Row {index}] SKIPPING: PayPal transaction is not a 'Debit'. "
-                        f"Balance Impact was '{row['Balance Impact']}'."
-                    )
+                    skip_counts["not_debit"] += 1
+                    logging.debug(f"Row {index}: Skipping - not a debit transaction")
                     continue
 
                 # --- Add to list ---
@@ -167,20 +164,28 @@ class ImportScreen(BaseScreen):
                     "Amount": final_amount,
                 }
                 transactions_to_append.append(transaction)
-                logging.info(
-                    f"[Row {index}] SUCCESS: Adding transaction: {transaction}"
-                )
+                logging.debug(f"Row {index}: Successfully processed transaction")
+
+            # Log summary statistics
+            total_processed = len(self.df)
+            total_imported = len(transactions_to_append)
+            total_skipped = sum(skip_counts.values())
+
+            logging.info(
+                f"CSV import complete: {total_imported} transactions imported, "
+                f"{total_skipped} rows skipped (of {total_processed} total)"
+            )
+
+            # Log skip reasons if any
+            if total_skipped > 0:
+                skip_details = ", ".join([f"{count} {reason}" for reason, count in skip_counts.items() if count > 0])
+                logging.info(f"Skip breakdown: {skip_details}")
 
             if transactions_to_append:
                 processed_df = pd.DataFrame(transactions_to_append)
                 append_transactions(processed_df, suggest_categories=suggest_categories)
-                logging.info(
-                    f"--- Finished CSV Import: Appended {len(processed_df)} rows to parquet file. ---"
-                )
             else:
-                logging.info(
-                    "--- Finished CSV Import: No valid transactions found to append. ---"
-                )
+                logging.warning("No valid transactions found to import")
 
             self.app.pop_screen()
 

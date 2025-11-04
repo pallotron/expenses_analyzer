@@ -6,7 +6,7 @@
 
 - [x] Add input validation for CSV imports to prevent malicious file uploads ✅ (path sanitization via FileBrowserScreen, date/merchant/amount validation, row-by-row error handling, safe pandas parsing; optional improvements: file size limits, encoding detection)
 - [ ] Implement data encryption for sensitive financial data at rest
-- [ ] Add configuration option to exclude sensitive merchants from logs
+- [x] Add configuration option to exclude sensitive merchants from logs ✅ (implemented better solution: moved all sensitive data logging to DEBUG level; INFO level now only shows summary statistics without merchant names/amounts)
 - [x] Sanitize file paths in file browser to prevent directory traversal attacks ✅
 - [ ] Add rate limiting for Gemini API calls to prevent excessive costs
 - [x] Store API keys more securely ✅ (current env var approach is industry-standard for CLI tools; keyring would add complexity without meaningful security benefits for this use case)

@@ -31,10 +31,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
     ]
 
     def __init__(
-        self, category: str | None = None, year: int | None = None, month: int | None = None, **kwargs: Any
+        self, category: str | None = None, year: int | None = None, month: int | None = None, merchant: str | None = None, **kwargs: Any
     ) -> None:
         super().__init__(**kwargs)
         self.filter_category: str | None = category
+        self.filter_merchant: str | None = merchant
         self.filter_year: int = year if year is not None else datetime.now().year
         self.filter_month: int | None = month
         self.columns: list[str] = ["Date", "Merchant", "Amount", "Category"]
@@ -51,12 +52,20 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             month_name = f" in {self.filter_month}" if self.filter_month else ""
             year_name = f" for {self.filter_year}" if self.filter_year else ""
             title = f"Transactions for '{self.filter_category}'{month_name}{year_name}"
+        elif self.filter_merchant:
+            month_name = f" in {self.filter_month}" if self.filter_month else ""
+            year_name = f" for {self.filter_year}" if self.filter_year else ""
+            title = f"Transactions for merchant '{self.filter_merchant}'{month_name}{year_name}"
 
         yield Static(title, classes="title")
         yield Horizontal(
             ClearableInput(placeholder="Start Date (YYYY-MM-DD)", id="date_min_filter"),
             ClearableInput(placeholder="End Date (YYYY-MM-DD)", id="date_max_filter"),
-            ClearableInput(placeholder="Filter by Merchant...", id="merchant_filter"),
+            ClearableInput(
+                placeholder="Filter by Merchant...",
+                id="merchant_filter",
+                value=self.filter_merchant or "",
+            ),
             ClearableInput(placeholder="Min Amount...", id="amount_min_filter"),
             ClearableInput(placeholder="Max Amount...", id="amount_max_filter"),
             ClearableInput(
@@ -71,7 +80,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Button("Delete Selected", id="delete_button", variant="error"),
             classes="button-bar",
         )
-        yield DataTable(id="transaction_table", zebra_stripes=True)
+        yield DataTable(id="transaction_table", cursor_type="row", zebra_stripes=True)
 
     def on_mount(self) -> None:
         """Load data and populate the table when the screen is mounted."""

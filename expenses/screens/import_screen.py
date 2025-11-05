@@ -29,7 +29,7 @@ class ImportScreen(BaseScreen):
                 ),
                 Button("Browse", id="browse_button"),
                 Static("File Preview:", classes="label", id="file_preview_label"),
-                DataTable(id="file_preview"),
+                DataTable(id="file_preview", cursor_type="row"),
                 Static("Map Columns:", classes="label", id="map_columns_label"),
                 Static("Date Column:"),
                 Select([], id="date_select"),

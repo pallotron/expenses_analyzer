@@ -53,16 +53,29 @@ DataTable .datatable--header {
     text-style: bold;
 }
 
-DataTable > .datatable--cursor {
-    background: $accent-lighten-1;
-    color: $text;
+/* Highlight cells in the header that are affected by cursor (when cursor_type="row" or "column") */
+DataTable .datatable--header-cursor {
+    background: $accent-darken-2;
 }
 
-DataTable .datatable--row-odd {
+/* Row hover effect - subtle highlight when mouse hovers over a row */
+DataTable .datatable--hover {
+    background: $accent-darken-3;
+}
+
+/* Highlight the specific cell where the cursor is (more prominent) */
+DataTable .datatable--cursor {
+    background: $accent-lighten-1;
+    color: $text;
+    text-style: bold;
+}
+
+/* Zebra stripes - use correct Textual class names */
+DataTable .datatable--odd-row {
     background: $surface-darken-2;
 }
 
-DataTable .datatable--row-even {
+DataTable .datatable--even-row {
     background: $surface;
 }
 

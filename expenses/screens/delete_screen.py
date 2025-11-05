@@ -52,7 +52,7 @@ class DeleteScreen(BaseScreen):
             classes="button-bar",
         )
         yield Static("", id="preview_summary")
-        yield DataTable(id="preview_table", zebra_stripes=True)
+        yield DataTable(id="preview_table", cursor_type="row", zebra_stripes=True)
 
     def on_mount(self) -> None:
         """Set initial state."""

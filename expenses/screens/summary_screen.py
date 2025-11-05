@@ -21,6 +21,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     BINDINGS = [
         Binding("space", "toggle_selection", "Toggle Selection"),
+        Binding("enter", "drill_down", "Drill Down"),
     ]
 
     def __init__(self, **kwargs: Any) -> None:
@@ -69,11 +70,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                         ),
                                         DataTable(
                                             id=f"category_breakdown_{year}_all",
+                                            cursor_type="row",
                                             zebra_stripes=True,
                                         ),
                                         Static("Top Merchants", classes="table_title"),
                                         DataTable(
                                             id=f"top_merchants_{year}_all",
+                                            cursor_type="row",
                                             zebra_stripes=True,
                                         ),
                                         classes="category-breakdown",
@@ -106,6 +109,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                     Static("Top Merchants", classes="table_title"),
                                     DataTable(
                                         id=f"top_merchants_{year}_{month}",
+                                        cursor_type="row",
                                         zebra_stripes=True,
                                     ),
                                     classes="single_month_container",
@@ -268,7 +272,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                     Text(category, style=style),
                     Text(f"{row['Amount']:,.2f}", style=style),
                     Text(f"{percentage:.2f}%", style=style),
-                    Text(bar, style=style),
+                    bar,  # Plain string, no Text() wrapper, no style
                 ]
                 category_table.add_row(*styled_row, key=category)
 
@@ -492,6 +496,133 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         self.app.push_screen(
             self.app.SCREENS["transactions"](category=category, year=year, month=month)
         )
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle row selection (clicking on rows with cursor_type='row')."""
+        table = event.data_table
+        table_id = table.id
+
+        # Get year context
+        year_tabs = self.query_one("#year_tabs", TabbedContent)
+        year = int(year_tabs.active.split("_")[1])
+
+        # Get the first cell value (category or merchant name)
+        try:
+            first_cell = table.get_cell_at((event.cursor_row, 0))
+            first_cell_str = str(first_cell).strip()
+
+            # Skip if it's a total row
+            if "Total" in first_cell_str or "total" in first_cell_str.lower():
+                return
+        except Exception as e:
+            logging.warning(f"Could not get cell value: {e}")
+            return
+
+        category = None
+        month = None
+        merchant = None
+
+        # Determine month context
+        month_tabs_id = f"#month_tabs_{year}"
+        month_tabs = self.query_one(month_tabs_id, TabbedContent)
+        active_month_pane_id = month_tabs.active.split("_")
+        if active_month_pane_id[-1] != "all":
+            month = int(active_month_pane_id[-1])
+
+        # Handle different table types
+        if table_id and table_id.startswith("category_breakdown"):
+            category = first_cell_str
+        elif table_id and table_id.startswith("top_merchants"):
+            merchant = first_cell_str
+
+        # Navigate to transactions screen
+        if merchant:
+            # For merchants, show transactions for that merchant
+            self.app.push_screen(
+                self.app.SCREENS["transactions"](merchant=merchant, year=year, month=month)
+            )
+        elif category:
+            self.app.push_screen(
+                self.app.SCREENS["transactions"](category=category, year=year, month=month)
+            )
+
+    def action_drill_down(self) -> None:
+        """Drill down into transactions from the current table row or cell."""
+        focused_widget = self.app.focused
+        if not isinstance(focused_widget, DataTable) or focused_widget.cursor_row is None:
+            return
+
+        table = focused_widget
+        table_id = table.id
+
+        year_tabs = self.query_one("#year_tabs", TabbedContent)
+        year = int(year_tabs.active.split("_")[1])
+
+        category = None
+        month = None
+        merchant = None
+
+        # Get the first column value (category or merchant name)
+        try:
+            first_cell = table.get_cell_at((table.cursor_row, 0))
+            first_cell_str = str(first_cell).strip()
+
+            # Skip if it's a total row
+            if "Total" in first_cell_str or "total" in first_cell_str.lower():
+                return
+        except Exception as e:
+            logging.warning(f"Could not get cell value: {e}")
+            return
+
+        # Handle different table types
+        if table_id and table_id.startswith("category_breakdown"):
+            # Category breakdown - drill down by category
+            category = first_cell_str
+            month_tabs_id = f"#month_tabs_{year}"
+            month_tabs = self.query_one(month_tabs_id, TabbedContent)
+            active_month_pane_id = month_tabs.active.split("_")
+            if active_month_pane_id[-1] != "all":
+                month = int(active_month_pane_id[-1])
+
+        elif table_id and table_id.startswith("top_merchants"):
+            # Top merchants - drill down by merchant name
+            merchant = first_cell_str
+            month_tabs_id = f"#month_tabs_{year}"
+            month_tabs = self.query_one(month_tabs_id, TabbedContent)
+            active_month_pane_id = month_tabs.active.split("_")
+            if active_month_pane_id[-1] != "all":
+                month = int(active_month_pane_id[-1])
+
+        elif table_id and table_id.startswith("monthly_breakdown"):
+            # Monthly breakdown - need both category and column (month)
+            category = first_cell_str
+
+            # For cell cursor tables, we can get the column
+            if hasattr(table, 'cursor_column') and table.cursor_column is not None:
+                try:
+                    column = table.columns[table.cursor_column]
+                    month_name = str(column.label)
+
+                    if month_name not in ["Total", "Average", "Category"]:
+                        try:
+                            month = datetime.strptime(month_name, "%b").month
+                        except ValueError:
+                            pass  # Not a month column, drill down for whole year
+                except Exception as e:
+                    logging.warning(f"Could not determine month column: {e}")
+        else:
+            return
+
+        # Navigate to transactions screen
+        if merchant:
+            # For merchants, we filter by merchant name
+            self.app.push_screen(
+                self.app.SCREENS["transactions"](merchant=merchant, year=year, month=month)
+            )
+        else:
+            self.app.push_screen(
+                self.app.SCREENS["transactions"](category=category, year=year, month=month)
+            )
 
     def update_table(self) -> None:
         """Update the table."""

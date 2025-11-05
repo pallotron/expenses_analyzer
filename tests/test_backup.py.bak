@@ -1,0 +1,276 @@
+"""Tests for backup and restore functionality."""
+
+import unittest
+import tempfile
+import time
+from pathlib import Path
+from unittest.mock import patch
+import pandas as pd
+
+from expenses.backup import (
+    create_auto_backup,
+    restore_from_backup,
+    list_backups,
+    get_backup_stats,
+    _cleanup_old_backups,
+    BACKUP_RETENTION_DAYS,
+)
+from expenses.data_handler import save_transactions_to_parquet, load_transactions_from_parquet
+
+
+class TestBackup(unittest.TestCase):
+    """Test suite for backup functionality."""
+
+    def setUp(self) -> None:
+        """Create temporary test environment."""
+        self.test_dir = tempfile.mkdtemp()
+        self.transactions_file = Path(self.test_dir) / "transactions.parquet"
+        self.categories_file = Path(self.test_dir) / "categories.json"
+        self.auto_backup_dir = Path(self.test_dir) / "auto_backups"
+
+    def test_create_auto_backup_success(self) -> None:
+        """Test successful backup creation."""
+        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir), \
+             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+
+            # Create some test data
+            df = pd.DataFrame({
+                "Date": ["2025-01-01"],
+                "Merchant": ["Test Store"],
+                "Amount": [10.00]
+            })
+            save_transactions_to_parquet(df)
+
+            # Create backup
+            backup_file = create_auto_backup()
+
+            # Verify backup was created
+            assert backup_file is not None
+            assert backup_file.exists()
+            assert backup_file.parent == self.auto_backup_dir
+            assert "transactions_" in backup_file.name
+            assert backup_file.suffix == ".parquet"
+
+    def test_create_auto_backup_no_file(self) -> None:
+        """Test backup when no transactions file exists."""
+        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir):
+
+            # Try to backup non-existent file
+            backup_file = create_auto_backup()
+
+            # Should return None
+            assert backup_file is None
+
+    def test_backup_includes_categories(self) -> None:
+        """Test that backup includes categories file if it exists."""
+        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.backup.CATEGORIES_FILE", self.categories_file), \
+             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir), \
+             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+
+            # Create test data
+            df = pd.DataFrame({
+                "Date": ["2025-01-01"],
+                "Merchant": ["Test"],
+                "Amount": [10.00]
+            })
+            save_transactions_to_parquet(df)
+
+            # Create categories file
+            self.categories_file.write_text('{"Test": "Shopping"}')
+
+            # Create backup
+            backup_file = create_auto_backup()
+
+            # Verify categories were backed up
+            timestamp = backup_file.stem.replace("transactions_", "")
+            cat_backup = self.auto_backup_dir / f"categories_{timestamp}.json"
+            assert cat_backup.exists()
+
+    def test_cleanup_old_backups(self) -> None:
+        """Test that old backups are removed when older than BACKUP_RETENTION_DAYS."""
+        import os
+
+        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir), \
+             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+
+            # Create test data
+            df = pd.DataFrame({
+                "Date": ["2025-01-01"],
+                "Merchant": ["Test"],
+                "Amount": [10.00]
+            })
+            save_transactions_to_parquet(df)
+
+            # Create directory
+            self.auto_backup_dir.mkdir(parents=True, exist_ok=True)
+
+            # Manually create backup files with different ages
+            current_time = time.time()
+            old_timestamp = current_time - (8 * 24 * 60 * 60)  # 8 days ago
+            recent_timestamp = current_time - (2 * 24 * 60 * 60)  # 2 days ago
+
+            # Create old backup
+            old_backup = self.auto_backup_dir / "transactions_20251001_120000_000000.parquet"
+            old_backup.write_bytes(b"old backup data")
+            os.utime(old_backup, (old_timestamp, old_timestamp))
+
+            # Create recent backups
+            recent_backup1 = self.auto_backup_dir / "transactions_20251103_120000_000000.parquet"
+            recent_backup1.write_bytes(b"recent backup data 1")
+            os.utime(recent_backup1, (recent_timestamp, recent_timestamp))
+
+            recent_backup2 = self.auto_backup_dir / "transactions_20251104_120000_000000.parquet"
+            recent_backup2.write_bytes(b"recent backup data 2")
+            os.utime(recent_backup2, (current_time, current_time))
+
+            # Verify we have 3 backups
+            backups = list(self.auto_backup_dir.glob("transactions_*.parquet"))
+            assert len(backups) == 3
+
+            # Trigger cleanup (default retention is 7 days)
+            _cleanup_old_backups()
+
+            # Verify only the old backup was removed
+            backups = list(self.auto_backup_dir.glob("transactions_*.parquet"))
+            assert len(backups) == 2
+            assert old_backup not in backups
+            assert recent_backup1 in backups
+            assert recent_backup2 in backups
+
+    def test_restore_from_backup_success(self) -> None:
+        """Test successful restore from backup."""
+        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir), \
+             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+
+            # Create original data
+            original_df = pd.DataFrame({
+                "Date": ["2025-01-01"],
+                "Merchant": ["Original"],
+                "Amount": [10.00]
+            })
+            save_transactions_to_parquet(original_df)
+
+            # Create backup
+            backup_file = create_auto_backup()
+
+            # Modify data
+            modified_df = pd.DataFrame({
+                "Date": ["2025-01-02"],
+                "Merchant": ["Modified"],
+                "Amount": [20.00]
+            })
+            save_transactions_to_parquet(modified_df)
+
+            # Restore from backup
+            success = restore_from_backup(backup_file)
+
+            assert success
+            # Verify data was restored
+            restored_df = load_transactions_from_parquet()
+            assert len(restored_df) == 1
+            assert restored_df.iloc[0]["Merchant"] == "Original"
+
+    def test_restore_from_nonexistent_backup(self) -> None:
+        """Test restore fails gracefully when backup doesn't exist."""
+        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file):
+            fake_backup = Path(self.test_dir) / "nonexistent.parquet"
+            success = restore_from_backup(fake_backup)
+
+            assert success is False
+
+    def test_list_backups(self) -> None:
+        """Test listing available backups."""
+        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir), \
+             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+
+            # Create test data
+            df = pd.DataFrame({
+                "Date": ["2025-01-01"],
+                "Merchant": ["Test"],
+                "Amount": [10.00]
+            })
+            save_transactions_to_parquet(df)
+
+            # Create multiple backups
+            for i in range(3):
+                create_auto_backup()
+                time.sleep(0.01)
+
+            # List backups
+            backups = list_backups()
+
+            assert len(backups) == 3
+            # Verify backups are sorted newest first
+            for i in range(len(backups) - 1):
+                assert backups[i][0] >= backups[i + 1][0]
+
+    def test_get_backup_stats(self) -> None:
+        """Test getting backup statistics."""
+        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir), \
+             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+
+            # Initially no backups
+            stats = get_backup_stats()
+            assert stats["count"] == 0
+            assert stats["total_size"] == 0
+
+            # Create test data and backups
+            df = pd.DataFrame({
+                "Date": ["2025-01-01"],
+                "Merchant": ["Test"],
+                "Amount": [10.00]
+            })
+            save_transactions_to_parquet(df)
+
+            create_auto_backup()
+            time.sleep(0.01)
+            create_auto_backup()
+
+            # Get stats
+            stats = get_backup_stats()
+            assert stats["count"] == 2
+            assert stats["total_size"] > 0
+            assert stats["newest"] is not None
+            assert stats["oldest"] is not None
+
+    def test_backup_creates_directory(self) -> None:
+        """Test that backup creates auto_backups directory if it doesn't exist."""
+        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir), \
+             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
+             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+
+            # Verify directory doesn't exist
+            assert not self.auto_backup_dir.exists()
+
+            # Create test data
+            df = pd.DataFrame({
+                "Date": ["2025-01-01"],
+                "Merchant": ["Test"],
+                "Amount": [10.00]
+            })
+            save_transactions_to_parquet(df)
+
+            # Create backup
+            create_auto_backup()
+
+            # Verify directory was created
+            assert self.auto_backup_dir.exists()
+            assert self.auto_backup_dir.is_dir()
+
+
+if __name__ == "__main__":
+    unittest.main()

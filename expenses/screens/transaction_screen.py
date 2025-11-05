@@ -31,14 +31,19 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
     ]
 
     def __init__(
-        self, category: str | None = None, year: int | None = None, month: int | None = None, merchant: str | None = None, **kwargs: Any
+        self,
+        category: str | None = None,
+        year: int | None = None,
+        month: int | None = None,
+        merchant: str | None = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.filter_category: str | None = category
         self.filter_merchant: str | None = merchant
         self.filter_year: int = year if year is not None else datetime.now().year
         self.filter_month: int | None = month
-        self.columns: list[str] = ["Date", "Merchant", "Amount", "Category"]
+        self.columns: list[str] = ["Date", "Merchant", "Amount", "Source", "Category"]
         self.sort_column: str = "Date"
         self.sort_order: str = "desc"
         self.selected_rows: set[int] = set()
@@ -68,6 +73,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             ),
             ClearableInput(placeholder="Min Amount...", id="amount_min_filter"),
             ClearableInput(placeholder="Max Amount...", id="amount_max_filter"),
+            ClearableInput(placeholder="Filter by Source...", id="source_filter"),
             ClearableInput(
                 placeholder="Filter by Category...",
                 id="category_filter",
@@ -97,11 +103,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             else:  # Year-to-date view
                 start_date = pd.Timestamp(f"{self.filter_year}-01-01")
                 end_date = pd.Timestamp(f"{self.filter_year}-12-31")
-            self.query_one("#date_min_filter", ClearableInput).value = start_date.strftime(
-                "%Y-%m-%d"
+            self.query_one("#date_min_filter", ClearableInput).value = (
+                start_date.strftime("%Y-%m-%d")
             )
-            self.query_one("#date_max_filter", ClearableInput).value = end_date.strftime(
-                "%Y-%m-%d"
+            self.query_one("#date_max_filter", ClearableInput).value = (
+                end_date.strftime("%Y-%m-%d")
             )
 
         self.transactions = load_transactions_from_parquet()
@@ -129,6 +135,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         """Called when any input's value changes to re-filter the table."""
         self.populate_table()
 
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key press in filter inputs."""
+        # Refresh the table when Enter is pressed in any filter
+        self.populate_table()
+
     def populate_table(self) -> None:
         """Populate the transaction table with data, applying filters."""
         table = self.query_one("#transaction_table", DataTable)
@@ -152,14 +163,16 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 "Date",
                 ">=",
                 pd.to_datetime(
-                    self.query_one("#date_min_filter", ClearableInput).value, errors="coerce"
+                    self.query_one("#date_min_filter", ClearableInput).value,
+                    errors="coerce",
                 ),
             ),
             "date_max": (
                 "Date",
                 "<=",
                 pd.to_datetime(
-                    self.query_one("#date_max_filter", ClearableInput).value, errors="coerce"
+                    self.query_one("#date_max_filter", ClearableInput).value,
+                    errors="coerce",
                 ),
             ),
             "merchant": (
@@ -171,15 +184,22 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 "Amount",
                 ">=",
                 pd.to_numeric(
-                    self.query_one("#amount_min_filter", ClearableInput).value, errors="coerce"
+                    self.query_one("#amount_min_filter", ClearableInput).value,
+                    errors="coerce",
                 ),
             ),
             "amount_max": (
                 "Amount",
                 "<=",
                 pd.to_numeric(
-                    self.query_one("#amount_max_filter", ClearableInput).value, errors="coerce"
+                    self.query_one("#amount_max_filter", ClearableInput).value,
+                    errors="coerce",
                 ),
+            ),
+            "source": (
+                "Source",
+                "contains",
+                self.query_one("#source_filter", ClearableInput).value,
             ),
             "category": (
                 "Category",
@@ -209,7 +229,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             )
 
         # --- Add Columns with Correct Headers and Widths ---
-        column_widths = {"Date": 12, "Amount": 15, "Category": 20}
+        column_widths = {"Date": 12, "Amount": 15, "Source": 25, "Category": 20}
         for col_name in self.columns:
             icon = (
                 " ▲"
@@ -235,6 +255,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 row["Date"].strftime("%Y-%m-%d") if pd.notna(row["Date"]) else "",
                 row["Merchant"] or "",
                 f"{row['Amount']:,.2f}" if pd.notna(row["Amount"]) else "",
+                row.get("Source", "Unknown") or "Unknown",
                 row["Category"] or "",
             ]
 

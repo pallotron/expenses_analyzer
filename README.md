@@ -169,6 +169,86 @@ The application can use the Google Gemini API to automatically suggest categorie
 
 If the `GEMINI_API_KEY` is not set, the application will skip the automatic categorization step, and you will need to categorize new merchants manually.
 
+## Plaid Bank Integration (Optional)
+
+The application can automatically sync transactions directly from your bank accounts using [Plaid](https://plaid.com/). This is an optional advanced feature that requires you to set up your own Plaid developer account.
+
+### Why Your Own Plaid Account?
+
+Plaid credentials are per-developer, not per-user. Since this is an open-source tool that you run locally, you need to obtain your own Plaid API credentials. This gives you direct control over your financial data and ensures your bank connections are secure.
+
+### Setup Instructions
+
+1. **Create a Plaid Account**:
+   - Go to [Plaid Dashboard](https://dashboard.plaid.com/signup)
+   - Sign up for a free developer account
+   - Complete the application process (usually instant for Sandbox/Development environments)
+
+2. **Get Your Credentials**:
+   - Log into the [Plaid Dashboard](https://dashboard.plaid.com/)
+   - Navigate to **Team Settings → Keys**
+   - Copy your `client_id` and `secret` for the environment you want to use
+
+3. **Set Environment Variables**:
+   Add these to your shell configuration file (e.g., `.zshrc`, `.bash_profile`):
+
+   ```bash
+   export PLAID_CLIENT_ID="your_client_id_here"
+   export PLAID_SECRET="your_secret_here"
+   export PLAID_ENV="sandbox"  # or "development" or "production"
+   ```
+
+   **Important**: Never commit these credentials to version control or share them publicly.
+
+4. **Reload Your Shell**:
+
+   ```bash
+   source ~/.zshrc  # or ~/.bash_profile
+   ```
+
+5. **Use Plaid in the App**:
+   - Launch `expenses-analyzer`
+   - Press `p` to open the Plaid screen
+   - Click "Link New Account" to connect your bank
+   - Click "Sync Transactions" to import data
+
+### Plaid Environments
+
+Plaid offers three environments with different capabilities:
+
+- **Sandbox** (Free): Use fake test credentials to try out the integration
+  - Test credentials: Any username, password `pass_good`
+  - No real bank data
+  - Perfect for testing the feature
+
+- **Development** (Free): Connect real bank accounts for testing
+  - Free for up to 100 connected bank accounts/items
+  - Real transaction data from your actual banks
+  - Recommended for personal use
+  - [Request Development access](https://dashboard.plaid.com/overview/development) in the dashboard
+
+- **Production** (Paid): For unlimited use
+  - Requires application approval from Plaid
+  - Usage-based pricing
+  - Only needed if you exceed Development limits
+
+### Data Storage
+
+When you link a bank account, the application stores access tokens in `~/.config/expenses_analyzer/plaid_items.json`. This file is automatically secured with restricted permissions (600) for your protection.
+
+### Troubleshooting
+
+If Plaid integration isn't working:
+
+1. Verify your environment variables are set: `echo $PLAID_CLIENT_ID`
+2. Check that you're using the correct environment (`PLAID_ENV`)
+3. Ensure your Plaid account has access to the environment you're using
+4. Check `~/.config/expenses_analyzer/app.log` for error messages
+
+### Without Plaid
+
+Don't want to use Plaid? No problem! You can still use the application by importing CSV exports from your bank's website (press `i` for the Import screen). The CSV import feature works great and doesn't require any external API credentials.
+
 ## Configuration
 
 The application stores its data, including transactions and category mappings, in a central configuration directory.

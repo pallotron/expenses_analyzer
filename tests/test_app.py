@@ -1,7 +1,7 @@
 """Tests for ExpensesApp."""
 
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from expenses.app import ExpensesApp
 from expenses.widgets.notification import Notification
 
@@ -15,6 +15,7 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
         async with app.run_test() as pilot:
             # App should have header and footer
             from textual.widgets import Header, Footer
+
             assert pilot.app.query_one(Header)
             assert pilot.app.query_one(Footer)
 
@@ -25,6 +26,7 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             # Summary screen should be active
             from expenses.screens.summary_screen import SummaryScreen
+
             assert isinstance(pilot.app.screen, SummaryScreen)
 
     async def test_app_has_screens_registered(self) -> None:
@@ -45,7 +47,7 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
         assert "t" in binding_keys  # Transactions
         assert "i" in binding_keys  # Import
         assert "c" in binding_keys  # Categorize
-        assert "d" in binding_keys  # Delete
+        assert "D" in binding_keys  # Delete (uppercase D)
         assert "escape" in binding_keys  # Back
         assert "ctrl+q" in binding_keys  # Quit
 
@@ -104,6 +106,7 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
 
             # Should now be on confirmation screen
             from expenses.screens.confirmation_screen import ConfirmationScreen
+
             assert isinstance(pilot.app.screen, ConfirmationScreen)
 
     async def test_show_notification(self) -> None:
@@ -145,6 +148,7 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
 
             from expenses.screens.import_screen import ImportScreen
+
             assert isinstance(pilot.app.screen, ImportScreen)
 
             # Press 'c' to go to categorize screen
@@ -152,6 +156,7 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
 
             from expenses.screens.categorize_screen import CategorizeScreen
+
             assert isinstance(pilot.app.screen, CategorizeScreen)
 
     async def test_escape_key_pops_screen(self) -> None:
@@ -164,6 +169,7 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
             await pilot.app.push_screen("import")
             await pilot.pause()
             from expenses.screens.import_screen import ImportScreen
+
             assert isinstance(pilot.app.screen, ImportScreen)
 
             # Press escape
@@ -172,6 +178,7 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
 
             # Should be back on summary
             from expenses.screens.summary_screen import SummaryScreen
+
             assert isinstance(pilot.app.screen, SummaryScreen)
 
 

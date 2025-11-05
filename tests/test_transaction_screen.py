@@ -28,12 +28,15 @@ def transaction_screen() -> TransactionScreen:
         ({"category_filter": "Category 1"}, 2),
     ],
 )
-def test_populate_table_filtering(transaction_screen: TransactionScreen, filters: Dict[str, str], expected_rows: int) -> None:
+def test_populate_table_filtering(
+    transaction_screen: TransactionScreen, filters: Dict[str, str], expected_rows: int
+) -> None:
     """Test the filtering logic of the populate_table method."""
     data: Dict[str, Any] = {
         "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
         "Merchant": ["Merchant A", "Merchant B", "Merchant C"],
         "Amount": [10.0, 20.0, 30.0],
+        "Source": ["CSV Import", "Plaid", "Manual"],
     }
     df: pd.DataFrame = pd.DataFrame(data)
     transaction_screen.transactions = df
@@ -52,6 +55,7 @@ def test_populate_table_filtering(transaction_screen: TransactionScreen, filters
             "#merchant_filter": "",
             "#amount_min_filter": "",
             "#amount_max_filter": "",
+            "#source_filter": "",
             "#category_filter": "",
         }
         for key, value in filters.items():
@@ -106,12 +110,15 @@ class MockStatic:
         pass
 
 
-def test_toggle_selection_keeps_cursor_position(transaction_screen: TransactionScreen) -> None:
+def test_toggle_selection_keeps_cursor_position(
+    transaction_screen: TransactionScreen,
+) -> None:
     """Test that the cursor position is maintained after toggling a selection."""
     data: Dict[str, Any] = {
         "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
         "Merchant": ["Merchant A", "Merchant B", "Merchant C"],
         "Amount": [10.0, 20.0, 30.0],
+        "Source": ["CSV Import", "Plaid", "Manual"],
         "Category": ["Category 1", "Category 2", "Category 1"],
     }
     df: pd.DataFrame = pd.DataFrame(data)
@@ -131,6 +138,7 @@ def test_toggle_selection_keeps_cursor_position(transaction_screen: TransactionS
         "#merchant_filter": MockInput(value=""),
         "#amount_min_filter": MockInput(value=""),
         "#amount_max_filter": MockInput(value=""),
+        "#source_filter": MockInput(value=""),
         "#category_filter": MockInput(value=""),
     }[selector]
 

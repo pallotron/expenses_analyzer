@@ -1,4 +1,4 @@
-"""Tests for DeleteScreen."""
+"""Tests for BuildDeleteScreen."""
 
 import unittest
 import tempfile
@@ -7,11 +7,11 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 from textual.app import App
 from textual.widgets import Input, Button, DataTable, RadioButton
-from expenses.screens.delete_screen import DeleteScreen
+from expenses.screens.delete_screen import BuildDeleteScreen
 
 
 class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
-    """Test suite for DeleteScreen."""
+    """Test suite for BuildDeleteScreen."""
 
     def setUp(self) -> None:
         """Create temporary test data."""
@@ -19,11 +19,13 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
         self.transactions_file = Path(self.test_dir) / "transactions.parquet"
 
         # Create test transactions
-        self.test_transactions = pd.DataFrame({
-            "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
-            "Merchant": ["Starbucks", "Shell Gas", "Starbucks"],
-            "Amount": [5.50, 40.00, 6.00],
-        })
+        self.test_transactions = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
+                "Merchant": ["Starbucks", "Shell Gas", "Starbucks"],
+                "Amount": [5.50, 40.00, 6.00],
+            }
+        )
 
     async def test_screen_composition(self) -> None:
         """Test that delete screen has required elements."""
@@ -32,7 +34,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
 
                 # Check that required widgets are present
@@ -52,7 +54,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
 
                 delete_button = pilot.app.screen.query_one("#delete_button", Button)
@@ -65,7 +67,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
                 await pilot.pause()
 
@@ -79,7 +81,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
                 await pilot.pause()
 
@@ -95,7 +97,9 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
                 # Check that preview shows matches
                 summary = pilot.app.screen.query_one("#preview_summary")
                 assert "2 transactions" in str(summary.render())
-                assert "11.50" in str(summary.render())  # Total of two Starbucks transactions
+                assert "11.50" in str(
+                    summary.render()
+                )  # Total of two Starbucks transactions
 
                 # Delete button should now be enabled
                 delete_button = pilot.app.screen.query_one("#delete_button", Button)
@@ -108,7 +112,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
                 await pilot.pause()
 
@@ -125,7 +129,9 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
                 # Should show only one transaction
                 summary = pilot.app.screen.query_one("#preview_summary")
-                assert "1 transactions" in str(summary.render()) or "1 transaction" in str(summary.render())
+                assert "1 transactions" in str(
+                    summary.render()
+                ) or "1 transaction" in str(summary.render())
 
     async def test_preview_with_no_matches(self) -> None:
         """Test previewing when no transactions match."""
@@ -134,7 +140,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
                 await pilot.pause()
 
@@ -162,7 +168,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
                 await pilot.pause()
 
@@ -191,7 +197,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
                 await pilot.pause()
 
@@ -219,7 +225,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
 
             app = App()
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
                 await pilot.pause()
 
@@ -251,7 +257,7 @@ class TestDeleteScreen(unittest.IsolatedAsyncioTestCase):
             app.push_confirmation = MagicMock()
 
             async with app.run_test() as pilot:
-                screen = DeleteScreen()
+                screen = BuildDeleteScreen()
                 await pilot.app.push_screen(screen)
                 await pilot.pause()
 

@@ -207,3 +207,67 @@ TransactionScreen .button-bar > Button {
     width: auto;
     margin: 0 1;
 }
+
+/* --- Build Delete Screen --- */
+BuildDeleteScreen #table_scroll {
+    height: 1fr;
+    min-height: 20;
+}
+
+BuildDeleteScreen #preview_table {
+    height: 100%;
+}
+
+BuildDeleteScreen .button-bar {
+    height: auto;
+    padding: 1 0;
+}
+
+BuildDeleteScreen .button-bar > Button {
+    width: 1fr;
+    margin: 0 1;
+}
+
+/* --- Confirmation Dialog --- */
+ConfirmationScreen {
+    align: center middle;
+}
+
+ConfirmationScreen #dialog {
+    width: 60;
+    height: auto;
+    min-height: 15;
+    max-height: 30;
+    background: $surface;
+    border: thick $primary;
+    padding: 2;
+}
+
+ConfirmationScreen #question {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    padding: 2 1;
+    margin-bottom: 1;
+}
+
+ConfirmationScreen #button_container {
+    width: 100%;
+    height: auto;
+    align-horizontal: center;
+    padding: 1 0;
+}
+
+ConfirmationScreen #button_container > Button {
+    min-width: 15;
+    margin: 0 2;
+}
+
+ConfirmationScreen #help_text {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    padding: 1;
+    color: $text-muted;
+    text-style: italic;
+}

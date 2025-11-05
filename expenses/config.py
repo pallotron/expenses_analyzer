@@ -12,3 +12,8 @@ CATEGORIES_FILE: Path = CONFIG_DIR / "categories.json"
 TRANSACTIONS_FILE: Path = CONFIG_DIR / "transactions.parquet"
 DEFAULT_CATEGORIES_FILE: Path = CONFIG_DIR / "default_categories.json"
 LOG_FILE: Path = CONFIG_DIR / "app.log"
+
+# Plaid API Configuration
+PLAID_CLIENT_ID = os.getenv("PLAID_CLIENT_ID")
+PLAID_SECRET = os.getenv("PLAID_SECRET")
+PLAID_ENV = os.getenv("PLAID_ENV", "sandbox")  # Default to sandbox for development

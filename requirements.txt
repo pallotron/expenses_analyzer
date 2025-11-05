@@ -1,5 +1,7 @@
 pandas
-textual
+textual>=0.30.0
 pyarrow
 google-generativeai
 black
+plaid-python
+Flask

@@ -37,7 +37,9 @@ class TestDataHandler(unittest.TestCase):
 
     @patch("expenses.data_handler.load_transactions_from_parquet")
     @patch("expenses.data_handler.save_transactions_to_parquet")
-    def test_append_transactions_no_duplicates(self, mock_save: MagicMock, mock_load: MagicMock) -> None:
+    def test_append_transactions_no_duplicates(
+        self, mock_save: MagicMock, mock_load: MagicMock
+    ) -> None:
         # Test appending new, unique transactions
         existing_df = pd.DataFrame(
             {
@@ -65,7 +67,9 @@ class TestDataHandler(unittest.TestCase):
 
     @patch("expenses.data_handler.load_transactions_from_parquet")
     @patch("expenses.data_handler.save_transactions_to_parquet")
-    def test_delete_single_transaction(self, mock_save: MagicMock, mock_load: MagicMock) -> None:
+    def test_delete_single_transaction(
+        self, mock_save: MagicMock, mock_load: MagicMock
+    ) -> None:
         # Test soft-deleting a single transaction
         existing_df = pd.DataFrame(
             {
@@ -88,12 +92,18 @@ class TestDataHandler(unittest.TestCase):
         saved_df = mock_save.call_args[0][0]
         # Soft delete keeps both rows, but marks one as deleted
         self.assertEqual(len(saved_df), 2)
-        self.assertEqual(saved_df[saved_df["Merchant"] == "Merchant A"]["Deleted"].iloc[0], True)
-        self.assertEqual(saved_df[saved_df["Merchant"] == "Merchant B"]["Deleted"].iloc[0], False)
+        self.assertEqual(
+            saved_df[saved_df["Merchant"] == "Merchant A"]["Deleted"].iloc[0], True
+        )
+        self.assertEqual(
+            saved_df[saved_df["Merchant"] == "Merchant B"]["Deleted"].iloc[0], False
+        )
 
     @patch("expenses.data_handler.load_transactions_from_parquet")
     @patch("expenses.data_handler.save_transactions_to_parquet")
-    def test_delete_multiple_transactions(self, mock_save: MagicMock, mock_load: MagicMock) -> None:
+    def test_delete_multiple_transactions(
+        self, mock_save: MagicMock, mock_load: MagicMock
+    ) -> None:
         # Test soft-deleting multiple transactions
         existing_df = pd.DataFrame(
             {
@@ -116,13 +126,21 @@ class TestDataHandler(unittest.TestCase):
         saved_df = mock_save.call_args[0][0]
         # Soft delete keeps all rows, but marks 2 as deleted
         self.assertEqual(len(saved_df), 3)
-        self.assertEqual(saved_df[saved_df["Merchant"] == "Merchant A"]["Deleted"].iloc[0], True)
-        self.assertEqual(saved_df[saved_df["Merchant"] == "Merchant B"]["Deleted"].iloc[0], False)
-        self.assertEqual(saved_df[saved_df["Merchant"] == "Merchant C"]["Deleted"].iloc[0], True)
+        self.assertEqual(
+            saved_df[saved_df["Merchant"] == "Merchant A"]["Deleted"].iloc[0], True
+        )
+        self.assertEqual(
+            saved_df[saved_df["Merchant"] == "Merchant B"]["Deleted"].iloc[0], False
+        )
+        self.assertEqual(
+            saved_df[saved_df["Merchant"] == "Merchant C"]["Deleted"].iloc[0], True
+        )
 
     @patch("expenses.data_handler.load_transactions_from_parquet")
     @patch("expenses.data_handler.save_transactions_to_parquet")
-    def test_delete_non_existent_transaction(self, mock_save: MagicMock, mock_load: MagicMock) -> None:
+    def test_delete_non_existent_transaction(
+        self, mock_save: MagicMock, mock_load: MagicMock
+    ) -> None:
         # Test attempting to soft-delete a transaction that doesn't exist
         existing_df = pd.DataFrame(
             {

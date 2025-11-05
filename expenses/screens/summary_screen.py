@@ -121,6 +121,54 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             return
         self.call_after_refresh(self.update_initial_views)
 
+    def on_screen_resume(self, event: Any) -> None:
+        """Called when the screen is resumed after being suspended."""
+        # Save current state
+        old_transactions = self.transactions.copy() if not self.transactions.empty else pd.DataFrame()
+
+        # Reload data
+        self.load_and_prepare_data()
+
+        # Check if we need to recompose (new years/months added or data appeared/disappeared)
+        needs_recompose = False
+        if old_transactions.empty != self.transactions.empty:
+            # Data went from empty to populated or vice versa - need full recompose
+            needs_recompose = True
+        elif not self.transactions.empty and not old_transactions.empty:
+            old_years = set(old_transactions["Date"].dt.year.unique())
+            new_years = set(self.transactions["Date"].dt.year.unique())
+            if old_years != new_years:
+                needs_recompose = True
+
+        if needs_recompose:
+            # Recompose the entire screen if structure changed
+            self.app.pop_screen()
+            self.app.push_screen("summary")
+        elif not self.transactions.empty:
+            # Only update views if we have transactions and widgets exist
+            try:
+                year_tabs = self.query_one("#year_tabs", TabbedContent)
+                active_year_id = year_tabs.active
+                if active_year_id:
+                    year = int(active_year_id.split("_")[1])
+
+                    # Check which month tab is active
+                    month_tabs = self.query_one(f"#month_tabs_{year}", TabbedContent)
+                    active_month_id = month_tabs.active
+
+                    if active_month_id and active_month_id.endswith("_all"):
+                        # Update "All Year" view
+                        self.update_all_year_category_view(year)
+                        self.update_all_year_monthly_view(year)
+                        self.update_top_merchants_view(year)
+                    elif active_month_id:
+                        # Update specific month view
+                        month = int(active_month_id.split("_")[2])
+                        self.update_month_view(year, month)
+                        self.update_top_merchants_view(year, month)
+            except Exception as e:
+                logging.warning(f"Error updating summary screen on resume: {e}")
+
     def update_initial_views(self) -> None:
         """Helper to populate the views after the initial layout is ready."""
         year_tabs = self.query_one("#year_tabs", TabbedContent)
@@ -305,11 +353,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 df.groupby("Merchant")["Amount"]
                 .sum()
                 .sort_values(ascending=False)
-                .head(10)
             )
             for merchant, amount in merchant_summary.items():
                 category = self.categories.get(merchant, "Other")
-                table.add_row(merchant, category, f"{amount:,.2f}")
+                truncated_merchant = merchant[:15] + "..." if len(merchant) > 15 else merchant
+                table.add_row(truncated_merchant, category, f"{amount:,.2f}", key=merchant)
 
     def _populate_monthly_breakdown(self, table: DataTable, year: int) -> None:
         """Helper function to populate a table with monthly breakdown data, with categories as rows."""
@@ -533,23 +581,32 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         if table_id and table_id.startswith("category_breakdown"):
             category = first_cell_str
         elif table_id and table_id.startswith("top_merchants"):
-            merchant = first_cell_str
+            # For top merchants, use the row key which contains the full merchant name
+            row_key = event.row_key
+            merchant = str(row_key.value)
 
         # Navigate to transactions screen
         if merchant:
             # For merchants, show transactions for that merchant
             self.app.push_screen(
-                self.app.SCREENS["transactions"](merchant=merchant, year=year, month=month)
+                self.app.SCREENS["transactions"](
+                    merchant=merchant, year=year, month=month
+                )
             )
         elif category:
             self.app.push_screen(
-                self.app.SCREENS["transactions"](category=category, year=year, month=month)
+                self.app.SCREENS["transactions"](
+                    category=category, year=year, month=month
+                )
             )
 
     def action_drill_down(self) -> None:
         """Drill down into transactions from the current table row or cell."""
         focused_widget = self.app.focused
-        if not isinstance(focused_widget, DataTable) or focused_widget.cursor_row is None:
+        if (
+            not isinstance(focused_widget, DataTable)
+            or focused_widget.cursor_row is None
+        ):
             return
 
         table = focused_widget
@@ -586,7 +643,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
         elif table_id and table_id.startswith("top_merchants"):
             # Top merchants - drill down by merchant name
-            merchant = first_cell_str
+            # Use the row key which contains the full merchant name
+            try:
+                cell_key = table.coordinate_to_cell_key((table.cursor_row, 0))
+                merchant = str(cell_key.row_key.value)
+            except Exception as e:
+                logging.warning(f"Could not get row key: {e}")
+                return
             month_tabs_id = f"#month_tabs_{year}"
             month_tabs = self.query_one(month_tabs_id, TabbedContent)
             active_month_pane_id = month_tabs.active.split("_")
@@ -598,7 +661,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             category = first_cell_str
 
             # For cell cursor tables, we can get the column
-            if hasattr(table, 'cursor_column') and table.cursor_column is not None:
+            if hasattr(table, "cursor_column") and table.cursor_column is not None:
                 try:
                     column = table.columns[table.cursor_column]
                     month_name = str(column.label)
@@ -617,11 +680,15 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         if merchant:
             # For merchants, we filter by merchant name
             self.app.push_screen(
-                self.app.SCREENS["transactions"](merchant=merchant, year=year, month=month)
+                self.app.SCREENS["transactions"](
+                    merchant=merchant, year=year, month=month
+                )
             )
         else:
             self.app.push_screen(
-                self.app.SCREENS["transactions"](category=category, year=year, month=month)
+                self.app.SCREENS["transactions"](
+                    category=category, year=year, month=month
+                )
             )
 
     def update_table(self) -> None:

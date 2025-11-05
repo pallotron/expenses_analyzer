@@ -7,7 +7,7 @@ from textual.widgets import (
     RadioSet,
     RadioButton,
 )
-from textual.containers import Horizontal
+from textual.containers import Horizontal, VerticalScroll
 
 from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import (
@@ -20,8 +20,8 @@ import re
 from typing import Any
 
 
-class DeleteScreen(BaseScreen):
-    """A screen to delete transactions based on a merchant pattern."""
+class BuildDeleteScreen(BaseScreen):
+    """A screen to build and preview transaction deletions based on filters."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -29,7 +29,7 @@ class DeleteScreen(BaseScreen):
         self.preview_df: pd.DataFrame = pd.DataFrame()
 
     def compose_content(self) -> ComposeResult:
-        yield Static("Delete Transactions", classes="title")
+        yield Static("Build Delete Query", classes="title")
         yield Horizontal(
             Input(placeholder="Start Date (YYYY-MM-DD)", id="date_min_filter"),
             Input(placeholder="End Date (YYYY-MM-DD)", id="date_max_filter"),
@@ -52,11 +52,23 @@ class DeleteScreen(BaseScreen):
             classes="button-bar",
         )
         yield Static("", id="preview_summary")
-        yield DataTable(id="preview_table", cursor_type="row", zebra_stripes=True)
+        with VerticalScroll(id="table_scroll"):
+            yield DataTable(id="preview_table", cursor_type="row", zebra_stripes=True)
 
     def on_mount(self) -> None:
         """Set initial state."""
         self.query_one("#regex_button").value = True
+
+    def on_screen_resume(self, event: Any) -> None:
+        """Called when the screen is resumed after being suspended."""
+        # Reload transactions to reflect any changes from other screens
+        self.transactions = load_transactions_from_parquet()
+        # Clear preview if any
+        self.preview_df = pd.DataFrame()
+        preview_table = self.query_one("#preview_table", DataTable)
+        preview_table.clear(columns=True)
+        self.query_one("#preview_summary", Static).update("")
+        self.query_one("#delete_button", Button).disabled = True
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -146,3 +158,7 @@ class DeleteScreen(BaseScreen):
     def on_input_changed(self, event: Input.Changed) -> None:
         """Disable delete button when input changes."""
         self.query_one("#delete_button", Button).disabled = True
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Trigger preview when Enter is pressed in any input field."""
+        self.preview_deletions()

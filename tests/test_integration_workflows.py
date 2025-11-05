@@ -46,13 +46,20 @@ class TestCompleteCSVImportWorkflow(unittest.TestCase):
         3. Save to Parquet
         4. Reload and verify persistence
         """
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Step 1: Create a CSV file with various amount formats
             csv_data = {
                 "Date": ["01/01/2025", "01/02/2025", "01/03/2025", "01/04/2025"],
-                "Merchant": ["Coffee Shop", "Gas Station", "Grocery Store", "Restaurant"],
+                "Merchant": [
+                    "Coffee Shop",
+                    "Gas Station",
+                    "Grocery Store",
+                    "Restaurant",
+                ],
                 "Amount": ["$12.50", "(25.00)", "€100.75", "50"],
             }
             df = pd.DataFrame(csv_data)
@@ -69,11 +76,14 @@ class TestCompleteCSVImportWorkflow(unittest.TestCase):
             self.assertTrue(self.transactions_file.exists())
             loaded_df = load_transactions_from_parquet()
             self.assertEqual(len(loaded_df), 4)
-            self.assertEqual(loaded_df["Merchant"].tolist(), [
-                "Coffee Shop", "Gas Station", "Grocery Store", "Restaurant"
-            ])
+            self.assertEqual(
+                loaded_df["Merchant"].tolist(),
+                ["Coffee Shop", "Gas Station", "Grocery Store", "Restaurant"],
+            )
             # Verify amount cleaning worked
-            self.assertEqual(loaded_df["Amount"].tolist(), [12.50, -25.00, 100.75, 50.0])
+            self.assertEqual(
+                loaded_df["Amount"].tolist(), [12.50, -25.00, 100.75, 50.0]
+            )
 
             # Step 5: Import additional transactions (should deduplicate)
             csv_data_2 = {
@@ -90,7 +100,9 @@ class TestCompleteCSVImportWorkflow(unittest.TestCase):
 
             # Step 6: Verify deduplication worked
             loaded_df = load_transactions_from_parquet()
-            self.assertEqual(len(loaded_df), 5)  # Should be 5, not 6 (duplicate removed)
+            self.assertEqual(
+                len(loaded_df), 5
+            )  # Should be 5, not 6 (duplicate removed)
             merchants = loaded_df["Merchant"].tolist()
             self.assertIn("Bookstore", merchants)
             self.assertEqual(merchants.count("Grocery Store"), 1)  # Not duplicated
@@ -119,16 +131,20 @@ class TestCategoryAssignmentWorkflow(unittest.TestCase):
         4. Reload and verify persistence
         5. Verify transactions are enriched with categories
         """
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.CONFIG_DIR", self.config_dir):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch("expenses.data_handler.CONFIG_DIR", self.config_dir),
+        ):
 
             # Step 1: Create transactions
-            transactions = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
-                "Merchant": ["Starbucks", "Shell Gas", "Starbucks"],
-                "Amount": [5.50, 40.00, 6.00],
-            })
+            transactions = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
+                    "Merchant": ["Starbucks", "Shell Gas", "Starbucks"],
+                    "Amount": [5.50, 40.00, 6.00],
+                }
+            )
             save_transactions_to_parquet(transactions)
 
             # Step 2: Assign categories (as CategorizeScreen would)
@@ -171,21 +187,37 @@ class TestTransactionFilteringWorkflow(unittest.TestCase):
         6. Verify correct filtering logic
         """
         # Step 1: Create diverse dataset
-        transactions = pd.DataFrame({
-            "Date": pd.to_datetime([
-                "2025-01-01", "2025-01-15", "2025-02-01",
-                "2025-02-15", "2025-03-01", "2025-03-15"
-            ]),
-            "Merchant": [
-                "Coffee Shop", "Coffee Shop", "Gas Station",
-                "Restaurant", "Gas Station", "Grocery Store"
-            ],
-            "Amount": [5.50, 6.00, 40.00, 75.00, 45.00, 120.00],
-            "Category": [
-                "Food & Dining", "Food & Dining", "Transportation",
-                "Food & Dining", "Transportation", "Shopping"
-            ],
-        })
+        transactions = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(
+                    [
+                        "2025-01-01",
+                        "2025-01-15",
+                        "2025-02-01",
+                        "2025-02-15",
+                        "2025-03-01",
+                        "2025-03-15",
+                    ]
+                ),
+                "Merchant": [
+                    "Coffee Shop",
+                    "Coffee Shop",
+                    "Gas Station",
+                    "Restaurant",
+                    "Gas Station",
+                    "Grocery Store",
+                ],
+                "Amount": [5.50, 6.00, 40.00, 75.00, 45.00, 120.00],
+                "Category": [
+                    "Food & Dining",
+                    "Food & Dining",
+                    "Transportation",
+                    "Food & Dining",
+                    "Transportation",
+                    "Shopping",
+                ],
+            }
+        )
 
         # Step 2: Apply date filter (February only)
         filters_feb = {
@@ -267,14 +299,27 @@ class TestDeleteAndPersistenceWorkflow(unittest.TestCase):
         with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file):
 
             # Step 1: Create and save transactions
-            transactions = pd.DataFrame({
-                "Date": pd.to_datetime([
-                    "2025-01-01", "2025-01-02", "2025-01-03",
-                    "2025-01-04", "2025-01-05"
-                ]),
-                "Merchant": ["Merchant A", "Merchant B", "Merchant C", "Merchant D", "Merchant E"],
-                "Amount": [10.00, 20.00, 30.00, 40.00, 50.00],
-            })
+            transactions = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(
+                        [
+                            "2025-01-01",
+                            "2025-01-02",
+                            "2025-01-03",
+                            "2025-01-04",
+                            "2025-01-05",
+                        ]
+                    ),
+                    "Merchant": [
+                        "Merchant A",
+                        "Merchant B",
+                        "Merchant C",
+                        "Merchant D",
+                        "Merchant E",
+                    ],
+                    "Amount": [10.00, 20.00, 30.00, 40.00, 50.00],
+                }
+            )
             save_transactions_to_parquet(transactions)
 
             # Step 2: Verify initial save
@@ -282,11 +327,13 @@ class TestDeleteAndPersistenceWorkflow(unittest.TestCase):
             self.assertEqual(len(loaded), 5)
 
             # Step 3: Delete specific transactions (as DeleteScreen would)
-            to_delete = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-02", "2025-01-04"]),
-                "Merchant": ["Merchant B", "Merchant D"],
-                "Amount": [20.00, 40.00],
-            })
+            to_delete = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-02", "2025-01-04"]),
+                    "Merchant": ["Merchant B", "Merchant D"],
+                    "Amount": [20.00, 40.00],
+                }
+            )
             delete_transactions(to_delete)
 
             # Step 4: Verify immediate deletion
@@ -330,24 +377,32 @@ class TestEndToEndWorkflow(unittest.TestCase):
         5. Re-filter and verify final state
         6. Verify all data persists correctly
         """
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.CONFIG_DIR", self.config_dir):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch("expenses.data_handler.CONFIG_DIR", self.config_dir),
+        ):
 
             # Step 1: Import first batch of transactions (January)
-            jan_transactions = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-05", "2025-01-10", "2025-01-15", "2025-01-20"]),
-                "Merchant": ["Starbucks", "Shell Gas", "Amazon", "Starbucks"],
-                "Amount": [5.50, 40.00, 99.99, 6.00],
-            })
+            jan_transactions = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(
+                        ["2025-01-05", "2025-01-10", "2025-01-15", "2025-01-20"]
+                    ),
+                    "Merchant": ["Starbucks", "Shell Gas", "Amazon", "Starbucks"],
+                    "Amount": [5.50, 40.00, 99.99, 6.00],
+                }
+            )
             append_transactions(jan_transactions, suggest_categories=False)
 
             # Step 2: Import second batch (February)
-            feb_transactions = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-02-05", "2025-02-10"]),
-                "Merchant": ["Shell Gas", "Walmart"],
-                "Amount": [45.00, 75.50],
-            })
+            feb_transactions = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-02-05", "2025-02-10"]),
+                    "Merchant": ["Shell Gas", "Walmart"],
+                    "Amount": [45.00, 75.50],
+                }
+            )
             append_transactions(feb_transactions, suggest_categories=False)
 
             # Verify both imports worked
@@ -365,7 +420,9 @@ class TestEndToEndWorkflow(unittest.TestCase):
 
             # Step 4: Filter transactions (view January food & dining)
             categories_map = load_categories()
-            all_transactions["Category"] = all_transactions["Merchant"].map(categories_map)
+            all_transactions["Category"] = all_transactions["Merchant"].map(
+                categories_map
+            )
 
             filters_jan_food = {
                 "date_min": ("Date", ">=", pd.to_datetime("2025-01-01")),
@@ -377,11 +434,13 @@ class TestEndToEndWorkflow(unittest.TestCase):
             self.assertEqual(filtered["Amount"].sum(), 11.50)
 
             # Step 5: Delete test transaction (the small Starbucks purchase)
-            to_delete = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-05"]),
-                "Merchant": ["Starbucks"],
-                "Amount": [5.50],
-            })
+            to_delete = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-05"]),
+                    "Merchant": ["Starbucks"],
+                    "Amount": [5.50],
+                }
+            )
             delete_transactions(to_delete)
 
             # Step 6: Reload and verify deletion
@@ -389,7 +448,9 @@ class TestEndToEndWorkflow(unittest.TestCase):
             self.assertEqual(len(all_transactions), 5)
 
             # Step 7: Re-apply filter and verify results
-            all_transactions["Category"] = all_transactions["Merchant"].map(categories_map)
+            all_transactions["Category"] = all_transactions["Merchant"].map(
+                categories_map
+            )
             filtered = apply_filters(all_transactions, filters_jan_food)
             self.assertEqual(len(filtered), 1)  # Only one Starbucks transaction now
             self.assertEqual(filtered["Amount"].sum(), 6.00)
@@ -407,8 +468,12 @@ class TestEndToEndWorkflow(unittest.TestCase):
             self.assertEqual(len(reloaded_categories), 4)
 
             # Final verification: Ensure data integrity
-            reloaded_transactions["Category"] = reloaded_transactions["Merchant"].map(reloaded_categories)
-            summary_after_reload = reloaded_transactions.groupby("Category")["Amount"].sum()
+            reloaded_transactions["Category"] = reloaded_transactions["Merchant"].map(
+                reloaded_categories
+            )
+            summary_after_reload = reloaded_transactions.groupby("Category")[
+                "Amount"
+            ].sum()
             pd.testing.assert_series_equal(summary, summary_after_reload)
 
 

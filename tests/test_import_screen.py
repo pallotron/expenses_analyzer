@@ -125,8 +125,10 @@ class TestImportScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_import_data_with_negative_amounts(self) -> None:
         """Test importing data with negative amounts (expenses)."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Create CSV with negative amounts (expenses)
             expense_csv = Path(self.test_dir) / "expenses.csv"
@@ -167,8 +169,10 @@ class TestImportScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_import_skips_positive_amounts(self) -> None:
         """Test that import skips positive amounts (income)."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Create CSV with mixed amounts
             mixed_csv = Path(self.test_dir) / "mixed.csv"
@@ -208,8 +212,10 @@ class TestImportScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_import_skips_invalid_dates(self) -> None:
         """Test that import skips rows with invalid dates."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Create CSV with invalid date
             invalid_csv = Path(self.test_dir) / "invalid.csv"
@@ -249,8 +255,10 @@ INVALID_DATE,Gas Station,-40.00
 
     async def test_import_skips_empty_merchants(self) -> None:
         """Test that import skips rows with empty merchants."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Create CSV with empty merchant
             empty_csv = Path(self.test_dir) / "empty.csv"

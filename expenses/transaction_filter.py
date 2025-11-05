@@ -2,7 +2,9 @@ import pandas as pd
 from typing import Dict, Tuple, Any
 
 
-def apply_filters(df: pd.DataFrame, filters: Dict[str, Tuple[str, str, Any]]) -> pd.DataFrame:
+def apply_filters(
+    df: pd.DataFrame, filters: Dict[str, Tuple[str, str, Any]]
+) -> pd.DataFrame:
     """Applies a set of filters to a DataFrame.
 
     Args:
@@ -25,7 +27,7 @@ def apply_filters(df: pd.DataFrame, filters: Dict[str, Tuple[str, str, Any]]) ->
                 filtered_df = filtered_df[filtered_df[column] <= value]
             elif op == "contains":
                 filtered_df = filtered_df[
-                    filtered_df[column].str.contains(value, case=False, na=False)
+                    filtered_df[column].str.contains(value, case=False, na=False, regex=False)
                 ]
             elif op == "==":
                 filtered_df = filtered_df[filtered_df[column] == value]

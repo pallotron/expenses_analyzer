@@ -2,26 +2,40 @@
 
 import logging
 import shutil
+import tarfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from expenses.config import CONFIG_DIR, TRANSACTIONS_FILE, CATEGORIES_FILE
+from expenses.config import (
+    CONFIG_DIR,
+    TRANSACTIONS_FILE,
+    CATEGORIES_FILE,
+    DEFAULT_CATEGORIES_FILE,
+)
 
 # Auto-backup configuration
 AUTO_BACKUP_DIR = CONFIG_DIR / "auto_backups"
-MAX_AUTO_BACKUPS = 5
+BACKUP_RETENTION_DAYS = 7  # Keep backups for at least 7 days
+
+# Path to plaid_items.json
+PLAID_ITEMS_FILE = CONFIG_DIR / "plaid_items.json"
 
 
 def create_auto_backup() -> Optional[Path]:
-    """Create automatic backup before destructive operations.
+    """Create automatic backup tarball of all important config files.
 
-    This function creates timestamped backups of both transactions and categories
-    files. It maintains a rolling window of the most recent backups and automatically
-    cleans up old ones.
+    This function creates a compressed tarball containing:
+    - transactions.parquet
+    - categories.json
+    - plaid_items.json (if exists)
+    - default_categories.json (if exists)
+
+    Backups are retained for at least BACKUP_RETENTION_DAYS (default: 7 days)
+    before being automatically cleaned up.
 
     Returns:
-        Path to backup file if successful, None otherwise
+        Path to backup tarball if successful, None otherwise
     """
     AUTO_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -30,65 +44,77 @@ def create_auto_backup() -> Optional[Path]:
         return None
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    backup_file = AUTO_BACKUP_DIR / f"transactions_{timestamp}.parquet"
+    backup_file = AUTO_BACKUP_DIR / f"backup_{timestamp}.tar.gz"
 
     try:
-        # Backup transactions file
-        shutil.copy2(TRANSACTIONS_FILE, backup_file)
-        logging.info(f"Auto-backup created: {backup_file.name}")
+        with tarfile.open(backup_file, "w:gz") as tar:
+            # Always backup transactions
+            tar.add(TRANSACTIONS_FILE, arcname="transactions.parquet")
+            logging.debug("Added transactions.parquet to backup")
 
-        # Also backup categories if they exist
-        if CATEGORIES_FILE.exists():
-            cat_backup = AUTO_BACKUP_DIR / f"categories_{timestamp}.json"
-            shutil.copy2(CATEGORIES_FILE, cat_backup)
-            logging.debug(f"Categories backed up: {cat_backup.name}")
+            # Backup categories if it exists
+            if CATEGORIES_FILE.exists():
+                tar.add(CATEGORIES_FILE, arcname="categories.json")
+                logging.debug("Added categories.json to backup")
+
+            # Backup plaid items if it exists
+            if PLAID_ITEMS_FILE.exists():
+                tar.add(PLAID_ITEMS_FILE, arcname="plaid_items.json")
+                logging.debug("Added plaid_items.json to backup")
+
+            # Backup default categories if it exists
+            if DEFAULT_CATEGORIES_FILE.exists():
+                tar.add(DEFAULT_CATEGORIES_FILE, arcname="default_categories.json")
+                logging.debug("Added default_categories.json to backup")
+
+        logging.info(f"Auto-backup created: {backup_file.name}")
 
         # Clean up old backups
         _cleanup_old_backups()
 
         return backup_file
 
-    except (OSError, IOError) as e:
+    except (OSError, IOError, tarfile.TarError) as e:
         logging.warning(f"Could not create auto-backup: {e}")
+        # Clean up partial backup if it exists
+        if backup_file.exists():
+            try:
+                backup_file.unlink()
+            except OSError:
+                pass
         return None
 
 
 def _cleanup_old_backups() -> None:
-    """Keep only the most recent N backups to save disk space."""
+    """Remove backups older than BACKUP_RETENTION_DAYS to save disk space."""
     if not AUTO_BACKUP_DIR.exists():
         return
 
-    # Get all backup files sorted by modification time (newest first)
-    backups = sorted(
-        AUTO_BACKUP_DIR.glob("transactions_*.parquet"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
+    cutoff_time = datetime.now().timestamp() - (BACKUP_RETENTION_DAYS * 24 * 60 * 60)
 
-    # Remove old backups beyond the limit
-    for old_backup in backups[MAX_AUTO_BACKUPS:]:
+    # Get all backup tarballs
+    backups = list(AUTO_BACKUP_DIR.glob("backup_*.tar.gz"))
+
+    # Remove backups older than retention period
+    for backup in backups:
         try:
-            old_backup.unlink()
-
-            # Also remove corresponding categories file
-            timestamp = old_backup.stem.replace("transactions_", "")
-            cat_backup = AUTO_BACKUP_DIR / f"categories_{timestamp}.json"
-            if cat_backup.exists():
-                cat_backup.unlink()
-
-            logging.debug(f"Removed old backup: {old_backup.name}")
+            if backup.stat().st_mtime < cutoff_time:
+                backup.unlink()
+                logging.debug(
+                    f"Removed old backup: {backup.name} (older than {BACKUP_RETENTION_DAYS} days)"
+                )
         except OSError as e:
-            logging.warning(f"Could not remove old backup {old_backup.name}: {e}")
+            logging.warning(f"Could not remove old backup {backup.name}: {e}")
 
 
 def restore_from_backup(backup_file: Path) -> bool:
-    """Restore transactions from a backup file.
+    """Restore data from a backup tarball.
 
     Before restoring, this creates an emergency backup of the current state
     in case the restore operation needs to be undone.
 
     Args:
-        backup_file: Path to backup parquet file
+        backup_file: Path to backup tarball (.tar.gz)
 
     Returns:
         True if successful, False otherwise
@@ -97,27 +123,73 @@ def restore_from_backup(backup_file: Path) -> bool:
         logging.error(f"Backup file not found: {backup_file}")
         return False
 
+    if not tarfile.is_tarfile(backup_file):
+        logging.error(f"Invalid backup file format: {backup_file}")
+        return False
+
     try:
-        # Create emergency backup of current file before restoring
-        if TRANSACTIONS_FILE.exists():
-            emergency_backup = TRANSACTIONS_FILE.with_suffix(".parquet.pre-restore")
-            shutil.copy2(TRANSACTIONS_FILE, emergency_backup)
-            logging.info(f"Emergency backup created: {emergency_backup.name}")
+        # Create emergency backup first
+        emergency_backup = create_auto_backup()
+        if emergency_backup:
+            emergency_name = emergency_backup.name.replace("backup_", "emergency_")
+            emergency_backup.rename(emergency_backup.parent / emergency_name)
+            logging.info(f"Emergency backup created: {emergency_name}")
 
-        # Restore transactions from backup
-        shutil.copy2(backup_file, TRANSACTIONS_FILE)
-        logging.info(f"Restored transactions from: {backup_file.name}")
+        # Extract the backup to a temporary directory first
+        temp_dir = (
+            AUTO_BACKUP_DIR / f"restore_temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        temp_dir.mkdir(exist_ok=True)
 
-        # Try to restore categories if they exist
-        timestamp = backup_file.stem.replace("transactions_", "")
-        cat_backup = backup_file.parent / f"categories_{timestamp}.json"
-        if cat_backup.exists() and CATEGORIES_FILE.exists():
-            shutil.copy2(cat_backup, CATEGORIES_FILE)
-            logging.info(f"Restored categories from: {cat_backup.name}")
+        try:
+            with tarfile.open(backup_file, "r:gz") as tar:
+                # Extract all files
+                tar.extractall(temp_dir, filter="data")
+                logging.debug(f"Extracted backup to {temp_dir}")
+
+                # Restore each file
+                restored_files = []
+
+                # Restore transactions
+                temp_transactions = temp_dir / "transactions.parquet"
+                if temp_transactions.exists():
+                    shutil.copy2(temp_transactions, TRANSACTIONS_FILE)
+                    restored_files.append("transactions.parquet")
+                    logging.info("Restored transactions.parquet")
+
+                # Restore categories
+                temp_categories = temp_dir / "categories.json"
+                if temp_categories.exists():
+                    shutil.copy2(temp_categories, CATEGORIES_FILE)
+                    restored_files.append("categories.json")
+                    logging.info("Restored categories.json")
+
+                # Restore plaid items
+                temp_plaid = temp_dir / "plaid_items.json"
+                if temp_plaid.exists():
+                    shutil.copy2(temp_plaid, PLAID_ITEMS_FILE)
+                    restored_files.append("plaid_items.json")
+                    logging.info("Restored plaid_items.json")
+
+                # Restore default categories
+                temp_default = temp_dir / "default_categories.json"
+                if temp_default.exists():
+                    shutil.copy2(temp_default, DEFAULT_CATEGORIES_FILE)
+                    restored_files.append("default_categories.json")
+                    logging.info("Restored default_categories.json")
+
+                logging.info(
+                    f"Successfully restored {len(restored_files)} files: {', '.join(restored_files)}"
+                )
+
+        finally:
+            # Clean up temp directory
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
 
         return True
 
-    except (OSError, IOError) as e:
+    except (OSError, IOError, tarfile.TarError) as e:
         logging.error(f"Could not restore from backup: {e}")
         return False
 
@@ -132,10 +204,12 @@ def list_backups() -> list[tuple[datetime, Path, int]]:
         return []
 
     backups = []
-    for backup_file in AUTO_BACKUP_DIR.glob("transactions_*.parquet"):
+    for backup_file in AUTO_BACKUP_DIR.glob("backup_*.tar.gz"):
         try:
-            timestamp_str = backup_file.stem.replace("transactions_", "")
-            # Try parsing with microseconds first, fall back to without
+            # Remove both .tar and .gz extensions
+            timestamp_str = backup_file.name.replace("backup_", "").replace(
+                ".tar.gz", ""
+            )
             try:
                 timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S_%f")
             except ValueError:

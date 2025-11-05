@@ -23,11 +23,15 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
         self.default_categories_file = Path(self.test_dir) / "default_categories.json"
 
         # Create test transactions
-        self.test_transactions = pd.DataFrame({
-            "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04"]),
-            "Merchant": ["Starbucks", "Shell Gas", "Walmart", "Starbucks"],
-            "Amount": [5.50, 40.00, 100.00, 6.00],
-        })
+        self.test_transactions = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(
+                    ["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04"]
+                ),
+                "Merchant": ["Starbucks", "Shell Gas", "Walmart", "Starbucks"],
+                "Amount": [5.50, 40.00, 100.00, 6.00],
+            }
+        )
 
         # Create test categories
         self.test_categories = {
@@ -36,13 +40,23 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
         }
 
         # Create default categories
-        self.default_categories = ["Food & Dining", "Transportation", "Shopping", "Entertainment"]
+        self.default_categories = [
+            "Food & Dining",
+            "Transportation",
+            "Shopping",
+            "Entertainment",
+        ]
 
     async def test_screen_composition(self) -> None:
         """Test that categorize screen has required elements."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -65,9 +79,14 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_loads_merchants_on_mount(self) -> None:
         """Test that merchants are loaded and displayed on mount."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -80,7 +99,9 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
 
                 # Check that merchants are loaded
-                assert len(screen.all_merchant_data) == 3  # Starbucks, Shell Gas, Walmart (Starbucks deduplicated)
+                assert (
+                    len(screen.all_merchant_data) == 3
+                )  # Starbucks, Shell Gas, Walmart (Starbucks deduplicated)
 
                 # Verify table has rows
                 table = pilot.app.screen.query_one("#categorization_table", DataTable)
@@ -88,9 +109,14 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_merchant_filter(self) -> None:
         """Test filtering merchants by name."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -103,7 +129,9 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
 
                 # Apply merchant filter
-                merchant_filter = pilot.app.screen.query_one("#merchant_filter", ClearableInput)
+                merchant_filter = pilot.app.screen.query_one(
+                    "#merchant_filter", ClearableInput
+                )
                 merchant_filter.value = "star"
                 await pilot.pause()
 
@@ -113,9 +141,14 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_category_filter(self) -> None:
         """Test filtering merchants by category."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -128,7 +161,9 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
 
                 # Apply category filter
-                category_filter = pilot.app.screen.query_one("#category_filter", ClearableInput)
+                category_filter = pilot.app.screen.query_one(
+                    "#category_filter", ClearableInput
+                )
                 category_filter.value = "food"
                 await pilot.pause()
 
@@ -138,9 +173,14 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_combined_filters(self) -> None:
         """Test applying both merchant and category filters together."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -153,11 +193,15 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
 
                 # Apply both filters
-                merchant_filter = pilot.app.screen.query_one("#merchant_filter", ClearableInput)
+                merchant_filter = pilot.app.screen.query_one(
+                    "#merchant_filter", ClearableInput
+                )
                 merchant_filter.value = "s"  # Matches Starbucks and Shell Gas
                 await pilot.pause()
 
-                category_filter = pilot.app.screen.query_one("#category_filter", ClearableInput)
+                category_filter = pilot.app.screen.query_one(
+                    "#category_filter", ClearableInput
+                )
                 category_filter.value = "trans"  # Matches Transportation
                 await pilot.pause()
 
@@ -167,9 +211,14 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_toggle_selection(self) -> None:
         """Test toggling row selection."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -198,9 +247,14 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_apply_category_to_selected(self) -> None:
         """Test applying a category to selected merchants."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -214,13 +268,16 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
                 # Select Walmart (which should be at index 2 after sorting)
                 walmart_index = next(
-                    i for i, item in enumerate(screen.merchant_data)
+                    i
+                    for i, item in enumerate(screen.merchant_data)
                     if item["Merchant"] == "Walmart"
                 )
                 screen.selected_rows.add(walmart_index)
 
                 # Set new category
-                category_input = pilot.app.screen.query_one("#category_input", ClearableInput)
+                category_input = pilot.app.screen.query_one(
+                    "#category_input", ClearableInput
+                )
                 category_input.value = "Shopping"
 
                 # Click apply button
@@ -230,16 +287,22 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
                 # Verify Walmart now has Shopping category
                 walmart_data = next(
-                    item for item in screen.all_merchant_data
+                    item
+                    for item in screen.all_merchant_data
                     if item["Merchant"] == "Walmart"
                 )
                 assert walmart_data["Category"] == "Shopping"
 
     async def test_apply_category_with_no_selection(self) -> None:
         """Test that applying category with no selection does nothing."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -254,7 +317,9 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
                 original_data = screen.all_merchant_data.copy()
 
                 # No selection, set category
-                category_input = pilot.app.screen.query_one("#category_input", ClearableInput)
+                category_input = pilot.app.screen.query_one(
+                    "#category_input", ClearableInput
+                )
                 category_input.value = "New Category"
 
                 # Click apply button
@@ -267,10 +332,15 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_save_categories(self) -> None:
         """Test saving categories to file."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -287,18 +357,23 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
                 # Modify a category
                 walmart_index = next(
-                    i for i, item in enumerate(screen.merchant_data)
+                    i
+                    for i, item in enumerate(screen.merchant_data)
                     if item["Merchant"] == "Walmart"
                 )
                 screen.selected_rows.add(walmart_index)
-                category_input = pilot.app.screen.query_one("#category_input", ClearableInput)
+                category_input = pilot.app.screen.query_one(
+                    "#category_input", ClearableInput
+                )
                 category_input.value = "Shopping"
                 apply_button = pilot.app.screen.query_one("#apply_button", Button)
                 apply_button.press()
                 await pilot.pause()
 
                 # Save categories
-                save_button = pilot.app.screen.query_one("#save_categories_button", Button)
+                save_button = pilot.app.screen.query_one(
+                    "#save_categories_button", Button
+                )
                 save_button.press()
                 await pilot.pause()
 
@@ -313,9 +388,14 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_dropdown_updates_input(self) -> None:
         """Test that selecting from dropdown updates category input."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -336,14 +416,21 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
 
                 # Category input should be updated
-                category_input = pilot.app.screen.query_one("#category_input", ClearableInput)
+                category_input = pilot.app.screen.query_one(
+                    "#category_input", ClearableInput
+                )
                 assert category_input.value == "Shopping"
 
     async def test_empty_transactions(self) -> None:
         """Test screen behavior with no transactions."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             # Create empty transactions
             empty_df = pd.DataFrame(columns=["Date", "Merchant", "Amount"])
@@ -363,9 +450,14 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_screen_resume_reloads_data(self) -> None:
         """Test that screen resume reloads data."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -380,18 +472,23 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
                 initial_count = len(screen.all_merchant_data)
 
                 # Add a new transaction
-                new_transactions = pd.concat([
-                    self.test_transactions,
-                    pd.DataFrame({
-                        "Date": [pd.to_datetime("2025-01-05")],
-                        "Merchant": ["Target"],
-                        "Amount": [75.00],
-                    })
-                ])
+                new_transactions = pd.concat(
+                    [
+                        self.test_transactions,
+                        pd.DataFrame(
+                            {
+                                "Date": [pd.to_datetime("2025-01-05")],
+                                "Merchant": ["Target"],
+                                "Amount": [75.00],
+                            }
+                        ),
+                    ]
+                )
                 new_transactions.to_parquet(self.transactions_file, index=False)
 
                 # Simulate screen resume by calling the method directly
                 from unittest.mock import Mock
+
                 event = Mock()
                 screen.on_screen_resume(event)
                 await pilot.pause()
@@ -401,10 +498,15 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_categories_exclude_uncategorized_on_save(self) -> None:
         """Test that uncategorized merchants are not saved."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             # Start with empty categories
@@ -421,10 +523,15 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
 
                 # All merchants should be Uncategorized
-                assert all(item["Category"] == "Uncategorized" for item in screen.all_merchant_data)
+                assert all(
+                    item["Category"] == "Uncategorized"
+                    for item in screen.all_merchant_data
+                )
 
                 # Save without categorizing anything
-                save_button = pilot.app.screen.query_one("#save_categories_button", Button)
+                save_button = pilot.app.screen.query_one(
+                    "#save_categories_button", Button
+                )
                 save_button.press()
                 await pilot.pause()
 

@@ -12,7 +12,7 @@ class TestConfirmationScreen(unittest.IsolatedAsyncioTestCase):
         async with app.run_test() as pilot:
             screen = ConfirmationScreen("Are you sure?")
             await pilot.app.push_screen(screen)
-            
+
             # Check that the dialog is present
             assert pilot.app.screen.query_one("#dialog")
             assert pilot.app.screen.query_one("#question")
@@ -26,8 +26,7 @@ class TestConfirmationScreen(unittest.IsolatedAsyncioTestCase):
             prompt_text = "Delete all transactions?"
             screen = ConfirmationScreen(prompt_text)
             await pilot.app.push_screen(screen)
-            
-            question = pilot.app.screen.query_one("#question")
+
             # Check the prompt is stored in the screen
             assert screen.prompt == prompt_text
 
@@ -37,13 +36,13 @@ class TestConfirmationScreen(unittest.IsolatedAsyncioTestCase):
         async with app.run_test() as pilot:
             screen = ConfirmationScreen("Confirm?")
             await pilot.app.push_screen(screen)
-            
+
             # Simulate button press directly
             yes_button = pilot.app.screen.query_one("#yes")
             yes_button.press()
-            
+
             await pilot.pause()
-            
+
             # After dismiss, we should be back to the base screen
             assert pilot.app.screen != screen
 
@@ -53,13 +52,13 @@ class TestConfirmationScreen(unittest.IsolatedAsyncioTestCase):
         async with app.run_test() as pilot:
             screen = ConfirmationScreen("Confirm?")
             await pilot.app.push_screen(screen)
-            
+
             # Simulate button press directly
             no_button = pilot.app.screen.query_one("#no")
             no_button.press()
-            
+
             await pilot.pause()
-            
+
             # After dismiss, we should be back to the base screen
             assert pilot.app.screen != screen
 

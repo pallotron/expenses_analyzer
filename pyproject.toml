@@ -17,6 +17,9 @@ classifiers = [
 ]
 dependencies = ["pandas", "textual", "pyarrow", "google-generativeai"]
 
+[project.optional-dependencies]
+dev = ["pytest-asyncio"]
+
 [project.scripts]
 expenses-analyzer = "expenses.main:main"
 
@@ -29,6 +32,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["expenses"]

@@ -3,11 +3,11 @@ import pandas as pd
 import json
 import importlib.resources
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 
 from expenses.backup import create_auto_backup
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
-from expenses.validation import validate_transaction_dataframe, ValidationError
+from expenses.validation import validate_transaction_dataframe
 from expenses.config import (
     CONFIG_DIR,
     CATEGORIES_FILE,
@@ -32,6 +32,7 @@ def _set_secure_permissions(file_path: Path) -> None:
         # Windows may not support Unix permissions - this is expected
         # On Unix systems, failure to set permissions is a security concern
         import platform
+
         if platform.system() != "Windows":
             logging.warning(
                 f"Could not set secure permissions on {file_path}: {e}. "
@@ -46,6 +47,7 @@ def _ensure_secure_config_dir() -> None:
         CONFIG_DIR.chmod(0o700)
     except (OSError, PermissionError, NotImplementedError) as e:
         import platform
+
         if platform.system() != "Windows":
             logging.warning(
                 f"Could not set secure permissions on {CONFIG_DIR}: {e}. "
@@ -87,8 +89,7 @@ def load_categories() -> Dict[str, str]:
         return {}
     except (OSError, IOError) as e:
         logging.warning(
-            f"Could not read categories file: {e}. "
-            "Returning empty categories."
+            f"Could not read categories file: {e}. " "Returning empty categories."
         )
         return {}
 
@@ -146,10 +147,14 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
     global _corruption_detected
 
     if not TRANSACTIONS_FILE.exists():
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Deleted"])
+        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Source", "Deleted"])
 
     try:
         df = pd.read_parquet(TRANSACTIONS_FILE)
+
+        # Add Source column if it doesn't exist (backward compatibility)
+        if "Source" not in df.columns:
+            df["Source"] = "Unknown"
 
         # Add Deleted column if it doesn't exist (backward compatibility)
         if "Deleted" not in df.columns:
@@ -157,7 +162,7 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
 
         # Filter out soft-deleted transactions unless explicitly requested
         if not include_deleted:
-            df = df[df["Deleted"] == False].copy()
+            df = df[~df["Deleted"]].copy()
 
         return df
     except Exception as e:
@@ -172,7 +177,7 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
         # Set flag for TUI to display notification
         _corruption_detected = error_msg
         # Return empty DataFrame to allow application to continue
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Deleted"])
+        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Source", "Deleted"])
 
 
 def check_and_clear_corruption_flag() -> Optional[str]:
@@ -205,13 +210,16 @@ def save_transactions_to_parquet(df: pd.DataFrame) -> None:
 
 
 def append_transactions(
-    new_transactions: pd.DataFrame, suggest_categories: bool = False
+    new_transactions: pd.DataFrame,
+    suggest_categories: bool = False,
+    source: str = "Manual",
 ) -> None:
     """Appends new transactions to the main parquet file, handling duplicates.
 
     Args:
         new_transactions: DataFrame of new transactions to append
         suggest_categories: Whether to use AI to suggest categories for new merchants
+        source: Source identifier for the transactions (e.g., "Plaid - Chase Bank", "CSV Import")
 
     Raises:
         ValidationError: If new_transactions fails validation
@@ -242,6 +250,10 @@ def append_transactions(
     # Load existing transactions (including deleted ones to preserve soft-delete state)
     existing_transactions = load_transactions_from_parquet(include_deleted=True)
 
+    # Add Source column to new transactions if not present
+    if "Source" not in new_transactions.columns:
+        new_transactions["Source"] = source
+
     # Add Deleted column to new transactions if not present
     if "Deleted" not in new_transactions.columns:
         new_transactions["Deleted"] = False
@@ -253,8 +265,11 @@ def append_transactions(
     combined["Amount"] = combined["Amount"].round(2)
     combined["Merchant"] = combined["Merchant"].astype(str)
 
-    # De-duplicate based on all columns (excluding Deleted to preserve existing records)
-    combined.drop_duplicates(subset=["Date", "Merchant", "Amount"], inplace=True)
+    # De-duplicate based on Date, Merchant, Amount (keep Source for tracking, but don't use for deduplication)
+    # This prevents the same transaction from being imported multiple times, regardless of source
+    combined.drop_duplicates(
+        subset=["Date", "Merchant", "Amount"], keep="first", inplace=True
+    )
     save_transactions_to_parquet(combined)
 
 
@@ -284,6 +299,14 @@ def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:
     transactions_to_delete["Amount"] = transactions_to_delete["Amount"].round(2)
     transactions_to_delete["Merchant"] = transactions_to_delete["Merchant"].astype(str)
 
+    # Normalize all_transactions to match data types
+    all_transactions["Date"] = pd.to_datetime(all_transactions["Date"])
+    all_transactions["Amount"] = pd.to_numeric(
+        all_transactions["Amount"], errors="coerce"
+    ).fillna(0.0)
+    all_transactions["Amount"] = all_transactions["Amount"].round(2)
+    all_transactions["Merchant"] = all_transactions["Merchant"].astype(str)
+
     # Mark transactions as deleted by merging and setting Deleted=True
     # Use indicator to identify which rows to mark as deleted
     merged = pd.merge(
@@ -298,7 +321,7 @@ def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:
     merged.loc[merged["_merge"] == "both", "Deleted"] = True
     updated_transactions = merged.drop(columns=["_merge"])
 
-    num_deleted = (updated_transactions["Deleted"] == True).sum()
+    num_deleted = updated_transactions["Deleted"].sum()
     logging.info(f"Soft-deleted {num_deleted} transactions")
 
     save_transactions_to_parquet(updated_transactions)
@@ -325,7 +348,17 @@ def restore_deleted_transactions(transactions_to_restore: pd.DataFrame) -> None:
         transactions_to_restore["Amount"], errors="coerce"
     ).fillna(0.0)
     transactions_to_restore["Amount"] = transactions_to_restore["Amount"].round(2)
-    transactions_to_restore["Merchant"] = transactions_to_restore["Merchant"].astype(str)
+    transactions_to_restore["Merchant"] = transactions_to_restore["Merchant"].astype(
+        str
+    )
+
+    # Normalize all_transactions to match data types
+    all_transactions["Date"] = pd.to_datetime(all_transactions["Date"])
+    all_transactions["Amount"] = pd.to_numeric(
+        all_transactions["Amount"], errors="coerce"
+    ).fillna(0.0)
+    all_transactions["Amount"] = all_transactions["Amount"].round(2)
+    all_transactions["Merchant"] = all_transactions["Merchant"].astype(str)
 
     # Mark transactions as NOT deleted by merging and setting Deleted=False
     merged = pd.merge(

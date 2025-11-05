@@ -31,8 +31,10 @@ class TestDataHandlerExtended(unittest.IsolatedAsyncioTestCase):
 
     def test_save_and_load_categories(self) -> None:
         """Test saving and loading categories."""
-        with patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             # Save categories
             test_categories = {
@@ -50,7 +52,10 @@ class TestDataHandlerExtended(unittest.IsolatedAsyncioTestCase):
 
     def test_load_default_categories(self) -> None:
         """Test loading default categories."""
-        with patch("expenses.data_handler.DEFAULT_CATEGORIES_FILE", self.default_categories_file):
+        with patch(
+            "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+            self.default_categories_file,
+        ):
 
             # Create default categories file
             default_cats = ["Food & Dining", "Transportation", "Shopping"]
@@ -73,19 +78,23 @@ class TestDataHandlerExtended(unittest.IsolatedAsyncioTestCase):
         with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file):
 
             # Create initial transactions
-            transactions = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
-                "Merchant": ["A", "B", "C"],
-                "Amount": [10.0, 20.0, 30.0],
-            })
+            transactions = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
+                    "Merchant": ["A", "B", "C"],
+                    "Amount": [10.0, 20.0, 30.0],
+                }
+            )
             save_transactions_to_parquet(transactions)
 
             # Delete one transaction
-            to_delete = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-02"]),
-                "Merchant": ["B"],
-                "Amount": [20.0],
-            })
+            to_delete = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-02"]),
+                    "Merchant": ["B"],
+                    "Amount": [20.0],
+                }
+            )
             delete_transactions(to_delete)
 
             # Load and verify
@@ -95,23 +104,29 @@ class TestDataHandlerExtended(unittest.IsolatedAsyncioTestCase):
 
     def test_append_transactions_with_deduplication(self) -> None:
         """Test append_transactions deduplicates correctly."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Initial transactions
-            initial = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-01", "2025-01-02"]),
-                "Merchant": ["A", "B"],
-                "Amount": [10.0, 20.0],
-            })
+            initial = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-01", "2025-01-02"]),
+                    "Merchant": ["A", "B"],
+                    "Amount": [10.0, 20.0],
+                }
+            )
             save_transactions_to_parquet(initial)
 
             # Append with one duplicate and one new
-            new = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-02", "2025-01-03"]),
-                "Merchant": ["B", "C"],
-                "Amount": [20.0, 30.0],
-            })
+            new = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-02", "2025-01-03"]),
+                    "Merchant": ["B", "C"],
+                    "Amount": [20.0, 30.0],
+                }
+            )
             append_transactions(new, suggest_categories=False)
 
             # Should have 3 total (not 4)
@@ -120,15 +135,19 @@ class TestDataHandlerExtended(unittest.IsolatedAsyncioTestCase):
 
     def test_append_transactions_to_empty_file(self) -> None:
         """Test appending transactions when no file exists."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Append to non-existent file
-            new = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-01"]),
-                "Merchant": ["A"],
-                "Amount": [10.0],
-            })
+            new = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-01"]),
+                    "Merchant": ["A"],
+                    "Amount": [10.0],
+                }
+            )
             append_transactions(new, suggest_categories=False)
 
             # Should create file with transaction
@@ -137,16 +156,20 @@ class TestDataHandlerExtended(unittest.IsolatedAsyncioTestCase):
 
     def test_append_transactions_with_category_column(self) -> None:
         """Test appending transactions that already have Category column."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Append transactions with Category already set
-            new = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-01"]),
-                "Merchant": ["A"],
-                "Amount": [10.0],
-                "Category": ["Food"],
-            })
+            new = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-01"]),
+                    "Merchant": ["A"],
+                    "Amount": [10.0],
+                    "Category": ["Food"],
+                }
+            )
             append_transactions(new, suggest_categories=False)
 
             result = load_transactions_from_parquet()
@@ -185,14 +208,18 @@ class TestDataHandlerExtended(unittest.IsolatedAsyncioTestCase):
         nested_dir = Path(self.test_dir) / "nested" / "path"
         nested_file = nested_dir / "transactions.parquet"
 
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", nested_file), \
-             patch("expenses.data_handler.CONFIG_DIR", nested_dir):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", nested_file),
+            patch("expenses.data_handler.CONFIG_DIR", nested_dir),
+        ):
 
-            transactions = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-01"]),
-                "Merchant": ["A"],
-                "Amount": [10.0],
-            })
+            transactions = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-01"]),
+                    "Merchant": ["A"],
+                    "Amount": [10.0],
+                }
+            )
 
             save_transactions_to_parquet(transactions)
 
@@ -201,31 +228,40 @@ class TestDataHandlerExtended(unittest.IsolatedAsyncioTestCase):
 
     def test_load_categories_empty_file(self) -> None:
         """Test loading categories from empty/missing file."""
-        with patch("expenses.data_handler.CATEGORIES_FILE", Path(self.test_dir) / "missing.json"):
+        with patch(
+            "expenses.data_handler.CATEGORIES_FILE",
+            Path(self.test_dir) / "missing.json",
+        ):
 
             loaded = load_categories()
             assert loaded == {}
 
     def test_append_transactions_normalizes_columns(self) -> None:
         """Test that append_transactions handles missing Category column."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Create initial with Category
-            initial = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-01"]),
-                "Merchant": ["A"],
-                "Amount": [10.0],
-                "Category": ["Food"],
-            })
+            initial = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-01"]),
+                    "Merchant": ["A"],
+                    "Amount": [10.0],
+                    "Category": ["Food"],
+                }
+            )
             save_transactions_to_parquet(initial)
 
             # Append without Category
-            new = pd.DataFrame({
-                "Date": pd.to_datetime(["2025-01-02"]),
-                "Merchant": ["B"],
-                "Amount": [20.0],
-            })
+            new = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2025-01-02"]),
+                    "Merchant": ["B"],
+                    "Amount": [20.0],
+                }
+            )
             append_transactions(new, suggest_categories=False)
 
             result = load_transactions_from_parquet()

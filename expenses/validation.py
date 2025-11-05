@@ -18,7 +18,7 @@ def validate_transaction_dataframe(
     df: pd.DataFrame,
     min_date: Optional[datetime] = None,
     max_date: Optional[datetime] = None,
-    max_amount: float = 1_000_000.0
+    max_amount: float = 1_000_000.0,
 ) -> None:
     """Validate a transaction DataFrame before saving to Parquet.
 
@@ -51,8 +51,7 @@ def validate_transaction_dataframe(
         errors.append(f"Missing required columns: {', '.join(sorted(missing_columns))}")
         # Can't continue without required columns
         raise ValidationError(
-            f"Schema validation failed: missing required columns",
-            errors
+            "Schema validation failed: missing required columns", errors
         )
 
     # 2. Empty DataFrame check
@@ -62,7 +61,7 @@ def validate_transaction_dataframe(
 
     # 3. Date validation
     try:
-        dates = pd.to_datetime(df["Date"], errors='coerce')
+        dates = pd.to_datetime(df["Date"], errors="coerce")
         invalid_dates = dates.isna()
         if invalid_dates.any():
             invalid_count = invalid_dates.sum()
@@ -100,7 +99,7 @@ def validate_transaction_dataframe(
 
     # 5. Amount validation
     try:
-        amounts = pd.to_numeric(df["Amount"], errors='coerce')
+        amounts = pd.to_numeric(df["Amount"], errors="coerce")
         invalid_amounts = amounts.isna()
         if invalid_amounts.any():
             errors.append(
@@ -115,7 +114,8 @@ def validate_transaction_dataframe(
             too_large = abs_amounts > max_amount
             if too_large.any():
                 errors.append(
-                    f"Found {too_large.sum()} row(s) with amounts (absolute value) exceeding ${max_amount:,.2f}"
+                    f"Found {too_large.sum()} row(s) with amounts (absolute value) "
+                    f"exceeding ${max_amount:,.2f}"
                 )
 
             # Check for zero amounts
@@ -155,10 +155,7 @@ def validate_transaction_dataframe(
     logging.debug(f"Validation passed for DataFrame with {len(df)} rows")
 
 
-def validate_and_clean_dataframe(
-    df: pd.DataFrame,
-    **validation_kwargs
-) -> pd.DataFrame:
+def validate_and_clean_dataframe(df: pd.DataFrame, **validation_kwargs) -> pd.DataFrame:
     """Validate and return a cleaned copy of the DataFrame.
 
     This is a convenience function that:
@@ -181,11 +178,11 @@ def validate_and_clean_dataframe(
 
     # Ensure Date is datetime
     if "Date" in cleaned.columns:
-        cleaned["Date"] = pd.to_datetime(cleaned["Date"], errors='coerce')
+        cleaned["Date"] = pd.to_datetime(cleaned["Date"], errors="coerce")
 
     # Ensure Amount is numeric
     if "Amount" in cleaned.columns:
-        cleaned["Amount"] = pd.to_numeric(cleaned["Amount"], errors='coerce')
+        cleaned["Amount"] = pd.to_numeric(cleaned["Amount"], errors="coerce")
 
     # Ensure Merchant is string
     if "Merchant" in cleaned.columns:

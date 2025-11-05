@@ -22,12 +22,16 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
         self.categories_file = Path(self.test_dir) / "categories.json"
 
         # Create test transactions with Category column
-        self.test_transactions = pd.DataFrame({
-            "Date": pd.to_datetime(["2025-01-15", "2025-02-10", "2025-03-05", "2025-01-20"]),
-            "Merchant": ["Starbucks", "Shell Gas", "Walmart", "Amazon"],
-            "Amount": [5.50, 40.00, 100.00, 75.00],
-            "Category": ["Food & Dining", "Transportation", "Shopping", "Shopping"],
-        })
+        self.test_transactions = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(
+                    ["2025-01-15", "2025-02-10", "2025-03-05", "2025-01-20"]
+                ),
+                "Merchant": ["Starbucks", "Shell Gas", "Walmart", "Amazon"],
+                "Amount": [5.50, 40.00, 100.00, 75.00],
+                "Category": ["Food & Dining", "Transportation", "Shopping", "Shopping"],
+            }
+        )
 
         self.test_categories = {
             "Starbucks": "Food & Dining",
@@ -38,8 +42,10 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
     async def test_screen_with_category_filter(self) -> None:
         """Test screen initialization with category filter."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -57,8 +63,10 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
     async def test_screen_with_year_filter(self) -> None:
         """Test screen initialization with year filter."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -71,16 +79,22 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
 
                 # Date filters should be pre-filled
-                date_min = pilot.app.screen.query_one("#date_min_filter", ClearableInput)
-                date_max = pilot.app.screen.query_one("#date_max_filter", ClearableInput)
+                date_min = pilot.app.screen.query_one(
+                    "#date_min_filter", ClearableInput
+                )
+                date_max = pilot.app.screen.query_one(
+                    "#date_max_filter", ClearableInput
+                )
 
                 assert date_min.value == "2025-01-01"
                 assert date_max.value == "2025-12-31"
 
     async def test_screen_with_year_and_month_filter(self) -> None:
         """Test screen initialization with year and month filter."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -93,16 +107,22 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
 
                 # Date filters should be pre-filled for February
-                date_min = pilot.app.screen.query_one("#date_min_filter", ClearableInput)
-                date_max = pilot.app.screen.query_one("#date_max_filter", ClearableInput)
+                date_min = pilot.app.screen.query_one(
+                    "#date_min_filter", ClearableInput
+                )
+                date_max = pilot.app.screen.query_one(
+                    "#date_max_filter", ClearableInput
+                )
 
                 assert date_min.value == "2025-02-01"
                 assert date_max.value == "2025-02-28"
 
     async def test_on_screen_resume_reloads_data(self) -> None:
         """Test that screen resume reloads data."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -116,14 +136,18 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                 initial_count = len(screen.transactions)
 
                 # Add more transactions
-                new_transactions = pd.concat([
-                    self.test_transactions,
-                    pd.DataFrame({
-                        "Date": [pd.to_datetime("2025-04-01")],
-                        "Merchant": ["Target"],
-                        "Amount": [50.00],
-                    })
-                ])
+                new_transactions = pd.concat(
+                    [
+                        self.test_transactions,
+                        pd.DataFrame(
+                            {
+                                "Date": [pd.to_datetime("2025-04-01")],
+                                "Merchant": ["Target"],
+                                "Amount": [50.00],
+                            }
+                        ),
+                    ]
+                )
                 new_transactions.to_parquet(self.transactions_file, index=False)
 
                 # Trigger screen resume
@@ -136,8 +160,10 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
     async def test_input_changed_triggers_repopulate(self) -> None:
         """Test that changing input triggers table repopulation."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -151,7 +177,9 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                 initial_display_count = len(screen.display_df)
 
                 # Change merchant filter
-                merchant_filter = pilot.app.screen.query_one("#merchant_filter", ClearableInput)
+                merchant_filter = pilot.app.screen.query_one(
+                    "#merchant_filter", ClearableInput
+                )
                 merchant_filter.value = "Starbucks"
                 await pilot.pause()
 
@@ -160,8 +188,10 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
     async def test_table_displays_transactions(self) -> None:
         """Test that table displays transactions correctly."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -178,8 +208,10 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
     async def test_toggle_selection_adds_and_removes(self) -> None:
         """Test toggling selection adds and removes rows."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -202,8 +234,10 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
     async def test_delete_button_pressed(self) -> None:
         """Test delete button press triggers deletion."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -230,8 +264,10 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
     async def test_delete_selected_with_no_selection(self) -> None:
         """Test delete with no selection does nothing."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -253,8 +289,10 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
     async def test_update_table_method(self) -> None:
         """Test update_table method repopulates."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
@@ -276,8 +314,10 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
     async def test_empty_transactions_display(self) -> None:
         """Test display with no transactions."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
 
             # Create empty transactions
             empty_df = pd.DataFrame(columns=["Date", "Merchant", "Amount"])

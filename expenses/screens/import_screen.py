@@ -41,6 +41,12 @@ class ImportScreen(BaseScreen):
                 ),
                 Static("Amount Column:"),
                 Select([], id="amount_select"),
+                Static("Source/Account Name (optional):"),
+                Input(
+                    placeholder="e.g., 'Chase Checking' or 'CSV Import'",
+                    id="source_input",
+                    value="CSV Import",
+                ),
                 Button("Import Transactions", id="import_button", disabled=True),
             ),
             id="import_dialog",
@@ -65,6 +71,13 @@ class ImportScreen(BaseScreen):
             self.app.push_screen("file_browser", self.handle_file_select)
         elif event.button.id == "import_button":
             self.import_data()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Trigger import when Enter is pressed in the source input."""
+        if event.input.id == "source_input":
+            import_button = self.query_one("#import_button", Button)
+            if not import_button.disabled:
+                self.import_data()
 
     def load_and_preview_csv(self) -> None:
         """Load the selected CSV, display a preview, and populate column selectors."""
@@ -110,9 +123,15 @@ class ImportScreen(BaseScreen):
             suggest_categories = self.query_one(
                 "#suggest_categories_checkbox", Checkbox
             ).value
+            source = self.query_one("#source_input", Input).value or "CSV Import"
 
             transactions_to_append = []
-            skip_counts = {"invalid_date": 0, "empty_merchant": 0, "not_expense": 0, "not_debit": 0}
+            skip_counts = {
+                "invalid_date": 0,
+                "empty_merchant": 0,
+                "not_expense": 0,
+                "not_debit": 0,
+            }
             logging.info("Starting CSV import...")
 
             for index, row in self.df.iterrows():
@@ -120,10 +139,32 @@ class ImportScreen(BaseScreen):
                 logging.debug(f"Raw row data: {row.to_dict()}")
 
                 # --- Date Parsing ---
-                date_val = pd.to_datetime(row[date_col], errors="coerce", dayfirst=True)
+                # Smart date parsing that detects format automatically
+                date_str = str(row[date_col]).strip()
+                date_val = pd.NaT
+
+                # Detect format based on date string pattern:
+                # - ISO format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS (starts with 4-digit year)
+                # - European format: DD/MM/YYYY or D/M/YYYY (contains / or - separator)
+                if date_str and len(date_str) >= 8:
+                    if date_str[:4].isdigit() and len(date_str) > 4 and date_str[4] in ['-', '/']:
+                        # ISO format (YYYY-MM-DD): Parse without dayfirst to avoid month/day swap
+                        try:
+                            date_val = pd.to_datetime(date_str, format="ISO8601", errors="raise")
+                        except (ValueError, TypeError):
+                            date_val = pd.to_datetime(date_str, errors="coerce")
+                    elif '/' in date_str or '-' in date_str:
+                        # European format (DD/MM/YYYY): Use dayfirst=True
+                        date_val = pd.to_datetime(date_str, errors="coerce", dayfirst=True)
+                    else:
+                        # Unknown format, use pandas auto-detection
+                        date_val = pd.to_datetime(date_str, errors="coerce")
+
                 if pd.isna(date_val):
                     skip_counts["invalid_date"] += 1
-                    logging.debug(f"Row {index}: Skipping - invalid date '{row[date_col]}'")
+                    logging.debug(
+                        f"Row {index}: Skipping - invalid date '{row[date_col]}'"
+                    )
                     continue
 
                 # --- Merchant Parsing ---
@@ -144,7 +185,9 @@ class ImportScreen(BaseScreen):
                 # --- Expense Filtering ---
                 if amount_val >= 0:
                     skip_counts["not_expense"] += 1
-                    logging.debug(f"Row {index}: Skipping - not an expense (amount >= 0)")
+                    logging.debug(
+                        f"Row {index}: Skipping - not an expense (amount >= 0)"
+                    )
                     continue
 
                 # --- Special PayPal Debit Check ---
@@ -178,12 +221,20 @@ class ImportScreen(BaseScreen):
 
             # Log skip reasons if any
             if total_skipped > 0:
-                skip_details = ", ".join([f"{count} {reason}" for reason, count in skip_counts.items() if count > 0])
+                skip_details = ", ".join(
+                    [
+                        f"{count} {reason}"
+                        for reason, count in skip_counts.items()
+                        if count > 0
+                    ]
+                )
                 logging.info(f"Skip breakdown: {skip_details}")
 
             if transactions_to_append:
                 processed_df = pd.DataFrame(transactions_to_append)
-                append_transactions(processed_df, suggest_categories=suggest_categories)
+                append_transactions(
+                    processed_df, suggest_categories=suggest_categories, source=source
+                )
             else:
                 logging.warning("No valid transactions found to import")
 

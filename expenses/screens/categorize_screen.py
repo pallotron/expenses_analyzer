@@ -37,7 +37,9 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
         saved_categories = load_categories()
         user_categories = list(saved_categories.values())
         default_categories = load_default_categories()
-        self.categories: List[str] = sorted(list(set(user_categories + default_categories)))
+        self.categories: List[str] = sorted(
+            list(set(user_categories + default_categories))
+        )
 
     def compose_content(self) -> ComposeResult:
         """Create child widgets for the screen."""
@@ -45,12 +47,18 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
             Static("Categorize Merchants", classes="title"),
             Vertical(
                 Horizontal(
-                    ClearableInput(placeholder="Filter merchants...", id="merchant_filter"),
-                    ClearableInput(placeholder="Filter categories...", id="category_filter"),
+                    ClearableInput(
+                        placeholder="Filter merchants...", id="merchant_filter"
+                    ),
+                    ClearableInput(
+                        placeholder="Filter categories...", id="category_filter"
+                    ),
                     classes="filter-bar",
                 ),
                 Horizontal(
-                    ClearableInput(placeholder="Enter new category...", id="category_input"),
+                    ClearableInput(
+                        placeholder="Enter new category...", id="category_input"
+                    ),
                     Select(
                         prompt="or select existing",
                         options=[(c, c) for c in self.categories],
@@ -99,8 +107,12 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
 
     def populate_table(self) -> None:
         """Apply filters and sorting to the merchant data."""
-        merchant_filter = self.query_one("#merchant_filter", ClearableInput).value.lower()
-        category_filter = self.query_one("#category_filter", ClearableInput).value.lower()
+        merchant_filter = self.query_one(
+            "#merchant_filter", ClearableInput
+        ).value.lower()
+        category_filter = self.query_one(
+            "#category_filter", ClearableInput
+        ).value.lower()
 
         filtered_data = self.all_merchant_data
         if merchant_filter:
@@ -127,6 +139,26 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle changes to the filter inputs."""
         if event.input.id in ("merchant_filter", "category_filter"):
+            self.populate_table()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key press in inputs."""
+        if event.input.id == "category_input":
+            # Apply category to selected rows when Enter is pressed
+            new_category = self.query_one(
+                "#category_input", ClearableInput
+            ).value.strip()
+            if new_category and self.selected_rows:
+                selected_merchants = {
+                    self.merchant_data[i]["Merchant"] for i in self.selected_rows
+                }
+
+                for i in range(len(self.all_merchant_data)):
+                    if self.all_merchant_data[i]["Merchant"] in selected_merchants:
+                        self.all_merchant_data[i]["Category"] = new_category
+                self.populate_table()
+        elif event.input.id in ("merchant_filter", "category_filter"):
+            # Refresh filter on Enter
             self.populate_table()
 
     def on_select_changed(self, event: Select.Changed) -> None:
@@ -160,7 +192,9 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "apply_button":
-            new_category = self.query_one("#category_input", ClearableInput).value.strip()
+            new_category = self.query_one(
+                "#category_input", ClearableInput
+            ).value.strip()
             if new_category and self.selected_rows:
                 selected_merchants = {
                     self.merchant_data[i]["Merchant"] for i in self.selected_rows

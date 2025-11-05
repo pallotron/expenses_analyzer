@@ -2,7 +2,6 @@
 
 import unittest
 import tempfile
-import json
 from pathlib import Path
 from unittest.mock import patch
 import pandas as pd
@@ -11,7 +10,6 @@ from expenses.data_handler import (
     load_transactions_from_parquet,
     load_categories,
     save_transactions_to_parquet,
-    save_categories,
     check_and_clear_corruption_flag,
 )
 from expenses.backup import attempt_auto_recovery, create_auto_backup
@@ -32,8 +30,10 @@ class TestCorruptionHandling(unittest.TestCase):
 
     def test_corrupted_parquet_returns_empty_df(self) -> None:
         """Test that corrupted parquet file returns empty DataFrame."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             # Create a corrupted parquet file (write garbage data)
             self.transactions_file.write_text("This is not a valid parquet file!")
@@ -42,7 +42,13 @@ class TestCorruptionHandling(unittest.TestCase):
             df = load_transactions_from_parquet()
 
             assert df.empty
-            assert list(df.columns) == ["Date", "Merchant", "Amount", "Deleted"]
+            assert list(df.columns) == [
+                "Date",
+                "Merchant",
+                "Amount",
+                "Source",
+                "Deleted",
+            ]
 
     def test_corrupted_categories_returns_empty_dict(self) -> None:
         """Test that corrupted categories file returns empty dict."""
@@ -67,18 +73,18 @@ class TestCorruptionHandling(unittest.TestCase):
 
     def test_auto_recovery_with_available_backup(self) -> None:
         """Test automatic recovery when backup is available."""
-        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.backup.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir), \
-             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.backup.CATEGORIES_FILE", self.categories_file),
+            patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir),
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             # Create original valid data
-            original_df = pd.DataFrame({
-                "Date": ["2025-01-01"],
-                "Merchant": ["Test Store"],
-                "Amount": [10.00]
-            })
+            original_df = pd.DataFrame(
+                {"Date": ["2025-01-01"], "Merchant": ["Test Store"], "Amount": [10.00]}
+            )
             save_transactions_to_parquet(original_df)
 
             # Create backup
@@ -108,15 +114,15 @@ class TestCorruptionHandling(unittest.TestCase):
 
     def test_parquet_corruption_after_valid_file(self) -> None:
         """Test handling corruption of previously valid file."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             # Create valid file
-            df = pd.DataFrame({
-                "Date": ["2025-01-01"],
-                "Merchant": ["Store"],
-                "Amount": [15.00]
-            })
+            df = pd.DataFrame(
+                {"Date": ["2025-01-01"], "Merchant": ["Store"], "Amount": [15.00]}
+            )
             save_transactions_to_parquet(df)
 
             # Verify it loads correctly
@@ -129,7 +135,13 @@ class TestCorruptionHandling(unittest.TestCase):
             # Should return empty DataFrame
             corrupted_load = load_transactions_from_parquet()
             assert corrupted_load.empty
-            assert list(corrupted_load.columns) == ["Date", "Merchant", "Amount", "Deleted"]
+            assert list(corrupted_load.columns) == [
+                "Date",
+                "Merchant",
+                "Amount",
+                "Source",
+                "Deleted",
+            ]
 
     def test_categories_ioerror_handling(self) -> None:
         """Test handling of IOError when reading categories."""
@@ -156,8 +168,10 @@ class TestCorruptionHandling(unittest.TestCase):
 
     def test_empty_parquet_file(self) -> None:
         """Test handling of empty parquet file."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             # Create empty file
             self.transactions_file.touch()
@@ -165,24 +179,30 @@ class TestCorruptionHandling(unittest.TestCase):
             # Should return empty DataFrame
             df = load_transactions_from_parquet()
             assert df.empty
-            assert list(df.columns) == ["Date", "Merchant", "Amount", "Deleted"]
+            assert list(df.columns) == [
+                "Date",
+                "Merchant",
+                "Amount",
+                "Source",
+                "Deleted",
+            ]
 
     def test_truncated_parquet_file(self) -> None:
         """Test handling of truncated parquet file."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             # Create valid file first
-            df = pd.DataFrame({
-                "Date": ["2025-01-01"],
-                "Merchant": ["Store"],
-                "Amount": [20.00]
-            })
+            df = pd.DataFrame(
+                {"Date": ["2025-01-01"], "Merchant": ["Store"], "Amount": [20.00]}
+            )
             save_transactions_to_parquet(df)
 
             # Read the file and truncate it
             content = self.transactions_file.read_bytes()
-            self.transactions_file.write_bytes(content[:len(content)//2])
+            self.transactions_file.write_bytes(content[: len(content) // 2])
 
             # Should return empty DataFrame
             truncated_load = load_transactions_from_parquet()
@@ -190,27 +210,25 @@ class TestCorruptionHandling(unittest.TestCase):
 
     def test_recovery_creates_emergency_backup(self) -> None:
         """Test that recovery creates emergency backup before restoring."""
-        with patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.backup.CATEGORIES_FILE", self.categories_file), \
-             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir), \
-             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.backup.CATEGORIES_FILE", self.categories_file),
+            patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir),
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             # Create and backup original data
-            df1 = pd.DataFrame({
-                "Date": ["2025-01-01"],
-                "Merchant": ["Original"],
-                "Amount": [10.00]
-            })
+            df1 = pd.DataFrame(
+                {"Date": ["2025-01-01"], "Merchant": ["Original"], "Amount": [10.00]}
+            )
             save_transactions_to_parquet(df1)
-            backup = create_auto_backup()
+            create_auto_backup()
 
             # Modify to different data
-            df2 = pd.DataFrame({
-                "Date": ["2025-01-02"],
-                "Merchant": ["Modified"],
-                "Amount": [20.00]
-            })
+            df2 = pd.DataFrame(
+                {"Date": ["2025-01-02"], "Merchant": ["Modified"], "Amount": [20.00]}
+            )
             save_transactions_to_parquet(df2)
 
             # Restore from backup
@@ -218,13 +236,18 @@ class TestCorruptionHandling(unittest.TestCase):
             assert success
 
             # Check emergency backup was created
-            emergency_backup = self.transactions_file.with_suffix(".parquet.pre-restore")
+            # Check emergency backup tarball was created (starts with emergency_)
+            emergency_backups = list(self.auto_backup_dir.glob("emergency_*.tar.gz"))
+            assert len(emergency_backups) > 0, "No emergency backup found"
+            emergency_backup = emergency_backups[0]
             assert emergency_backup.exists()
 
     def test_corruption_flag_is_set(self) -> None:
         """Test that corruption detection sets the flag for TUI notification."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             # Create corrupted file
             self.transactions_file.write_bytes(b"\x00\x01\x02corrupted")
@@ -244,15 +267,15 @@ class TestCorruptionHandling(unittest.TestCase):
 
     def test_no_corruption_flag_for_valid_file(self) -> None:
         """Test that valid file doesn't set corruption flag."""
-        with patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file), \
-             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)):
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
 
             # Create valid file
-            df = pd.DataFrame({
-                "Date": ["2025-01-01"],
-                "Merchant": ["Store"],
-                "Amount": [10.00]
-            })
+            df = pd.DataFrame(
+                {"Date": ["2025-01-01"], "Merchant": ["Store"], "Amount": [10.00]}
+            )
             save_transactions_to_parquet(df)
 
             # Load should not set flag

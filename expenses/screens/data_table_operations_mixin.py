@@ -3,15 +3,17 @@ from textual.widgets import DataTable
 
 _WidgetT = TypeVar("_WidgetT", bound=DataTable)
 
+
 class HasQueryOne(Protocol):
     selected_rows: Set[Any]
+
     def query_one(self, query: str, expect_type: type[_WidgetT]) -> _WidgetT: ...
     def update_table(self) -> None: ...
 
 
 class DataTableOperationsMixin:
     """Mixin for common DataTable operations like sorting and selection."""
-    
+
     sort_column: str
     sort_order: str
     selected_rows: Set[Any]
@@ -47,10 +49,10 @@ class DataTableOperationsMixin:
         raise NotImplementedError(
             "The update_table method must be implemented in the screen."
         )
-    
+
     def populate_table(self) -> None:
         """Placeholder method for populating the table.
-        
+
         This method should be implemented by the class using this mixin.
         """
         raise NotImplementedError(

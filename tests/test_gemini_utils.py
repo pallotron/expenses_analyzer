@@ -25,12 +25,12 @@ class TestGeminiUtils(unittest.TestCase):
         # Mock the Gemini API response
         mock_model = MagicMock()
         mock_response = MagicMock()
-        mock_response.text = '''```json
+        mock_response.text = """```json
         {
             "Starbucks": "Coffee",
             "Whole Foods": "Groceries"
         }
-        ```'''
+        ```"""
         mock_model.generate_content.return_value = mock_response
         mock_model_class.return_value = mock_model
 

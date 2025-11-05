@@ -9,7 +9,9 @@ from expenses.screens.import_screen import ImportScreen
 from expenses.screens.categorize_screen import CategorizeScreen
 from expenses.screens.file_browser_screen import FileBrowserScreen
 from expenses.screens.transaction_screen import TransactionScreen
-from expenses.screens.delete_screen import DeleteScreen
+from expenses.screens.delete_screen import BuildDeleteScreen
+from expenses.screens.plaid_screen import PlaidScreen
+from expenses.screens.backup_screen import BackupScreen
 from expenses.screens.confirmation_screen import ConfirmationScreen
 from expenses.widgets.notification import Notification
 from expenses.data_handler import check_and_clear_corruption_flag
@@ -43,7 +45,9 @@ class ExpensesApp(App):
         "categorize": CategorizeScreen,
         "file_browser": FileBrowserScreen,
         "transactions": TransactionScreen,
-        "delete": DeleteScreen,
+        "delete": BuildDeleteScreen,
+        "plaid": PlaidScreen,
+        "backup": BackupScreen,
     }
 
     BINDINGS = [
@@ -51,7 +55,9 @@ class ExpensesApp(App):
         Binding("t", "push_screen('transactions')", "Transactions", show=True),
         Binding("i", "push_screen('import')", "Import", show=True),
         Binding("c", "push_screen('categorize')", "Categorize", show=True),
-        Binding("d", "push_screen('delete')", "Delete", show=True),
+        Binding("D", "push_screen('delete')", "Build Delete", show=True),
+        Binding("l", "push_screen('plaid')", "Link Bank", show=True),
+        Binding("b", "push_screen('backup')", "Backups", show=True),
         Binding("escape", "pop_screen", "Back", show=False),
         Binding("ctrl+q", "quit", "Quit", show=True),
     ]
@@ -79,14 +85,15 @@ class ExpensesApp(App):
                     f"⚠️  {corruption_msg}\n\n"
                     f"Found {len(backups)} backup(s) available.\n"
                     "Would you like to restore from the most recent backup?",
-                    self._handle_recovery_response
+                    self._handle_recovery_response,
                 )
             else:
                 self.show_notification(
-                    f"⚠️  {corruption_msg} - No backups available!",
-                    timeout=10
+                    f"⚠️  {corruption_msg} - No backups available!", timeout=10
                 )
-                logging.error("Corruption detected but no backups available for recovery")
+                logging.error(
+                    "Corruption detected but no backups available for recovery"
+                )
 
     def _handle_recovery_response(self, should_recover: bool) -> None:
         """Handle user's response to corruption recovery prompt."""
@@ -95,19 +102,17 @@ class ExpensesApp(App):
             success = attempt_auto_recovery()
             if success:
                 self.show_notification(
-                    "✓ Recovery successful! Please restart the application.",
-                    timeout=10
+                    "✓ Recovery successful! Please restart the application.", timeout=10
                 )
             else:
                 self.show_notification(
-                    "✗ Recovery failed. Check logs for details.",
-                    timeout=10
+                    "✗ Recovery failed. Check logs for details.", timeout=10
                 )
         else:
             logging.info("User declined automatic recovery")
             self.show_notification(
                 "Continuing with empty data. Check logs for recovery options.",
-                timeout=5
+                timeout=5,
             )
 
     def action_pop_screen(self) -> None:

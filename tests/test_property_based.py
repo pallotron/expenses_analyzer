@@ -21,7 +21,11 @@ from expenses.data_handler import (
 @st.composite
 def amount_strings(draw):
     """Generate various amount string formats."""
-    amount = draw(st.floats(min_value=-100000, max_value=100000, allow_nan=False, allow_infinity=False))
+    amount = draw(
+        st.floats(
+            min_value=-100000, max_value=100000, allow_nan=False, allow_infinity=False
+        )
+    )
     amount = round(amount, 2)
 
     # Choose a format
@@ -62,7 +66,7 @@ def transaction_dataframes(draw, min_rows=0, max_rows=100):
     num_rows = draw(st.integers(min_value=min_rows, max_value=max_rows))
 
     if num_rows == 0:
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Deleted"])
+        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Source", "Deleted"])
 
     # Generate dates within a reasonable range
     base_date = datetime(2020, 1, 1)
@@ -79,19 +83,38 @@ def transaction_dataframes(draw, min_rows=0, max_rows=100):
 
     # Generate amounts
     amounts = [
-        round(draw(st.floats(min_value=-10000, max_value=10000, allow_nan=False, allow_infinity=False)), 2)
+        round(
+            draw(
+                st.floats(
+                    min_value=-10000,
+                    max_value=10000,
+                    allow_nan=False,
+                    allow_infinity=False,
+                )
+            ),
+            2,
+        )
         for _ in range(num_rows)
     ]
 
     # Generate deleted status
     deleted = [draw(st.booleans()) for _ in range(num_rows)]
 
-    return pd.DataFrame({
-        "Date": dates,
-        "Merchant": merchants,
-        "Amount": amounts,
-        "Deleted": deleted
-    })
+    # Generate source
+    sources = [
+        draw(st.sampled_from(["Manual", "CSV Import", "Plaid", "Unknown"]))
+        for _ in range(num_rows)
+    ]
+
+    return pd.DataFrame(
+        {
+            "Date": dates,
+            "Merchant": merchants,
+            "Amount": amounts,
+            "Source": sources,
+            "Deleted": deleted,
+        }
+    )
 
 
 class TestPropertyBasedDataHandler(unittest.TestCase):
@@ -111,7 +134,11 @@ class TestPropertyBasedDataHandler(unittest.TestCase):
         # Result should have same length as input
         self.assertEqual(len(result), len(series))
 
-    @given(st.floats(min_value=-10000, max_value=10000, allow_nan=False, allow_infinity=False))
+    @given(
+        st.floats(
+            min_value=-10000, max_value=10000, allow_nan=False, allow_infinity=False
+        )
+    )
     @settings(max_examples=50, deadline=None)
     def test_clean_amount_parenthetical_negatives(self, value):
         """Property: (amount) should become -amount."""
@@ -131,7 +158,10 @@ class TestPropertyBasedDataHandler(unittest.TestCase):
         # All dashes should become 0
         self.assertTrue((result == 0).all())
 
-    @given(transaction_dataframes(min_rows=1, max_rows=50), transaction_dataframes(min_rows=1, max_rows=50))
+    @given(
+        transaction_dataframes(min_rows=1, max_rows=50),
+        transaction_dataframes(min_rows=1, max_rows=50),
+    )
     @settings(max_examples=20, deadline=None)
     def test_append_transactions_increases_or_maintains_count(self, df1, df2):
         """Property: appending transactions should increase or maintain count (due to deduplication)."""
@@ -223,7 +253,9 @@ class TestPropertyBasedDataHandler(unittest.TestCase):
                     initial_count = len(df)
 
                     # Delete empty dataframe
-                    empty_df = pd.DataFrame(columns=["Date", "Merchant", "Amount", "Deleted"])
+                    empty_df = pd.DataFrame(
+                        columns=["Date", "Merchant", "Amount", "Source", "Deleted"]
+                    )
                     delete_transactions(empty_df)
 
                     # Load result

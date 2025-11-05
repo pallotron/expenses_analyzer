@@ -31,7 +31,7 @@ venv:
 	fi
 	@echo "Installing dependencies..."
 	$(UV) pip install -r requirements.txt
-	$(UV) pip install flake8 pytest pytest-cov black hypothesis
+	$(UV) pip install flake8 pytest pytest-cov black hypothesis pytest-asyncio
 
 lint: venv
 	@echo "Running flake8 linting..."
@@ -44,8 +44,22 @@ format: venv
 
 test: venv
 	@echo "Running pytest tests..."
-	PYTHONPATH=. $(PYTEST)
+	TEST_DIR=$$(mktemp -d); \
+	EXPENSES_ANALYZER_CONFIG_DIR=$$TEST_DIR PYTHONPATH=. $(PYTEST); \
+	rm -rf $$TEST_DIR
 
 coverage: venv
 	@echo "Running pytest with coverage..."
-	PYTHONPATH=. $(PYTEST) --cov=expenses --cov-report=html --cov-report=term --cov-report=xml
+	TEST_DIR=$$(mktemp -d); \
+	EXPENSES_ANALYZER_CONFIG_DIR=$$TEST_DIR PYTHONPATH=. $(PYTEST) --cov=expenses --cov-report=html --cov-report=term --cov-report=xml; \
+	rm -rf $$TEST_DIR
+
+clean:
+	@echo "Cleaning up..."
+	rm -rf $(VENV_DIR)
+	rm -rf htmlcov
+	rm -rf .pytest_cache
+	rm -rf .mypy_cache
+	rm -rf .tox
+	rm -rf .cache
+	rm -f coverage.xml	

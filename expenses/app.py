@@ -116,8 +116,11 @@ class ExpensesApp(App):
             )
 
     def action_pop_screen(self) -> None:
-        """Pop a screen from the stack, but not if it's the last one."""
-        if len(self.screen_stack) > 1:
+        """Pop a screen from the stack, but keep the SummaryScreen as the base."""
+        # Don't pop if we're on the SummaryScreen (our base screen)
+        from expenses.screens.summary_screen import SummaryScreen
+
+        if len(self.screen_stack) > 1 and not isinstance(self.screen, SummaryScreen):
             self.pop_screen()
 
     def action_quit(self) -> None:

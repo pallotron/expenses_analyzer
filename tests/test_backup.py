@@ -30,6 +30,7 @@ class TestBackup(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.transactions_file = Path(self.test_dir) / "transactions.parquet"
         self.categories_file = Path(self.test_dir) / "categories.json"
+        self.merchant_aliases_file = Path(self.test_dir) / "merchant_aliases.json"
         self.plaid_items_file = Path(self.test_dir) / "plaid_items.json"
         self.default_categories_file = Path(self.test_dir) / "default_categories.json"
         self.auto_backup_dir = Path(self.test_dir) / "auto_backups"
@@ -110,6 +111,35 @@ class TestBackup(unittest.TestCase):
                 names = tar.getnames()
                 assert "categories.json" in names
 
+    def test_backup_includes_merchant_aliases(self) -> None:
+        """Test that backup includes merchant_aliases file if it exists."""
+        with (
+            patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.backup.CATEGORIES_FILE", self.categories_file),
+            patch("expenses.backup.MERCHANT_ALIASES_FILE", self.merchant_aliases_file),
+            patch("expenses.backup.PLAID_ITEMS_FILE", self.plaid_items_file),
+            patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir),
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+        ):
+
+            # Create test data
+            df = pd.DataFrame(
+                {"Date": ["2025-01-01"], "Merchant": ["Test"], "Amount": [10.00]}
+            )
+            save_transactions_to_parquet(df)
+
+            # Create merchant_aliases file
+            self.merchant_aliases_file.write_text('{"test merchant": "Test"}')
+
+            # Create backup
+            backup_file = create_auto_backup()
+
+            # Verify merchant_aliases were backed up (inside tarball)
+            with tarfile.open(backup_file, "r:gz") as tar:
+                names = tar.getnames()
+                assert "merchant_aliases.json" in names
+
     def test_cleanup_old_backups(self) -> None:
         """Test that old backups are removed when older than BACKUP_RETENTION_DAYS."""
         import os
@@ -168,6 +198,7 @@ class TestBackup(unittest.TestCase):
         with (
             patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.backup.CATEGORIES_FILE", self.categories_file),
+            patch("expenses.backup.MERCHANT_ALIASES_FILE", self.merchant_aliases_file),
             patch("expenses.backup.PLAID_ITEMS_FILE", self.plaid_items_file),
             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir),
             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
@@ -180,6 +211,7 @@ class TestBackup(unittest.TestCase):
             )
             save_transactions_to_parquet(original_df)
             self.categories_file.write_text('{"Original": "Category1"}')
+            self.merchant_aliases_file.write_text('{"original merchant": "Original"}')
 
             # Create backup
             backup_file = create_auto_backup()
@@ -190,6 +222,7 @@ class TestBackup(unittest.TestCase):
             )
             save_transactions_to_parquet(modified_df)
             self.categories_file.write_text('{"Modified": "Category2"}')
+            self.merchant_aliases_file.write_text('{"modified merchant": "Modified"}')
 
             # Restore from backup
             success = restore_from_backup(backup_file)
@@ -207,6 +240,12 @@ class TestBackup(unittest.TestCase):
             with open(self.categories_file) as f:
                 categories = json.load(f)
             assert categories == {"Original": "Category1"}
+
+            # Verify merchant aliases were restored
+            assert self.merchant_aliases_file.exists()
+            with open(self.merchant_aliases_file) as f:
+                aliases = json.load(f)
+            assert aliases == {"original merchant": "Original"}
 
     def test_restore_from_nonexistent_backup(self) -> None:
         """Test restore fails gracefully when backup doesn't exist."""

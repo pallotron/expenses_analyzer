@@ -14,6 +14,9 @@ from expenses.data_handler import (
     load_transactions_from_parquet,
     load_categories,
     delete_transactions,
+    load_merchant_aliases,
+    save_merchant_aliases,
+    apply_merchant_aliases_to_series,
 )
 from expenses.screens.base_screen import BaseScreen
 from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
@@ -28,6 +31,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
     BINDINGS = [
         Binding("space", "toggle_selection", "Toggle Selection"),
+        Binding("e", "edit_merchant", "Edit Merchant"),
     ]
 
     def __init__(
@@ -50,6 +54,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         self.display_df: pd.DataFrame = pd.DataFrame()
         self.transactions: pd.DataFrame = pd.DataFrame()
         self.categories: Dict[str, str] = {}
+        self.merchant_aliases: Dict[str, str] = {}
 
     def compose_content(self) -> ComposeResult:
         title = "Transactions"
@@ -112,6 +117,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
+        self.merchant_aliases = load_merchant_aliases()
 
         if not self.transactions.empty:
             self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
@@ -125,6 +131,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         """Called when the screen is resumed, e.g., after an import."""
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
+        self.merchant_aliases = load_merchant_aliases()
 
         if not self.transactions.empty:
             self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
@@ -153,6 +160,12 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         # --- Prepare Data ---
         display_df = self.transactions.copy()
+
+        # Apply merchant aliases for display
+        display_df["DisplayMerchant"] = apply_merchant_aliases_to_series(
+            display_df["Merchant"], self.merchant_aliases
+        )
+
         display_df["Category"] = (
             display_df["Merchant"].map(self.categories).fillna("Other")
         )
@@ -176,7 +189,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 ),
             ),
             "merchant": (
-                "Merchant",
+                "DisplayMerchant",
                 "contains",
                 self.query_one("#merchant_filter", ClearableInput).value,
             ),
@@ -208,6 +221,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             ),
         }
         display_df = self.transactions.copy()
+
+        # Apply merchant aliases for display
+        display_df["DisplayMerchant"] = apply_merchant_aliases_to_series(
+            display_df["Merchant"], self.merchant_aliases
+        )
 
         # Add Category column before filtering so category filters work
         display_df["Category"] = (
@@ -253,7 +271,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
             row_data = [
                 row["Date"].strftime("%Y-%m-%d") if pd.notna(row["Date"]) else "",
-                row["Merchant"] or "",
+                row["DisplayMerchant"] or row["Merchant"] or "",
                 f"{row['Amount']:,.2f}" if pd.notna(row["Amount"]) else "",
                 row.get("Source", "Unknown") or "Unknown",
                 row["Category"] or "",
@@ -312,3 +330,57 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
     def update_table(self) -> None:
         """Update the table."""
         self.populate_table()
+
+    def action_edit_merchant(self) -> None:
+        """Edit merchant alias for the current row."""
+        table = self.query_one("#transaction_table", DataTable)
+        if table.cursor_row is None:
+            return
+
+        # Get the original index from the display DataFrame
+        row_index = self.display_df.index[table.cursor_row]
+        row = self.display_df.loc[row_index]
+
+        original_merchant = row["Merchant"]
+
+        # Find if there's already an alias for this merchant
+        current_alias = row.get("DisplayMerchant")
+        if current_alias == original_merchant:
+            current_alias = None  # No alias currently
+
+        # Import here to avoid circular import
+        from expenses.screens.edit_transaction_screen import EditTransactionScreen
+
+        def handle_edit_result(result):
+            """Handle the result from the edit screen."""
+            if not result:
+                return  # User cancelled
+
+            pattern, alias = result
+
+            # Load current aliases
+            aliases = load_merchant_aliases()
+
+            # Add or update the pattern
+            aliases[pattern] = alias
+
+            # Save back to file
+            save_merchant_aliases(aliases)
+
+            # Reload and refresh the display
+            self.merchant_aliases = load_merchant_aliases()
+            self.populate_table()
+
+            # Restore cursor position
+            table.move_cursor(row=table.cursor_row)
+
+            self.app.show_notification(
+                f"Added alias: '{original_merchant}' → '{alias}'",
+                timeout=3
+            )
+            logging.info(f"Added merchant alias: pattern='{pattern}', alias='{alias}'")
+
+        self.app.push_screen(
+            EditTransactionScreen(original_merchant, current_alias),
+            handle_edit_result
+        )

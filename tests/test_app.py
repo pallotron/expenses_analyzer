@@ -181,6 +181,29 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
 
             assert isinstance(pilot.app.screen, SummaryScreen)
 
+    async def test_escape_on_summary_screen_stays_on_summary(self) -> None:
+        """Test that pressing ESC multiple times on summary screen doesn't navigate away."""
+        app = ExpensesApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            from expenses.screens.summary_screen import SummaryScreen
+
+            # Should start on summary
+            assert isinstance(pilot.app.screen, SummaryScreen)
+
+            # Press escape multiple times
+            await pilot.press("escape")
+            await pilot.pause()
+            assert isinstance(pilot.app.screen, SummaryScreen)
+
+            await pilot.press("escape")
+            await pilot.pause()
+            assert isinstance(pilot.app.screen, SummaryScreen)
+
+            await pilot.press("escape")
+            await pilot.pause()
+            assert isinstance(pilot.app.screen, SummaryScreen)
+
 
 if __name__ == "__main__":
     unittest.main()

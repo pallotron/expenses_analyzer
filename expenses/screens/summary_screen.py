@@ -11,7 +11,12 @@ from rich.text import Text
 
 from expenses.screens.base_screen import BaseScreen
 from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
-from expenses.data_handler import load_transactions_from_parquet, load_categories
+from expenses.data_handler import (
+    load_transactions_from_parquet,
+    load_categories,
+    load_merchant_aliases,
+    apply_merchant_aliases_to_series,
+)
 from expenses.analysis import calculate_trends
 from typing import Dict, Set, Optional, Any
 
@@ -33,8 +38,20 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         """Loads and prepares transaction and category data."""
         self.transactions: pd.DataFrame = load_transactions_from_parquet()
         self.categories: Dict[str, str] = load_categories()
+        self.merchant_aliases: Dict[str, str] = load_merchant_aliases()
+        logging.info(f"Loaded {len(self.merchant_aliases)} merchant alias patterns")
         if not self.transactions.empty:
             self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
+            # Apply merchant aliases for display
+            self.transactions["DisplayMerchant"] = apply_merchant_aliases_to_series(
+                self.transactions["Merchant"], self.merchant_aliases
+            )
+            # Log some examples
+            if len(self.merchant_aliases) > 0:
+                sample_size = min(5, len(self.transactions))
+                logging.debug(f"Sample after applying aliases:")
+                for idx, row in self.transactions.head(sample_size).iterrows():
+                    logging.debug(f"  '{row['Merchant']}' -> '{row['DisplayMerchant']}'")
             self.transactions["Category"] = (
                 self.transactions["Merchant"].map(self.categories).fillna("Other")
             )
@@ -334,10 +351,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             df = self.transactions[
                 (self.transactions["Date"].dt.year == year)
                 & (self.transactions["Date"].dt.month == month)
-            ]
+            ].copy()
         else:
             table_id = f"top_merchants_{year}_all"
-            df = self.transactions[self.transactions["Date"].dt.year == year]
+            df = self.transactions[self.transactions["Date"].dt.year == year].copy()
 
         try:
             table = self.query_one(f"#{table_id}", DataTable)
@@ -349,15 +366,34 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         table.add_columns("Merchant", "Category", "Amount")
 
         if not df.empty:
+            # Ensure DisplayMerchant column exists (it should from load_and_prepare_data)
+            if "DisplayMerchant" not in df.columns:
+                logging.warning("DisplayMerchant column not found, using Merchant instead")
+                df["DisplayMerchant"] = df["Merchant"]
+
+            # Debug: Log sample of merchants and their aliases
+            if len(df) > 0:
+                sample_size = min(5, len(df))
+                logging.debug(f"Top merchants view - Sample of {sample_size} transactions:")
+                for idx, row in df.head(sample_size).iterrows():
+                    logging.debug(f"  Original: '{row['Merchant']}' -> Display: '{row['DisplayMerchant']}'")
+
+            # Group by DisplayMerchant (alias) to combine transactions with same alias
+            # Also get the most common category for each display merchant
             merchant_summary = (
-                df.groupby("Merchant")["Amount"]
-                .sum()
-                .sort_values(ascending=False)
+                df.groupby("DisplayMerchant", as_index=False)
+                .agg({"Amount": "sum", "Category": lambda x: x.mode()[0] if len(x.mode()) > 0 else "Other"})
+                .sort_values("Amount", ascending=False)
             )
-            for merchant, amount in merchant_summary.items():
-                category = self.categories.get(merchant, "Other")
-                truncated_merchant = merchant[:15] + "..." if len(merchant) > 15 else merchant
-                table.add_row(truncated_merchant, category, f"{amount:,.2f}", key=merchant)
+
+            logging.debug(f"Top merchants summary has {len(merchant_summary)} unique display merchants")
+
+            for _, row in merchant_summary.iterrows():
+                display_merchant = row["DisplayMerchant"]
+                amount = row["Amount"]
+                category = row["Category"]
+                truncated_merchant = display_merchant[:15] + "..." if len(display_merchant) > 15 else display_merchant
+                table.add_row(truncated_merchant, category, f"{amount:,.2f}", key=display_merchant)
 
     def _populate_monthly_breakdown(self, table: DataTable, year: int) -> None:
         """Helper function to populate a table with monthly breakdown data, with categories as rows."""

@@ -2,6 +2,7 @@ import logging
 import pandas as pd
 import json
 import importlib.resources
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -13,6 +14,7 @@ from expenses.config import (
     CATEGORIES_FILE,
     TRANSACTIONS_FILE,
     DEFAULT_CATEGORIES_FILE,
+    MERCHANT_ALIASES_FILE,
 )
 
 # Global flag to track if corruption was detected (for TUI notification)
@@ -126,6 +128,94 @@ def save_categories(categories: Dict[str, str]) -> None:
     with open(CATEGORIES_FILE, "w") as f:
         json.dump(categories, f, indent=4)
     _set_secure_permissions(CATEGORIES_FILE)
+
+
+# --- Merchant Alias Management ---
+def load_merchant_aliases() -> Dict[str, str]:
+    """Load merchant alias patterns from JSON file.
+
+    The file format is: {"regex_pattern": "display_alias"}
+    For example: {"POS APPLE\\.COM/BI.*": "Apple", "AMAZON.*": "Amazon"}
+
+    Returns:
+        Dictionary mapping regex patterns to display aliases, or empty dict if file
+        doesn't exist or is corrupted.
+    """
+    if not MERCHANT_ALIASES_FILE.exists():
+        return {}
+
+    try:
+        with open(MERCHANT_ALIASES_FILE, "r") as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        logging.warning(
+            f"Merchant aliases file is corrupted (invalid JSON): {e}. "
+            "Returning empty aliases. Consider restoring from backup."
+        )
+        return {}
+    except (OSError, IOError) as e:
+        logging.warning(
+            f"Could not read merchant aliases file: {e}. " "Returning empty aliases."
+        )
+        return {}
+
+
+def save_merchant_aliases(aliases: Dict[str, str]) -> None:
+    """Save merchant alias patterns to JSON file.
+
+    Args:
+        aliases: Dictionary mapping regex patterns to display aliases
+    """
+    _ensure_secure_config_dir()
+    with open(MERCHANT_ALIASES_FILE, "w") as f:
+        json.dump(aliases, f, indent=4)
+    _set_secure_permissions(MERCHANT_ALIASES_FILE)
+    logging.info(f"Saved {len(aliases)} merchant alias patterns")
+
+
+def apply_merchant_alias(merchant_name: str, aliases: Dict[str, str]) -> str:
+    """Apply merchant alias based on regex pattern matching.
+
+    Args:
+        merchant_name: Original merchant name from transaction
+        aliases: Dictionary mapping regex patterns to display aliases
+
+    Returns:
+        Display alias if a pattern matches, otherwise the original merchant name
+    """
+    if not merchant_name or not aliases:
+        return merchant_name
+
+    # Try each pattern in order (patterns are checked in dict order)
+    for pattern, alias in aliases.items():
+        try:
+            if re.search(pattern, merchant_name, re.IGNORECASE):
+                return alias
+        except re.error as e:
+            logging.warning(
+                f"Invalid regex pattern '{pattern}' in merchant aliases: {e}"
+            )
+            continue
+
+    return merchant_name
+
+
+def apply_merchant_aliases_to_series(
+    merchant_series: pd.Series, aliases: Dict[str, str]
+) -> pd.Series:
+    """Apply merchant aliases to a pandas Series of merchant names.
+
+    Args:
+        merchant_series: Series containing merchant names
+        aliases: Dictionary mapping regex patterns to display aliases
+
+    Returns:
+        Series with aliases applied
+    """
+    if not aliases:
+        return merchant_series
+
+    return merchant_series.apply(lambda x: apply_merchant_alias(x, aliases))
 
 
 # --- Transaction Loading & Saving ---

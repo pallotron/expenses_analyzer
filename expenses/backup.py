@@ -12,6 +12,7 @@ from expenses.config import (
     TRANSACTIONS_FILE,
     CATEGORIES_FILE,
     DEFAULT_CATEGORIES_FILE,
+    MERCHANT_ALIASES_FILE,
 )
 
 # Auto-backup configuration
@@ -28,6 +29,7 @@ def create_auto_backup() -> Optional[Path]:
     This function creates a compressed tarball containing:
     - transactions.parquet
     - categories.json
+    - merchant_aliases.json (if exists)
     - plaid_items.json (if exists)
     - default_categories.json (if exists)
 
@@ -56,6 +58,11 @@ def create_auto_backup() -> Optional[Path]:
             if CATEGORIES_FILE.exists():
                 tar.add(CATEGORIES_FILE, arcname="categories.json")
                 logging.debug("Added categories.json to backup")
+
+            # Backup merchant aliases if it exists
+            if MERCHANT_ALIASES_FILE.exists():
+                tar.add(MERCHANT_ALIASES_FILE, arcname="merchant_aliases.json")
+                logging.debug("Added merchant_aliases.json to backup")
 
             # Backup plaid items if it exists
             if PLAID_ITEMS_FILE.exists():
@@ -163,6 +170,13 @@ def restore_from_backup(backup_file: Path) -> bool:
                     shutil.copy2(temp_categories, CATEGORIES_FILE)
                     restored_files.append("categories.json")
                     logging.info("Restored categories.json")
+
+                # Restore merchant aliases
+                temp_aliases = temp_dir / "merchant_aliases.json"
+                if temp_aliases.exists():
+                    shutil.copy2(temp_aliases, MERCHANT_ALIASES_FILE)
+                    restored_files.append("merchant_aliases.json")
+                    logging.info("Restored merchant_aliases.json")
 
                 # Restore plaid items
                 temp_plaid = temp_dir / "plaid_items.json"

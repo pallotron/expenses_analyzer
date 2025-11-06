@@ -53,11 +53,26 @@ class EditTransactionScreen(ModalScreen[bool]):
         # We'll manually escape the important ones
         escaped = cleaned
         # Escape special regex chars: . * + ? ^ $ { } [ ] ( ) | \
-        for char in ['.', '*', '+', '?', '^', '$', '{', '}', '[', ']', '(', ')', '|', '\\']:
-            escaped = escaped.replace(char, '\\' + char)
+        for char in [
+            ".",
+            "*",
+            "+",
+            "?",
+            "^",
+            "$",
+            "{",
+            "}",
+            "[",
+            "]",
+            "(",
+            ")",
+            "|",
+            "\\",
+        ]:
+            escaped = escaped.replace(char, "\\" + char)
 
         # Replace single spaces with \s+ to match one or more whitespace chars
-        escaped = escaped.replace(' ', r'\s+')
+        escaped = escaped.replace(" ", r"\s+")
 
         # Add .* at the end to match any trailing content
         if escaped and not escaped.endswith(".*"):
@@ -142,7 +157,9 @@ class EditTransactionScreen(ModalScreen[bool]):
                 return
             else:
                 # Alias without pattern doesn't make sense
-                self.notify("Pattern is required when setting an alias", severity="error")
+                self.notify(
+                    "Pattern is required when setting an alias", severity="error"
+                )
                 return
 
         # Validate the regex pattern

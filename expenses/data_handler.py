@@ -348,19 +348,80 @@ def append_transactions(
     if "Deleted" not in new_transactions.columns:
         new_transactions["Deleted"] = False
 
-    combined = pd.concat([existing_transactions, new_transactions], ignore_index=True)
-    # Standardize data types before dropping duplicates
-    combined["Date"] = pd.to_datetime(combined["Date"])
-    combined["Amount"] = pd.to_numeric(combined["Amount"], errors="coerce").fillna(0.0)
-    combined["Amount"] = combined["Amount"].round(2)
-    combined["Merchant"] = combined["Merchant"].astype(str)
+    # Standardize data types before merging
+    existing_transactions["Date"] = pd.to_datetime(existing_transactions["Date"])
+    existing_transactions["Amount"] = pd.to_numeric(
+        existing_transactions["Amount"], errors="coerce"
+    ).fillna(0.0)
+    existing_transactions["Amount"] = existing_transactions["Amount"].round(2)
+    existing_transactions["Merchant"] = existing_transactions["Merchant"].astype(str)
 
-    # De-duplicate based on Date, Merchant, Amount (keep Source for tracking, but don't use for deduplication)
+    new_transactions["Date"] = pd.to_datetime(new_transactions["Date"])
+    new_transactions["Amount"] = pd.to_numeric(
+        new_transactions["Amount"], errors="coerce"
+    ).fillna(0.0)
+    new_transactions["Amount"] = new_transactions["Amount"].round(2)
+    new_transactions["Merchant"] = new_transactions["Merchant"].astype(str)
+
+    # --- Filter out new transactions that match soft-deleted ones ---
+    deleted_mask = existing_transactions["Deleted"]
+    if deleted_mask.any():
+        deleted_transactions = existing_transactions[deleted_mask]
+        # Create a set of (Date, Merchant, Amount) tuples for efficient lookup
+        deleted_keys = set(
+            zip(
+                deleted_transactions["Date"].dt.date,
+                deleted_transactions["Merchant"],
+                deleted_transactions["Amount"],
+            )
+        )
+
+        initial_count = len(new_transactions)
+        # Create a boolean mask to identify rows to keep
+        keep_mask = ~new_transactions.apply(
+            lambda row: (
+                row["Date"].date(),
+                row["Merchant"],
+                row["Amount"],
+            )
+            in deleted_keys,
+            axis=1,
+        )
+        new_transactions = new_transactions[keep_mask]
+        final_count = len(new_transactions)
+
+        if initial_count > final_count:
+            num_filtered = initial_count - final_count
+            logging.info(
+                f"Filtered out {num_filtered} new transactions that match "
+                "previously soft-deleted records."
+            )
+
+    # Now combine and deduplicate
+    combined = pd.concat([existing_transactions, new_transactions], ignore_index=True)
+
+    # De-duplicate based on Date, Merchant, Amount (keep first occurrence)
     # This prevents the same transaction from being imported multiple times, regardless of source
+    # It also handles cases where a transaction is re-imported after being restored.
     combined.drop_duplicates(
         subset=["Date", "Merchant", "Amount"], keep="first", inplace=True
     )
     save_transactions_to_parquet(combined)
+
+
+def soft_delete_transactions(transaction_ids: List[int]) -> None:
+    """Soft-deletes transactions by their unique IDs."""
+    if not transaction_ids:
+        return
+    all_transactions = load_transactions_from_parquet(include_deleted=True)
+    if "TransactionID" not in all_transactions.columns:
+        all_transactions["TransactionID"] = all_transactions.index
+
+    all_transactions.loc[
+        all_transactions["TransactionID"].isin(transaction_ids), "Deleted"
+    ] = True
+    save_transactions_to_parquet(all_transactions)
+    logging.info(f"Soft-deleted {len(transaction_ids)} transaction(s).")
 
 
 def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:

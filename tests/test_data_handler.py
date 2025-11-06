@@ -46,6 +46,7 @@ class TestDataHandler(unittest.TestCase):
                 "Date": pd.to_datetime(["2025-01-01"]),
                 "Merchant": ["Existing Merchant"],
                 "Amount": [10.00],
+                "Deleted": [False],
             }
         )
         new_df = pd.DataFrame(

@@ -88,6 +88,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         )
         yield Horizontal(
             Static(id="total_display", classes="total"),
+            Button("Select All", id="select_all_button"),
             Button("Delete Selected", id="delete_button", variant="error"),
             classes="button-bar",
         )
@@ -240,6 +241,16 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         total_amount = self.display_df["Amount"].sum()
         total_display.update(f"Total: {total_amount:,.2f}")
 
+        # --- Update Select All Button ---
+        select_all_button = self.query_one("#select_all_button", Button)
+        if (
+            not self.display_df.empty
+            and set(self.display_df.index) == self.selected_rows
+        ):
+            select_all_button.label = "Deselect All"
+        else:
+            select_all_button.label = "Select All"
+
         # --- Sorting ---
         if self.sort_column in self.display_df.columns:
             self.display_df = self.display_df.sort_values(
@@ -306,6 +317,18 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         """Handle button presses."""
         if event.button.id == "delete_button":
             self.delete_selected_transactions()
+        elif event.button.id == "select_all_button":
+            self.select_all_transactions()
+
+    def select_all_transactions(self) -> None:
+        """Select or deselect all visible transactions."""
+        if not self.display_df.empty:
+            # If all are already selected, deselect all. Otherwise, select all.
+            if set(self.display_df.index) == self.selected_rows:
+                self.selected_rows.clear()
+            else:
+                self.selected_rows = set(self.display_df.index)
+            self.populate_table()
 
     def delete_selected_transactions(self) -> None:
         """Delete the selected transactions after confirmation."""
@@ -375,12 +398,10 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             table.move_cursor(row=table.cursor_row)
 
             self.app.show_notification(
-                f"Added alias: '{original_merchant}' → '{alias}'",
-                timeout=3
+                f"Added alias: '{original_merchant}' → '{alias}'", timeout=3
             )
             logging.info(f"Added merchant alias: pattern='{pattern}', alias='{alias}'")
 
         self.app.push_screen(
-            EditTransactionScreen(original_merchant, current_alias),
-            handle_edit_result
+            EditTransactionScreen(original_merchant, current_alias), handle_edit_result
         )

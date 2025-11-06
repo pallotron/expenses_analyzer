@@ -11,6 +11,13 @@ class MockInput:
         self.value = value
 
 
+class MockButton:
+    """A mock Button widget with a label attribute."""
+
+    def __init__(self, label: str = ""):
+        self.label = label
+
+
 @pytest.fixture
 def transaction_screen() -> TransactionScreen:
     """Fixture to create a TransactionScreen instance."""
@@ -64,6 +71,7 @@ def test_populate_table_filtering(
         widgets: Dict[str, Any] = {
             "#transaction_table": MockDataTable(),
             "#total_display": MockStatic(),
+            "#select_all_button": MockButton(),
         }
         for key, value in filter_values.items():
             widgets[key] = MockInput(value=value)
@@ -133,6 +141,7 @@ def test_toggle_selection_keeps_cursor_position(
     transaction_screen.query_one = lambda selector, type: {  # type: ignore[assignment]
         "#transaction_table": mock_table,
         "#total_display": MockStatic(),
+        "#select_all_button": MockButton(),
         "#date_min_filter": MockInput(value=""),
         "#date_max_filter": MockInput(value=""),
         "#merchant_filter": MockInput(value=""),

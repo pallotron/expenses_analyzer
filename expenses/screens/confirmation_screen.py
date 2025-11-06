@@ -1,7 +1,7 @@
 from textual.app import ComposeResult
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
-from textual.containers import Grid, Vertical, Horizontal
+from textual.containers import Vertical, Horizontal
 from textual.binding import Binding
 
 

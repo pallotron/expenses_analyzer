@@ -27,7 +27,9 @@ def apply_filters(
                 filtered_df = filtered_df[filtered_df[column] <= value]
             elif op == "contains":
                 filtered_df = filtered_df[
-                    filtered_df[column].str.contains(value, case=False, na=False, regex=False)
+                    filtered_df[column].str.contains(
+                        value, case=False, na=False, regex=False
+                    )
                 ]
             elif op == "==":
                 filtered_df = filtered_df[filtered_df[column] == value]

@@ -1,4 +1,5 @@
 import logging
+import os
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Footer, Header
@@ -10,7 +11,7 @@ from expenses.screens.categorize_screen import CategorizeScreen
 from expenses.screens.file_browser_screen import FileBrowserScreen
 from expenses.screens.transaction_screen import TransactionScreen
 from expenses.screens.delete_screen import BuildDeleteScreen
-from expenses.screens.plaid_screen import PlaidScreen
+from expenses.screens.truelayer_screen import TrueLayerScreen
 from expenses.screens.backup_screen import BackupScreen
 from expenses.screens.confirmation_screen import ConfirmationScreen
 from expenses.widgets.notification import Notification
@@ -24,12 +25,23 @@ if not LOG_FILE.exists():
     LOG_FILE.touch()
 
 # --- Logging Setup ---
+log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+log_levels = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+log_level = log_levels.get(log_level_str, logging.INFO)
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
     filename=LOG_FILE,
     filemode="a",
 )
+logging.info(f"Log level set to {log_level_str}")
 logging.info("Application starting...")
 # ---
 
@@ -46,7 +58,7 @@ class ExpensesApp(App):
         "file_browser": FileBrowserScreen,
         "transactions": TransactionScreen,
         "delete": BuildDeleteScreen,
-        "plaid": PlaidScreen,
+        "truelayer": TrueLayerScreen,
         "backup": BackupScreen,
     }
 
@@ -55,8 +67,8 @@ class ExpensesApp(App):
         Binding("t", "push_screen('transactions')", "Transactions", show=True),
         Binding("i", "push_screen('import')", "Import", show=True),
         Binding("c", "push_screen('categorize')", "Categorize", show=True),
-        Binding("D", "push_screen('delete')", "Build Delete", show=True),
-        Binding("l", "push_screen('plaid')", "Link Bank", show=True),
+        Binding("d", "push_screen('delete')", "Bulk Delete", show=True),
+        Binding("l", "push_screen('truelayer')", "Link Banks", show=True),
         Binding("b", "push_screen('backup')", "Backups", show=True),
         Binding("escape", "pop_screen", "Back", show=False),
         Binding("ctrl+q", "quit", "Quit", show=True),

@@ -408,6 +408,61 @@ class TestSoftDelete(unittest.TestCase):
             deleted_row = all_trans[all_trans["Merchant"] == "Store A"].iloc[0]
             assert deleted_row["Deleted"] == True  # noqa: E712
 
+    def test_reimport_soft_deleted_transaction_filtered(self) -> None:
+        """Test that re-importing a soft-deleted transaction is filtered out."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+            patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.backup.AUTO_BACKUP_DIR", Path(self.test_dir) / "backups"),
+        ):
+
+            # Import a transaction
+            df = pd.DataFrame(
+                {
+                    "Date": [datetime(2025, 1, 1)],
+                    "Merchant": ["Store A"],
+                    "Amount": [10.00],
+                }
+            )
+            append_transactions(df)
+
+            # Verify it was imported
+            active = load_transactions_from_parquet()
+            assert len(active) == 1
+            assert active.iloc[0]["Merchant"] == "Store A"
+
+            # Soft-delete the transaction
+            delete_transactions(df)
+
+            # Verify it's now deleted
+            active = load_transactions_from_parquet()
+            assert len(active) == 0
+
+            all_trans = load_transactions_from_parquet(include_deleted=True)
+            assert len(all_trans) == 1
+            assert all_trans.iloc[0]["Deleted"] == True  # noqa: E712
+
+            # Attempt to re-import the exact same transaction (e.g., from CSV/TrueLayer)
+            df_reimport = pd.DataFrame(
+                {
+                    "Date": [datetime(2025, 1, 1)],
+                    "Merchant": ["Store A"],
+                    "Amount": [10.00],
+                }
+            )
+            append_transactions(df_reimport)
+
+            # Verify no duplicate was created
+            all_trans = load_transactions_from_parquet(include_deleted=True)
+            assert len(all_trans) == 1, "Should still have only 1 transaction"
+            assert all_trans.iloc[0]["Deleted"] == True  # noqa: E712
+            assert all_trans.iloc[0]["Merchant"] == "Store A"
+
+            # Active transactions should still be empty
+            active = load_transactions_from_parquet()
+            assert len(active) == 0, "Re-imported deleted transaction should be filtered"
+
 
 if __name__ == "__main__":
     unittest.main()

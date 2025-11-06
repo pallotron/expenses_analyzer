@@ -14,6 +14,108 @@ class ValidationError(Exception):
         self.errors = errors
 
 
+def _validate_schema(df: pd.DataFrame) -> List[str]:
+    """Validate DataFrame schema - check for required columns."""
+    required_columns = {"Date", "Merchant", "Amount"}
+    missing_columns = required_columns - set(df.columns)
+    if missing_columns:
+        return [f"Missing required columns: {', '.join(sorted(missing_columns))}"]
+    return []
+
+
+def _validate_dates(df: pd.DataFrame, min_date: datetime, max_date: datetime) -> List[str]:
+    """Validate date column values and ranges."""
+    errors = []
+    try:
+        dates = pd.to_datetime(df["Date"], errors="coerce", format="mixed")
+        invalid_dates = dates.isna()
+        if invalid_dates.any():
+            errors.append(
+                f"Found {invalid_dates.sum()} row(s) with invalid dates that cannot be parsed"
+            )
+
+        # Check date ranges
+        valid_dates = dates[~invalid_dates]
+        if len(valid_dates) > 0:
+            too_old = valid_dates < min_date
+            too_new = valid_dates > max_date
+
+            if too_old.any():
+                errors.append(
+                    f"Found {too_old.sum()} date(s) before minimum allowed date {min_date.date()}"
+                )
+            if too_new.any():
+                errors.append(
+                    f"Found {too_new.sum()} date(s) after maximum allowed date {max_date.date()}"
+                )
+    except Exception as e:
+        errors.append(f"Date validation failed: {e}")
+    return errors
+
+
+def _validate_merchants(df: pd.DataFrame) -> List[str]:
+    """Validate merchant column values."""
+    try:
+        merchants = df["Merchant"].astype(str)
+        empty_merchants = (merchants.str.strip() == "") | merchants.isna()
+        if empty_merchants.any():
+            return [f"Found {empty_merchants.sum()} row(s) with empty or missing merchant names"]
+    except Exception as e:
+        return [f"Merchant validation failed: {e}"]
+    return []
+
+
+def _validate_amounts(df: pd.DataFrame, max_amount: float) -> List[str]:
+    """Validate amount column values and ranges."""
+    errors = []
+    try:
+        amounts = pd.to_numeric(df["Amount"], errors="coerce")
+        invalid_amounts = amounts.isna()
+        if invalid_amounts.any():
+            errors.append(f"Found {invalid_amounts.sum()} row(s) with non-numeric amounts")
+
+        # Check for unreasonably large amounts
+        valid_amounts = amounts[~invalid_amounts]
+        if len(valid_amounts) > 0:
+            abs_amounts = valid_amounts.abs()
+            too_large = abs_amounts > max_amount
+            if too_large.any():
+                errors.append(
+                    f"Found {too_large.sum()} row(s) with amounts (absolute value) "
+                    f"exceeding ${max_amount:,.2f}"
+                )
+
+            # Check for zero amounts
+            zero = valid_amounts == 0
+            if zero.any():
+                logging.warning(f"Found {zero.sum()} row(s) with zero amounts - allowed but unusual")
+    except Exception as e:
+        errors.append(f"Amount validation failed: {e}")
+    return errors
+
+
+def _validate_types(df: pd.DataFrame) -> List[str]:
+    """Validate column data types."""
+    errors = []
+    try:
+        # Date should be datetime
+        if not pd.api.types.is_datetime64_any_dtype(df["Date"]):
+            try:
+                pd.to_datetime(df["Date"], format="mixed")
+            except Exception:
+                errors.append("Date column cannot be converted to datetime type")
+
+        # Amount should be numeric
+        if not pd.api.types.is_numeric_dtype(df["Amount"]):
+            try:
+                pd.to_numeric(df["Amount"])
+            except Exception:
+                errors.append("Amount column cannot be converted to numeric type")
+    except Exception as e:
+        errors.append(f"Type validation failed: {e}")
+    return errors
+
+
 def validate_transaction_dataframe(
     df: pd.DataFrame,
     min_date: Optional[datetime] = None,
@@ -38,113 +140,24 @@ def validate_transaction_dataframe(
     """
     if min_date is None:
         min_date = datetime(1900, 1, 1)
-
     if max_date is None:
         max_date = datetime.now().replace(year=datetime.now().year + 1)
 
-    errors = []
-
-    # 1. Schema validation - check required columns
-    required_columns = {"Date", "Merchant", "Amount"}
-    missing_columns = required_columns - set(df.columns)
-    if missing_columns:
-        errors.append(f"Missing required columns: {', '.join(sorted(missing_columns))}")
-        # Can't continue without required columns
-        raise ValidationError(
-            "Schema validation failed: missing required columns", errors
-        )
+    # 1. Schema validation
+    errors = _validate_schema(df)
+    if errors:
+        raise ValidationError("Schema validation failed: missing required columns", errors)
 
     # 2. Empty DataFrame check
     if df.empty:
         logging.warning("Validating empty DataFrame - this is allowed but unusual")
-        return  # Empty is technically valid
+        return
 
-    # 3. Date validation
-    try:
-        dates = pd.to_datetime(df["Date"], errors="coerce")
-        invalid_dates = dates.isna()
-        if invalid_dates.any():
-            invalid_count = invalid_dates.sum()
-            errors.append(
-                f"Found {invalid_count} row(s) with invalid dates that cannot be parsed"
-            )
-
-        # Check date ranges
-        valid_dates = dates[~invalid_dates]
-        if len(valid_dates) > 0:
-            too_old = valid_dates < min_date
-            too_new = valid_dates > max_date
-
-            if too_old.any():
-                errors.append(
-                    f"Found {too_old.sum()} date(s) before minimum allowed date {min_date.date()}"
-                )
-            if too_new.any():
-                errors.append(
-                    f"Found {too_new.sum()} date(s) after maximum allowed date {max_date.date()}"
-                )
-    except Exception as e:
-        errors.append(f"Date validation failed: {e}")
-
-    # 4. Merchant validation
-    try:
-        merchants = df["Merchant"].astype(str)
-        empty_merchants = (merchants.str.strip() == "") | merchants.isna()
-        if empty_merchants.any():
-            errors.append(
-                f"Found {empty_merchants.sum()} row(s) with empty or missing merchant names"
-            )
-    except Exception as e:
-        errors.append(f"Merchant validation failed: {e}")
-
-    # 5. Amount validation
-    try:
-        amounts = pd.to_numeric(df["Amount"], errors="coerce")
-        invalid_amounts = amounts.isna()
-        if invalid_amounts.any():
-            errors.append(
-                f"Found {invalid_amounts.sum()} row(s) with non-numeric amounts"
-            )
-
-        # Check for unreasonably large amounts (in absolute value)
-        valid_amounts = amounts[~invalid_amounts]
-        if len(valid_amounts) > 0:
-            # Check absolute value against max_amount (allows negative values from banks)
-            abs_amounts = valid_amounts.abs()
-            too_large = abs_amounts > max_amount
-            if too_large.any():
-                errors.append(
-                    f"Found {too_large.sum()} row(s) with amounts (absolute value) "
-                    f"exceeding ${max_amount:,.2f}"
-                )
-
-            # Check for zero amounts
-            zero = valid_amounts == 0
-            if zero.any():
-                logging.warning(
-                    f"Found {zero.sum()} row(s) with zero amounts - allowed but unusual"
-                )
-    except Exception as e:
-        errors.append(f"Amount validation failed: {e}")
-
-    # 6. Type validation - ensure proper types
-    try:
-        # Date should be datetime
-        if not pd.api.types.is_datetime64_any_dtype(df["Date"]):
-            # Try to convert
-            try:
-                pd.to_datetime(df["Date"])
-            except Exception:
-                errors.append("Date column cannot be converted to datetime type")
-
-        # Amount should be numeric
-        if not pd.api.types.is_numeric_dtype(df["Amount"]):
-            try:
-                pd.to_numeric(df["Amount"])
-            except Exception:
-                errors.append("Amount column cannot be converted to numeric type")
-    except Exception as e:
-        errors.append(f"Type validation failed: {e}")
+    # 3. Run all validations
+    errors.extend(_validate_dates(df, min_date, max_date))
+    errors.extend(_validate_merchants(df))
+    errors.extend(_validate_amounts(df, max_amount))
+    errors.extend(_validate_types(df))
 
     # If we found any errors, raise ValidationError
     if errors:
@@ -178,7 +191,7 @@ def validate_and_clean_dataframe(df: pd.DataFrame, **validation_kwargs) -> pd.Da
 
     # Ensure Date is datetime
     if "Date" in cleaned.columns:
-        cleaned["Date"] = pd.to_datetime(cleaned["Date"], errors="coerce")
+        cleaned["Date"] = pd.to_datetime(cleaned["Date"], errors="coerce", format="mixed")
 
     # Ensure Amount is numeric
     if "Amount" in cleaned.columns:

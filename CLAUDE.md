@@ -47,7 +47,7 @@ PYTHONPATH=. pytest tests/test_data_handler.py::test_function_name -v
 
 The application follows a screen-based architecture powered by Textual:
 
-- **App Core** (`app.py`): Main `ExpensesApp` class manages screen navigation via keybindings (s=Summary, t=Transactions, i=Import, c=Categorize, d=Delete)
+- **App Core** (`app.py`): Main `ExpensesApp` class manages screen navigation via keybindings (s=Summary, t=Transactions, i=Import, c=Categorize, d=Bulk Delete, l=Link Banks)
 - **Screens** (`screens/`): Each major feature is a screen that inherits from `BaseScreen`
   - `SummaryScreen`: Aggregated expense views with yearly/monthly breakdowns
   - `TransactionScreen`: Detailed transaction browsing with filtering
@@ -55,6 +55,7 @@ The application follows a screen-based architecture powered by Textual:
   - `CategorizeScreen`: Merchant categorization interface
   - `DeleteScreen`: Transaction deletion interface
   - `FileBrowserScreen`: File system navigation for imports
+  - `TrueLayerScreen`: Bank account linking and transaction sync (displayed as "Link Banks")
   - `ConfirmationScreen`: Reusable confirmation dialogs
 - **Data Layer** (`data_handler.py`): All Parquet I/O and category management
 - **Analysis** (`analysis.py`): Trend calculations and data aggregation
@@ -69,6 +70,7 @@ All user data lives in `~/.config/expenses_analyzer/` (configurable via `EXPENSE
 - `transactions.parquet`: Main transaction database (Pandas DataFrame with Date, Merchant, Amount, Category columns)
 - `categories.json`: Merchant-to-category mappings `{"merchant_name": "category"}`
 - `default_categories.json`: List of available categories (copied from package on first run)
+- `truelayer_connections.json`: TrueLayer linked account metadata (connection_id, access_token, refresh_token, provider_name, last_sync)
 - `app.log`: Application logs
 
 **Critical Data Flow**:
@@ -137,6 +139,9 @@ The working copy (`@`) is always a commit in jj. There's no staging area - chang
 ### Environment Variables
 - `EXPENSES_ANALYZER_CONFIG_DIR`: Override default config location (default: `~/.config/expenses_analyzer/`)
 - `GEMINI_API_KEY`: Google Gemini API key for auto-categorization (optional)
+- `TRUELAYER_CLIENT_ID`: TrueLayer API client ID (required for TrueLayer integration)
+- `TRUELAYER_CLIENT_SECRET`: TrueLayer API client secret (required for TrueLayer integration)
+- `TRUELAYER_ENV`: TrueLayer environment - "sandbox" or "production" (default: "sandbox")
 
 ### Python Version
 Requires Python 3.12+ (specified in `pyproject.toml`)
@@ -174,3 +179,91 @@ The project uses:
 - `pipx` for system-wide installation
 - `setuptools` as build backend (pyproject.toml)
 - Entry point: `expenses-analyzer` command → `expenses.main:main`
+
+## Bank Account Integrations
+
+The application supports automatic transaction import from bank accounts via two integration providers: TrueLayer.
+
+### Unified OAuth Server
+
+Both TrueLayer share a unified OAuth callback server:
+
+**File:** `expenses/oauth_server.py`
+- Single Flask server running on port 3000
+- Handles callbacks for TrueLayer (`/truelayer-callback`)
+- Thread-safe token stores for both providers
+- Prevents port conflicts and simplifies deployment
+
+### TrueLayer Integration
+
+**Files:**
+- `expenses/truelayer_handler.py`: Core business logic for TrueLayer API interactions
+- `expenses/screens/truelayer_screen.py`: UI for linking accounts and syncing transactions
+- `tests/test_truelayer_handler.py`: Comprehensive test suite
+
+**Architecture:**
+- Uses `requests` library directly (no official Python SDK available)
+- OAuth flow opens TrueLayer auth in browser, handles redirect to localhost:3000/truelayer-callback
+- Stores connections in `~/.config/expenses_analyzer/truelayer_connections.json`
+- Supports multiple accounts per connection
+- Transactions tagged with source: "TrueLayer - {provider_name}"
+
+**Key Functions:**
+- `exchange_code_for_token()`: Exchanges OAuth code for access/refresh tokens
+- `refresh_access_token()`: Refreshes expired access tokens
+- `get_accounts()`: Fetches all accounts for a connection
+- `fetch_transactions()`: Fetches transactions for a specific account with date range
+- `sync_all_accounts()`: Syncs transactions from all accounts
+- `convert_truelayer_transactions_to_dataframe()`: Converts TrueLayer format to DataFrame
+
+**API Endpoints:**
+- Auth: `https://auth.truelayer.com` (production) or `https://auth.truelayer-sandbox.com` (sandbox)
+- Data API: `https://api.truelayer.com/data/v1` (production) or `https://api.truelayer-sandbox.com/data/v1` (sandbox)
+
+**Supported Regions:** UK, Europe (all TrueLayer-supported countries)
+
+**Keybinding:** Press `l` to access Link Banks screen
+
+### Common Integration Patterns
+
+Both integrations follow similar architecture:
+
+1. **OAuth Flow:**
+   - User clicks "Connect" button in UI
+   - Unified Flask server starts on port 3000 (if not already running)
+   - Browser opens provider's auth page
+   - User authenticates with bank
+   - Provider redirects to localhost:3000 callback (different routes for TrueLayer)
+   - Authorization code/token captured and stored in provider-specific stores
+
+2. **Transaction Sync:**
+   - User clicks "Sync Transactions" button
+   - Worker thread fetches transactions in background
+   - Transactions converted to standard DataFrame format
+   - Preview shown in UI (first 10 transactions)
+   - User confirms import
+   - Transactions appended with source tracking and deduplication
+
+3. **Data Processing:**
+   - Amounts inverted to positive for expenses (TrueLayer return negative for debits)
+   - Credits filtered out (only debits/expenses imported)
+   - Duplicates detected on (Date, Merchant, Amount) tuple
+   - AI categorization triggered via Gemini if `GEMINI_API_KEY` set
+
+4. **Security:**
+   - All credential files stored in `~/.config/expenses_analyzer/` with secure permissions (600)
+   - Access tokens stored locally, never logged
+   - OAuth servers run only during auth flow, automatically stopped after
+
+### Adding a New Bank Integration
+
+To add a new provider (e.g., Yodlee, Finicity):
+
+1. Create `expenses/{provider}_handler.py` with core logic
+2. Create `expenses/{provider}_oauth_server.py` for OAuth handling
+3. Create `expenses/screens/{provider}_screen.py` for UI
+4. Update `expenses/config.py` with required env vars
+5. Register screen in `expenses/app.py` SCREENS dict and add keybinding
+6. Follow the common patterns above for OAuth flow and transaction sync
+7. Create test suite in `tests/test_{provider}_handler.py`
+8. Update dependencies in `pyproject.toml` if new packages needed

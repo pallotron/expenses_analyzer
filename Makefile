@@ -63,3 +63,6 @@ clean:
 	rm -rf .tox
 	rm -rf .cache
 	rm -f coverage.xml	
+	find . -name __pycache__ | xargs rm -r
+	rm -rf *.egg-info
+

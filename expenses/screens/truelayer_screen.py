@@ -419,7 +419,8 @@ class TrueLayerScreen(BaseScreen):
                     all_transactions_df.append(df)
 
             except ScaExceededError:
-                self._handle_reauthentication_required(connection_id)
+                # Must use call_from_thread to update UI from worker thread
+                self.app.call_from_thread(self._handle_reauthentication_required, connection_id)
                 error_message = "Permissions expired for one or more connections."
                 continue
             except Exception as e:

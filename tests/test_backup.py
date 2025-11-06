@@ -31,7 +31,6 @@ class TestBackup(unittest.TestCase):
         self.transactions_file = Path(self.test_dir) / "transactions.parquet"
         self.categories_file = Path(self.test_dir) / "categories.json"
         self.merchant_aliases_file = Path(self.test_dir) / "merchant_aliases.json"
-        self.plaid_items_file = Path(self.test_dir) / "plaid_items.json"
         self.default_categories_file = Path(self.test_dir) / "default_categories.json"
         self.auto_backup_dir = Path(self.test_dir) / "auto_backups"
 
@@ -40,7 +39,6 @@ class TestBackup(unittest.TestCase):
         with (
             patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.backup.CATEGORIES_FILE", self.categories_file),
-            patch("expenses.backup.PLAID_ITEMS_FILE", self.plaid_items_file),
             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir),
             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
@@ -88,7 +86,6 @@ class TestBackup(unittest.TestCase):
         with (
             patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.backup.CATEGORIES_FILE", self.categories_file),
-            patch("expenses.backup.PLAID_ITEMS_FILE", self.plaid_items_file),
             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir),
             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
@@ -117,7 +114,6 @@ class TestBackup(unittest.TestCase):
             patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.backup.CATEGORIES_FILE", self.categories_file),
             patch("expenses.backup.MERCHANT_ALIASES_FILE", self.merchant_aliases_file),
-            patch("expenses.backup.PLAID_ITEMS_FILE", self.plaid_items_file),
             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir),
             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
@@ -199,7 +195,6 @@ class TestBackup(unittest.TestCase):
             patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.backup.CATEGORIES_FILE", self.categories_file),
             patch("expenses.backup.MERCHANT_ALIASES_FILE", self.merchant_aliases_file),
-            patch("expenses.backup.PLAID_ITEMS_FILE", self.plaid_items_file),
             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir),
             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
@@ -263,7 +258,6 @@ class TestBackup(unittest.TestCase):
             patch(
                 "expenses.backup.DEFAULT_CATEGORIES_FILE", self.default_categories_file
             ),
-            patch("expenses.backup.PLAID_ITEMS_FILE", self.plaid_items_file),
             patch("expenses.backup.AUTO_BACKUP_DIR", self.auto_backup_dir),
             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
@@ -293,7 +287,6 @@ class TestBackup(unittest.TestCase):
         with (
             patch("expenses.backup.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.backup.CATEGORIES_FILE", self.categories_file),
-            patch("expenses.backup.PLAID_ITEMS_FILE", self.plaid_items_file),
             patch(
                 "expenses.backup.DEFAULT_CATEGORIES_FILE", self.default_categories_file
             ),

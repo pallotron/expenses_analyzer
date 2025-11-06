@@ -128,31 +128,11 @@ Toggle multiple selections with the spacebar, enter the new category, and click 
 
 ## Importing Data
 
-To get started, you'll need to import your transaction data. The application supports importing CSV files.
+For detailed instructions on how to import your financial data, please see the [Importing Data Guide](docs/IMPORTING_DATA.md). This guide covers:
 
-1. **Navigate to the Import Screen**: Once the application is running, press `i` to go to the "Import" screen.
-
-   ![Import Screen](screenshots/import-001-start.jpg)
-
-2. **Select your CSV file(s)**: Use the file browser to navigate to and select the CSV file(s) you wish to import.
-
-   ![File Browser](screenshots/Import-002-Browse.svg)
-
-3. **Map Columns**: The application will show a preview of your CSV and guide you through mapping your columns (e.g., 'Date', 'Merchant', 'Amount') to the application's internal fields.
-
-   ![Map Columns](screenshots/import-003-csv-preview.jpg)
-
-4. **Confirm Import**: After mapping the columns, review the transactions and confirm the import. New transactions will be added to your records.
-
-## Data Processing with Pandas and Parquet
-
-Under the hood, Expense Analyzer uses powerful and efficient libraries to handle your financial data.
-
-- **Data Import and Cleaning**: When you import a CSV file, the data is loaded into a **Pandas DataFrame**. This allows for flexible and powerful data manipulation. The application cleans the data, standardizes column names, and handles different data types to ensure consistency.
-
-- **Storage**: Once processed, your transaction data is stored in the **Parquet** format. Parquet is a columnar storage file format that is highly efficient for analytics. It offers excellent compression and performance, which means your data is stored compactly and can be queried quickly. This is especially useful as your transaction history grows over time.
-
-- **Data Access**: Whenever you view your transactions or summaries, the application reads the Parquet file back into a Pandas DataFrame to perform calculations and display the data. This ensures that the application remains fast and responsive, even with large datasets.
+- Importing transactions from CSV files.
+- Optional direct bank integration with TrueLayer (for UK/Europe).
+- An overview of how your data is processed and stored.
 
 ## Automatic Categorization with Gemini
 
@@ -168,86 +148,6 @@ The application can use the Google Gemini API to automatically suggest categorie
    ```
 
 If the `GEMINI_API_KEY` is not set, the application will skip the automatic categorization step, and you will need to categorize new merchants manually.
-
-## Plaid Bank Integration (Optional)
-
-The application can automatically sync transactions directly from your bank accounts using [Plaid](https://plaid.com/). This is an optional advanced feature that requires you to set up your own Plaid developer account.
-
-### Why Your Own Plaid Account?
-
-Plaid credentials are per-developer, not per-user. Since this is an open-source tool that you run locally, you need to obtain your own Plaid API credentials. This gives you direct control over your financial data and ensures your bank connections are secure.
-
-### Setup Instructions
-
-1. **Create a Plaid Account**:
-   - Go to [Plaid Dashboard](https://dashboard.plaid.com/signup)
-   - Sign up for a free developer account
-   - Complete the application process (usually instant for Sandbox/Development environments)
-
-2. **Get Your Credentials**:
-   - Log into the [Plaid Dashboard](https://dashboard.plaid.com/)
-   - Navigate to **Team Settings → Keys**
-   - Copy your `client_id` and `secret` for the environment you want to use
-
-3. **Set Environment Variables**:
-   Add these to your shell configuration file (e.g., `.zshrc`, `.bash_profile`):
-
-   ```bash
-   export PLAID_CLIENT_ID="your_client_id_here"
-   export PLAID_SECRET="your_secret_here"
-   export PLAID_ENV="sandbox"  # or "development" or "production"
-   ```
-
-   **Important**: Never commit these credentials to version control or share them publicly.
-
-4. **Reload Your Shell**:
-
-   ```bash
-   source ~/.zshrc  # or ~/.bash_profile
-   ```
-
-5. **Use Plaid in the App**:
-   - Launch `expenses-analyzer`
-   - Press `p` to open the Plaid screen
-   - Click "Link New Account" to connect your bank
-   - Click "Sync Transactions" to import data
-
-### Plaid Environments
-
-Plaid offers three environments with different capabilities:
-
-- **Sandbox** (Free): Use fake test credentials to try out the integration
-  - Test credentials: Any username, password `pass_good`
-  - No real bank data
-  - Perfect for testing the feature
-
-- **Development** (Free): Connect real bank accounts for testing
-  - Free for up to 100 connected bank accounts/items
-  - Real transaction data from your actual banks
-  - Recommended for personal use
-  - [Request Development access](https://dashboard.plaid.com/overview/development) in the dashboard
-
-- **Production** (Paid): For unlimited use
-  - Requires application approval from Plaid
-  - Usage-based pricing
-  - Only needed if you exceed Development limits
-
-### Data Storage
-
-When you link a bank account, the application stores access tokens in `~/.config/expenses_analyzer/plaid_items.json`. This file is automatically secured with restricted permissions (600) for your protection.
-
-### Troubleshooting
-
-If Plaid integration isn't working:
-
-1. Verify your environment variables are set: `echo $PLAID_CLIENT_ID`
-2. Check that you're using the correct environment (`PLAID_ENV`)
-3. Ensure your Plaid account has access to the environment you're using
-4. Check `~/.config/expenses_analyzer/app.log` for error messages
-
-### Without Plaid
-
-Don't want to use Plaid? No problem! You can still use the application by importing CSV exports from your bank's website (press `i` for the Import screen). The CSV import feature works great and doesn't require any external API credentials.
 
 ## Configuration
 

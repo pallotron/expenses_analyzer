@@ -47,7 +47,7 @@ class TestExpensesApp(unittest.IsolatedAsyncioTestCase):
         assert "t" in binding_keys  # Transactions
         assert "i" in binding_keys  # Import
         assert "c" in binding_keys  # Categorize
-        assert "D" in binding_keys  # Delete (uppercase D)
+        assert "d" in binding_keys  # Delete (lowercase d)
         assert "escape" in binding_keys  # Back
         assert "ctrl+q" in binding_keys  # Quit
 

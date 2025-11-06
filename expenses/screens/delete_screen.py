@@ -13,11 +13,12 @@ from expenses.screens.base_screen import BaseScreen
 from expenses.data_handler import (
     load_transactions_from_parquet,
     delete_transactions,
+    load_categories,
 )
 from expenses.transaction_filter import apply_filters
 import pandas as pd
 import re
-from typing import Any
+from typing import Any, Dict
 
 
 class BuildDeleteScreen(BaseScreen):
@@ -25,11 +26,20 @@ class BuildDeleteScreen(BaseScreen):
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.transactions: pd.DataFrame = load_transactions_from_parquet()
+        self.load_data()
         self.preview_df: pd.DataFrame = pd.DataFrame()
 
+    def load_data(self) -> None:
+        """Load transactions and categories, then map categories to transactions."""
+        self.transactions: pd.DataFrame = load_transactions_from_parquet()
+        self.categories: Dict[str, str] = load_categories()
+        if not self.transactions.empty:
+            self.transactions["Category"] = (
+                self.transactions["Merchant"].map(self.categories).fillna("Other")
+            )
+
     def compose_content(self) -> ComposeResult:
-        yield Static("Build Delete Query", classes="title")
+        yield Static("Bulk Delete", classes="title")
         yield Horizontal(
             Input(placeholder="Start Date (YYYY-MM-DD)", id="date_min_filter"),
             Input(placeholder="End Date (YYYY-MM-DD)", id="date_max_filter"),
@@ -41,6 +51,16 @@ class BuildDeleteScreen(BaseScreen):
         with RadioSet(id="pattern_type"):
             yield RadioButton("Regex", value="regex", id="regex_button")
             yield RadioButton("Glob", value="glob", id="glob_button")
+        yield Horizontal(
+            Input(placeholder="Category", id="category_filter"),
+            Input(placeholder="Source", id="source_filter"),
+            classes="filter-bar",
+        )
+        yield Horizontal(
+            Input(placeholder="Min Amount", id="amount_min_filter"),
+            Input(placeholder="Max Amount", id="amount_max_filter"),
+            classes="filter-bar",
+        )
         yield Horizontal(
             Button("Preview Deletions", id="preview_button", variant="primary"),
             Button(
@@ -62,7 +82,7 @@ class BuildDeleteScreen(BaseScreen):
     def on_screen_resume(self, event: Any) -> None:
         """Called when the screen is resumed after being suspended."""
         # Reload transactions to reflect any changes from other screens
-        self.transactions = load_transactions_from_parquet()
+        self.load_data()
         # Clear preview if any
         self.preview_df = pd.DataFrame()
         preview_table = self.query_one("#preview_table", DataTable)
@@ -85,10 +105,29 @@ class BuildDeleteScreen(BaseScreen):
         )
         date_min_str = self.query_one("#date_min_filter", Input).value
         date_max_str = self.query_one("#date_max_filter", Input).value
+        category_filter = self.query_one("#category_filter", Input).value
+        source_filter = self.query_one("#source_filter", Input).value
+        amount_min_str = self.query_one("#amount_min_filter", Input).value
+        amount_max_str = self.query_one("#amount_max_filter", Input).value
+
+        # Parse amount filters
+        try:
+            amount_min = float(amount_min_str) if amount_min_str.strip() else None
+        except ValueError:
+            amount_min = None
+
+        try:
+            amount_max = float(amount_max_str) if amount_max_str.strip() else None
+        except ValueError:
+            amount_max = None
 
         filters = {
             "date_min": ("Date", ">=", pd.to_datetime(date_min_str, errors="coerce")),
             "date_max": ("Date", "<=", pd.to_datetime(date_max_str, errors="coerce")),
+            "category": ("Category", "contains", category_filter),
+            "source": ("Source", "contains", source_filter),
+            "amount_min": ("Amount", ">=", amount_min),
+            "amount_max": ("Amount", "<=", amount_max),
         }
 
         filtered_transactions = apply_filters(self.transactions, filters)
@@ -130,7 +169,7 @@ class BuildDeleteScreen(BaseScreen):
             self.query_one("#delete_button", Button).disabled = False
         else:
             self.query_one("#preview_summary").update(
-                "No transactions match the pattern or time frame."
+                "No transactions match the filters."
             )
             self.query_one("#delete_button", Button).disabled = True
 
@@ -142,7 +181,7 @@ class BuildDeleteScreen(BaseScreen):
         def check_delete(delete: bool) -> None:
             if delete:
                 delete_transactions(self.preview_df)
-                self.transactions = load_transactions_from_parquet()
+                self.load_data()
                 self.query_one("#preview_table", DataTable).clear()
                 self.query_one("#preview_summary").update("Transactions deleted.")
                 self.query_one("#delete_button", Button).disabled = True

@@ -19,9 +19,6 @@ from expenses.config import (
 AUTO_BACKUP_DIR = CONFIG_DIR / "auto_backups"
 BACKUP_RETENTION_DAYS = 7  # Keep backups for at least 7 days
 
-# Path to plaid_items.json
-PLAID_ITEMS_FILE = CONFIG_DIR / "plaid_items.json"
-
 
 def create_auto_backup() -> Optional[Path]:
     """Create automatic backup tarball of all important config files.
@@ -63,11 +60,6 @@ def create_auto_backup() -> Optional[Path]:
             if MERCHANT_ALIASES_FILE.exists():
                 tar.add(MERCHANT_ALIASES_FILE, arcname="merchant_aliases.json")
                 logging.debug("Added merchant_aliases.json to backup")
-
-            # Backup plaid items if it exists
-            if PLAID_ITEMS_FILE.exists():
-                tar.add(PLAID_ITEMS_FILE, arcname="plaid_items.json")
-                logging.debug("Added plaid_items.json to backup")
 
             # Backup default categories if it exists
             if DEFAULT_CATEGORIES_FILE.exists():
@@ -114,6 +106,43 @@ def _cleanup_old_backups() -> None:
             logging.warning(f"Could not remove old backup {backup.name}: {e}")
 
 
+def _create_emergency_backup() -> None:
+    """Create an emergency backup before restoration."""
+    emergency_backup = create_auto_backup()
+    if emergency_backup:
+        emergency_name = emergency_backup.name.replace("backup_", "emergency_")
+        emergency_backup.rename(emergency_backup.parent / emergency_name)
+        logging.info(f"Emergency backup created: {emergency_name}")
+
+
+def _restore_file_if_exists(temp_dir: Path, filename: str, target_path: Path) -> bool:
+    """Restore a single file from temp directory if it exists."""
+    temp_file = temp_dir / filename
+    if temp_file.exists():
+        shutil.copy2(temp_file, target_path)
+        logging.info(f"Restored {filename}")
+        return True
+    return False
+
+
+def _restore_files_from_temp(temp_dir: Path) -> list[str]:
+    """Restore all files from temporary extraction directory."""
+    restored_files = []
+
+    file_mappings = [
+        ("transactions.parquet", TRANSACTIONS_FILE),
+        ("categories.json", CATEGORIES_FILE),
+        ("merchant_aliases.json", MERCHANT_ALIASES_FILE),
+        ("default_categories.json", DEFAULT_CATEGORIES_FILE),
+    ]
+
+    for filename, target_path in file_mappings:
+        if _restore_file_if_exists(temp_dir, filename, target_path):
+            restored_files.append(filename)
+
+    return restored_files
+
+
 def restore_from_backup(backup_file: Path) -> bool:
     """Restore data from a backup tarball.
 
@@ -135,67 +164,21 @@ def restore_from_backup(backup_file: Path) -> bool:
         return False
 
     try:
-        # Create emergency backup first
-        emergency_backup = create_auto_backup()
-        if emergency_backup:
-            emergency_name = emergency_backup.name.replace("backup_", "emergency_")
-            emergency_backup.rename(emergency_backup.parent / emergency_name)
-            logging.info(f"Emergency backup created: {emergency_name}")
+        _create_emergency_backup()
 
         # Extract the backup to a temporary directory first
-        temp_dir = (
-            AUTO_BACKUP_DIR / f"restore_temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        )
+        temp_dir = AUTO_BACKUP_DIR / f"restore_temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         temp_dir.mkdir(exist_ok=True)
 
         try:
             with tarfile.open(backup_file, "r:gz") as tar:
-                # Extract all files
                 tar.extractall(temp_dir, filter="data")
                 logging.debug(f"Extracted backup to {temp_dir}")
 
-                # Restore each file
-                restored_files = []
-
-                # Restore transactions
-                temp_transactions = temp_dir / "transactions.parquet"
-                if temp_transactions.exists():
-                    shutil.copy2(temp_transactions, TRANSACTIONS_FILE)
-                    restored_files.append("transactions.parquet")
-                    logging.info("Restored transactions.parquet")
-
-                # Restore categories
-                temp_categories = temp_dir / "categories.json"
-                if temp_categories.exists():
-                    shutil.copy2(temp_categories, CATEGORIES_FILE)
-                    restored_files.append("categories.json")
-                    logging.info("Restored categories.json")
-
-                # Restore merchant aliases
-                temp_aliases = temp_dir / "merchant_aliases.json"
-                if temp_aliases.exists():
-                    shutil.copy2(temp_aliases, MERCHANT_ALIASES_FILE)
-                    restored_files.append("merchant_aliases.json")
-                    logging.info("Restored merchant_aliases.json")
-
-                # Restore plaid items
-                temp_plaid = temp_dir / "plaid_items.json"
-                if temp_plaid.exists():
-                    shutil.copy2(temp_plaid, PLAID_ITEMS_FILE)
-                    restored_files.append("plaid_items.json")
-                    logging.info("Restored plaid_items.json")
-
-                # Restore default categories
-                temp_default = temp_dir / "default_categories.json"
-                if temp_default.exists():
-                    shutil.copy2(temp_default, DEFAULT_CATEGORIES_FILE)
-                    restored_files.append("default_categories.json")
-                    logging.info("Restored default_categories.json")
-
+                restored_files = _restore_files_from_temp(temp_dir)
                 logging.info(
                     f"Successfully restored {len(restored_files)} files: {', '.join(restored_files)}"
                 )
-
         finally:
             # Clean up temp directory
             if temp_dir.exists():

@@ -49,9 +49,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             # Log some examples
             if len(self.merchant_aliases) > 0:
                 sample_size = min(5, len(self.transactions))
-                logging.debug(f"Sample after applying aliases:")
+                logging.debug("Sample after applying aliases:")
                 for idx, row in self.transactions.head(sample_size).iterrows():
-                    logging.debug(f"  '{row['Merchant']}' -> '{row['DisplayMerchant']}'")
+                    logging.debug(
+                        f"  '{row['Merchant']}' -> '{row['DisplayMerchant']}'"
+                    )
             self.transactions["Category"] = (
                 self.transactions["Merchant"].map(self.categories).fillna("Other")
             )
@@ -141,45 +143,44 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
     def on_screen_resume(self, event: Any) -> None:
         """Called when the screen is resumed after being suspended."""
         # Save current state
-        old_transactions = self.transactions.copy() if not self.transactions.empty else pd.DataFrame()
+        was_empty = self.transactions.empty
+        old_years = (
+            set(self.transactions["Date"].dt.year.unique()) if not was_empty else set()
+        )
 
         # Reload data
         self.load_and_prepare_data()
+        is_empty = self.transactions.empty
+        new_years = (
+            set(self.transactions["Date"].dt.year.unique()) if not is_empty else set()
+        )
 
-        # Check if we need to recompose (new years/months added or data appeared/disappeared)
-        needs_recompose = False
-        if old_transactions.empty != self.transactions.empty:
-            # Data went from empty to populated or vice versa - need full recompose
-            needs_recompose = True
-        elif not self.transactions.empty and not old_transactions.empty:
-            old_years = set(old_transactions["Date"].dt.year.unique())
-            new_years = set(self.transactions["Date"].dt.year.unique())
-            if old_years != new_years:
-                needs_recompose = True
+        # Check if we need to recompose
+        # Recompose if we went from empty to not-empty, or if the years changed.
+        needs_recompose = (was_empty and not is_empty) or (old_years != new_years)
 
         if needs_recompose:
-            # Recompose the entire screen if structure changed
+            # Recompose the entire screen if the structure changed significantly
             self.app.pop_screen()
             self.app.push_screen("summary")
-        elif not self.transactions.empty:
-            # Only update views if we have transactions and widgets exist
+            return
+
+        # If we don't need a full recompose, just update the views
+        if not is_empty:
             try:
                 year_tabs = self.query_one("#year_tabs", TabbedContent)
                 active_year_id = year_tabs.active
                 if active_year_id:
                     year = int(active_year_id.split("_")[1])
 
-                    # Check which month tab is active
                     month_tabs = self.query_one(f"#month_tabs_{year}", TabbedContent)
                     active_month_id = month_tabs.active
 
                     if active_month_id and active_month_id.endswith("_all"):
-                        # Update "All Year" view
                         self.update_all_year_category_view(year)
                         self.update_all_year_monthly_view(year)
                         self.update_top_merchants_view(year)
                     elif active_month_id:
-                        # Update specific month view
                         month = int(active_month_id.split("_")[2])
                         self.update_month_view(year, month)
                         self.update_top_merchants_view(year, month)
@@ -368,106 +369,156 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         if not df.empty:
             # Ensure DisplayMerchant column exists (it should from load_and_prepare_data)
             if "DisplayMerchant" not in df.columns:
-                logging.warning("DisplayMerchant column not found, using Merchant instead")
+                logging.warning(
+                    "DisplayMerchant column not found, using Merchant instead"
+                )
                 df["DisplayMerchant"] = df["Merchant"]
 
             # Debug: Log sample of merchants and their aliases
             if len(df) > 0:
                 sample_size = min(5, len(df))
-                logging.debug(f"Top merchants view - Sample of {sample_size} transactions:")
+                logging.debug(
+                    f"Top merchants view - Sample of {sample_size} transactions:"
+                )
                 for idx, row in df.head(sample_size).iterrows():
-                    logging.debug(f"  Original: '{row['Merchant']}' -> Display: '{row['DisplayMerchant']}'")
+                    logging.debug(
+                        f"  Original: '{row['Merchant']}' -> Display: '{row['DisplayMerchant']}'"
+                    )
 
             # Group by DisplayMerchant (alias) to combine transactions with same alias
             # Also get the most common category for each display merchant
             merchant_summary = (
                 df.groupby("DisplayMerchant", as_index=False)
-                .agg({"Amount": "sum", "Category": lambda x: x.mode()[0] if len(x.mode()) > 0 else "Other"})
+                .agg(
+                    {
+                        "Amount": "sum",
+                        "Category": lambda x: (
+                            x.mode()[0] if len(x.mode()) > 0 else "Other"
+                        ),
+                    }
+                )
                 .sort_values("Amount", ascending=False)
             )
 
-            logging.debug(f"Top merchants summary has {len(merchant_summary)} unique display merchants")
+            logging.debug(
+                f"Top merchants summary has {len(merchant_summary)} unique display merchants"
+            )
 
             for _, row in merchant_summary.iterrows():
                 display_merchant = row["DisplayMerchant"]
                 amount = row["Amount"]
                 category = row["Category"]
-                truncated_merchant = display_merchant[:15] + "..." if len(display_merchant) > 15 else display_merchant
-                table.add_row(truncated_merchant, category, f"{amount:,.2f}", key=display_merchant)
+                truncated_merchant = (
+                    display_merchant[:15] + "..."
+                    if len(display_merchant) > 15
+                    else display_merchant
+                )
+                table.add_row(
+                    truncated_merchant, category, f"{amount:,.2f}", key=display_merchant
+                )
+
+    def _calculate_historical_stats(self):
+        """Calculate rolling mean and std for anomaly detection."""
+        all_monthly_summary = self.transactions.pivot_table(
+            index="Category",
+            columns=pd.Grouper(key="Date", freq="MS"),
+            values="Amount",
+            aggfunc="sum",
+            fill_value=0,
+        )
+        rolling_mean = (
+            all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
+            .mean()
+            .shift(1, axis=1)
+        )
+        rolling_std = (
+            all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
+            .std()
+            .shift(1, axis=1)
+            .fillna(0)
+        )
+        return rolling_mean, rolling_std
+
+    def _prepare_monthly_summary(self, year_df, month_map):
+        """Prepare and format monthly summary dataframe."""
+        monthly_summary = year_df.pivot_table(
+            index="Category",
+            columns=year_df["Date"].dt.month,
+            values="Amount",
+            aggfunc="sum",
+            fill_value=0,
+        )
+
+        # Ensure all 12 months are present
+        for m in range(1, 13):
+            if m not in monthly_summary.columns:
+                monthly_summary[m] = 0
+        monthly_summary = monthly_summary[sorted(monthly_summary.columns)]
+
+        # Rename columns to month names
+        monthly_summary.rename(columns=month_map, inplace=True)
+
+        # Add totals and averages
+        month_columns_for_avg = list(month_map.values())
+        monthly_summary["Total"] = monthly_summary.sum(axis=1)
+        non_zero_months = (monthly_summary[month_columns_for_avg] > 0).sum(axis=1)
+        monthly_summary["Average"] = monthly_summary["Total"].divide(non_zero_months).fillna(0)
+        monthly_summary = monthly_summary.sort_values(by="Total", ascending=False)
+
+        return monthly_summary
+
+    def _create_monthly_cell(self, amount, trend, category_name, year, month_name,
+                             style, rolling_mean, rolling_std, trend_styles):
+        """Create a styled cell for a monthly amount with trend."""
+        month_num = datetime.strptime(month_name, "%b").month
+        current_date = pd.Timestamp(f"{year}-{month_num}-01")
+
+        cell_style = style
+        # Check for anomalies
+        if category_name in rolling_mean.index and current_date in rolling_mean.columns:
+            historical_mean = rolling_mean.loc[category_name, current_date]
+            historical_std = rolling_std.loc[category_name, current_date]
+            if (pd.notna(historical_mean) and pd.notna(historical_std) and
+                    historical_mean > 0 and historical_std > 0 and
+                    amount > historical_mean + 2 * historical_std):
+                cell_style = style + Style(bgcolor="dark_red")
+
+        cell_text = Text(f"{amount:,.2f}", style=cell_style)
+        if amount > 0:
+            cell_text.append(f" {trend}", style=trend_styles.get(trend, Style()))
+        return cell_text
 
     def _populate_monthly_breakdown(self, table: DataTable, year: int) -> None:
         """Helper function to populate a table with monthly breakdown data, with categories as rows."""
         try:
             table.clear(columns=True)
             year_df = self.transactions[self.transactions["Date"].dt.year == year]
-
             if year_df.empty:
                 return
 
-            # Pivot to get categories as rows and months as columns
-            monthly_summary = year_df.pivot_table(
-                index="Category",
-                columns=year_df["Date"].dt.month,
-                values="Amount",
-                aggfunc="sum",
-                fill_value=0,
-            )
-
-            # Ensure all 12 months are present
-            for m in range(1, 13):
-                if m not in monthly_summary.columns:
-                    monthly_summary[m] = 0
-            monthly_summary = monthly_summary[sorted(monthly_summary.columns)]
-
-            # Pre-calculate historical stats
-            all_monthly_summary = self.transactions.pivot_table(
-                index="Category",
-                columns=pd.Grouper(key="Date", freq="MS"),
-                values="Amount",
-                aggfunc="sum",
-                fill_value=0,
-            )
-            rolling_mean = (
-                all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
-                .mean()
-                .shift(1, axis=1)
-            )
-            rolling_std = (
-                all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
-                .std()
-                .shift(1, axis=1)
-                .fillna(0)
-            )
-
+            # Prepare data
             month_map = {m: datetime(2000, m, 1).strftime("%b") for m in range(1, 13)}
-            monthly_summary.rename(columns=month_map, inplace=True)
+            monthly_summary = self._prepare_monthly_summary(year_df, month_map)
+            rolling_mean, rolling_std = self._calculate_historical_stats()
 
-            monthly_summary["Total"] = monthly_summary.sum(axis=1)
-            month_columns_for_avg = list(month_map.values())
-            non_zero_months = (monthly_summary[month_columns_for_avg] > 0).sum(axis=1)
-            monthly_summary["Average"] = (
-                monthly_summary["Total"].divide(non_zero_months).fillna(0)
-            )
-            monthly_summary = monthly_summary.sort_values(by="Total", ascending=False)
-
+            # Setup table
             month_columns = list(month_map.values())
-            total_row_data = monthly_summary[month_columns].sum()
-            total_row_data["Total"] = total_row_data.sum()
-            total_row_data["Average"] = total_row_data["Total"] / 12
-            total_row_data.name = "[bold]Total[/bold]"
-
             columns = ["Category", "Total", "Average"] + month_columns
             table.add_columns(*columns)
 
+            # Add total row
+            total_row_data = monthly_summary[month_columns].sum()
+            total_row_data["Total"] = total_row_data.sum()
+            total_row_data["Average"] = total_row_data["Total"] / 12
             total_row_values = [total_row_data["Total"], total_row_data["Average"]] + [
                 total_row_data[col] for col in month_columns
             ]
             table.add_row(
-                total_row_data.name,
+                "[bold]Total[/bold]",
                 *[f"[bold]{val:,.2f}[/bold]" for val in total_row_values],
             )
 
-            category_data = monthly_summary
+            # Add category rows
             selected_style = Style(bgcolor="yellow", color="black")
             trend_styles = {
                 "↑": Style(bold=True, color="red"),
@@ -476,12 +527,8 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 "-": Style(),
             }
 
-            for category_name, row in category_data.iterrows():
-                style = (
-                    selected_style
-                    if category_name in self.selected_rows
-                    else Style.null()
-                )
+            for category_name, row in monthly_summary.iterrows():
+                style = selected_style if category_name in self.selected_rows else Style.null()
                 styled_cells = [Text(category_name, style=style)]
                 styled_cells.append(Text(f"{row['Total']:,.2f}", style=style))
                 styled_cells.append(Text(f"{row['Average']:,.2f}", style=style))
@@ -490,39 +537,15 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 trends = calculate_trends(monthly_values)
 
                 for i, month_name in enumerate(month_columns):
-                    amount = monthly_values[i]
-                    trend = trends[i][1]
-                    month_num = datetime.strptime(month_name, "%b").month
-                    current_date = pd.Timestamp(f"{year}-{month_num}-01")
-
-                    cell_style = style
-                    if (
-                        category_name in rolling_mean.index
-                        and current_date in rolling_mean.columns
-                    ):
-                        historical_mean = rolling_mean.loc[category_name, current_date]
-                        historical_std = rolling_std.loc[category_name, current_date]
-                        if (
-                            pd.notna(historical_mean)
-                            and pd.notna(historical_std)
-                            and historical_mean > 0
-                            and historical_std > 0
-                            and amount > historical_mean + 2 * historical_std
-                        ):
-                            cell_style = style + Style(bgcolor="dark_red")
-
-                    cell_text = Text(f"{amount:,.2f}", style=cell_style)
-                    if amount > 0:
-                        cell_text.append(
-                            f" {trend}", style=trend_styles.get(trend, Style())
-                        )
-                    styled_cells.append(cell_text)
+                    cell = self._create_monthly_cell(
+                        monthly_values[i], trends[i][1], category_name, year, month_name,
+                        style, rolling_mean, rolling_std, trend_styles
+                    )
+                    styled_cells.append(cell)
 
                 table.add_row(*styled_cells, key=category_name)
         except Exception as e:
-            logging.error(
-                f"An error occurred in _populate_monthly_breakdown: {e}", exc_info=True
-            )
+            logging.error(f"An error occurred in _populate_monthly_breakdown: {e}", exc_info=True)
 
     def update_all_year_monthly_view(self, year: int) -> None:
         """Populates the right-hand table in the 'All Year' tab."""
@@ -636,13 +659,57 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 )
             )
 
+    def _get_current_month_context(self, year: int) -> Optional[int]:
+        """Get the current month context from tabs, if applicable."""
+        month_tabs_id = f"#month_tabs_{year}"
+        month_tabs = self.query_one(month_tabs_id, TabbedContent)
+        active_month_pane_id = month_tabs.active.split("_")
+        if active_month_pane_id[-1] != "all":
+            return int(active_month_pane_id[-1])
+        return None
+
+    def _handle_category_breakdown_table(self, first_cell_str: str, year: int):
+        """Handle drill-down for category breakdown tables."""
+        category = first_cell_str
+        month = self._get_current_month_context(year)
+        return category, None, month
+
+    def _handle_top_merchants_table(self, table: DataTable, year: int):
+        """Handle drill-down for top merchants tables."""
+        try:
+            cell_key = table.coordinate_to_cell_key((table.cursor_row, 0))
+            merchant = str(cell_key.row_key.value)
+            month = self._get_current_month_context(year)
+            return None, merchant, month
+        except Exception as e:
+            logging.warning(f"Could not get row key: {e}")
+            return None, None, None
+
+    def _handle_monthly_breakdown_table(self, table: DataTable, first_cell_str: str, year: int):
+        """Handle drill-down for monthly breakdown tables."""
+        category = first_cell_str
+        month = None
+
+        # For cell cursor tables, we can get the column
+        if hasattr(table, "cursor_column") and table.cursor_column is not None:
+            try:
+                column = table.columns[table.cursor_column]
+                month_name = str(column.label)
+
+                if month_name not in ["Total", "Average", "Category"]:
+                    try:
+                        month = datetime.strptime(month_name, "%b").month
+                    except ValueError:
+                        pass  # Not a month column, drill down for whole year
+            except Exception as e:
+                logging.warning(f"Could not determine month column: {e}")
+
+        return category, None, month
+
     def action_drill_down(self) -> None:
         """Drill down into transactions from the current table row or cell."""
         focused_widget = self.app.focused
-        if (
-            not isinstance(focused_widget, DataTable)
-            or focused_widget.cursor_row is None
-        ):
+        if not isinstance(focused_widget, DataTable) or focused_widget.cursor_row is None:
             return
 
         table = focused_widget
@@ -651,15 +718,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         year_tabs = self.query_one("#year_tabs", TabbedContent)
         year = int(year_tabs.active.split("_")[1])
 
-        category = None
-        month = None
-        merchant = None
-
         # Get the first column value (category or merchant name)
         try:
             first_cell = table.get_cell_at((table.cursor_row, 0))
             first_cell_str = str(first_cell).strip()
-
             # Skip if it's a total row
             if "Total" in first_cell_str or "total" in first_cell_str.lower():
                 return
@@ -668,63 +730,24 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             return
 
         # Handle different table types
+        category, merchant, month = None, None, None
         if table_id and table_id.startswith("category_breakdown"):
-            # Category breakdown - drill down by category
-            category = first_cell_str
-            month_tabs_id = f"#month_tabs_{year}"
-            month_tabs = self.query_one(month_tabs_id, TabbedContent)
-            active_month_pane_id = month_tabs.active.split("_")
-            if active_month_pane_id[-1] != "all":
-                month = int(active_month_pane_id[-1])
-
+            category, merchant, month = self._handle_category_breakdown_table(first_cell_str, year)
         elif table_id and table_id.startswith("top_merchants"):
-            # Top merchants - drill down by merchant name
-            # Use the row key which contains the full merchant name
-            try:
-                cell_key = table.coordinate_to_cell_key((table.cursor_row, 0))
-                merchant = str(cell_key.row_key.value)
-            except Exception as e:
-                logging.warning(f"Could not get row key: {e}")
-                return
-            month_tabs_id = f"#month_tabs_{year}"
-            month_tabs = self.query_one(month_tabs_id, TabbedContent)
-            active_month_pane_id = month_tabs.active.split("_")
-            if active_month_pane_id[-1] != "all":
-                month = int(active_month_pane_id[-1])
-
+            category, merchant, month = self._handle_top_merchants_table(table, year)
         elif table_id and table_id.startswith("monthly_breakdown"):
-            # Monthly breakdown - need both category and column (month)
-            category = first_cell_str
-
-            # For cell cursor tables, we can get the column
-            if hasattr(table, "cursor_column") and table.cursor_column is not None:
-                try:
-                    column = table.columns[table.cursor_column]
-                    month_name = str(column.label)
-
-                    if month_name not in ["Total", "Average", "Category"]:
-                        try:
-                            month = datetime.strptime(month_name, "%b").month
-                        except ValueError:
-                            pass  # Not a month column, drill down for whole year
-                except Exception as e:
-                    logging.warning(f"Could not determine month column: {e}")
+            category, merchant, month = self._handle_monthly_breakdown_table(table, first_cell_str, year)
         else:
             return
 
         # Navigate to transactions screen
         if merchant:
-            # For merchants, we filter by merchant name
             self.app.push_screen(
-                self.app.SCREENS["transactions"](
-                    merchant=merchant, year=year, month=month
-                )
+                self.app.SCREENS["transactions"](merchant=merchant, year=year, month=month)
             )
-        else:
+        elif category:
             self.app.push_screen(
-                self.app.SCREENS["transactions"](
-                    category=category, year=year, month=month
-                )
+                self.app.SCREENS["transactions"](category=category, year=year, month=month)
             )
 
     def update_table(self) -> None:

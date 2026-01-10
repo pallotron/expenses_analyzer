@@ -539,6 +539,137 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
                 saved_data = json.loads(self.categories_file.read_text())
                 assert len(saved_data) == 0
 
+    async def test_auto_categorize_button_exists(self) -> None:
+        """Test that auto-categorize button is present in the UI."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
+
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps(self.test_categories))
+            self.default_categories_file.write_text(json.dumps(self.default_categories))
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = CategorizeScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                # Check auto-categorize button exists
+                assert pilot.app.screen.query_one("#auto_categorize_button", Button)
+
+    async def test_auto_categorize_with_gemini_api(self) -> None:
+        """Test auto-categorization with Gemini API."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+            patch("expenses.data_handler.CONFIG_DIR", Path(self.test_dir)),
+            patch("os.getenv") as mock_getenv,
+            patch(
+                "expenses.screens.categorize_screen.get_gemini_category_suggestions_for_merchants"
+            ) as mock_gemini,
+        ):
+
+            # Mock GEMINI_API_KEY environment variable
+            mock_getenv.return_value = "fake_api_key"
+
+            # Mock Gemini API response
+            mock_gemini.return_value = {
+                "Walmart": "Shopping",
+            }
+
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            # Only Starbucks and Shell Gas are categorized, Walmart is uncategorized
+            self.categories_file.write_text(json.dumps(self.test_categories))
+            self.default_categories_file.write_text(json.dumps(self.default_categories))
+
+            app = App()
+            app.show_notification = MagicMock()
+
+            async with app.run_test() as pilot:
+                screen = CategorizeScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                # Verify Walmart is uncategorized
+                walmart_data = next(
+                    (item for item in screen.all_merchant_data if item["Merchant"] == "Walmart"),
+                    None
+                )
+                assert walmart_data is not None
+                assert walmart_data["Category"] == "Uncategorized"
+
+                # Click auto-categorize button
+                auto_button = pilot.app.screen.query_one(
+                    "#auto_categorize_button", Button
+                )
+                auto_button.press()
+                await pilot.pause()
+                await pilot.pause()  # Give worker time to complete
+
+                # Verify Gemini was called with uncategorized merchants
+                mock_gemini.assert_called_once_with(["Walmart"])
+
+                # Verify Walmart is now categorized
+                walmart_data = next(
+                    (item for item in screen.all_merchant_data if item["Merchant"] == "Walmart"),
+                    None
+                )
+                assert walmart_data["Category"] == "Shopping"
+
+                # Verify categories were saved
+                saved_data = json.loads(self.categories_file.read_text())
+                assert saved_data["Walmart"] == "Shopping"
+
+    async def test_auto_categorize_without_api_key(self) -> None:
+        """Test auto-categorization without GEMINI_API_KEY shows error."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+            patch(
+                "expenses.data_handler.DEFAULT_CATEGORIES_FILE",
+                self.default_categories_file,
+            ),
+        ):
+
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps({}))
+            self.default_categories_file.write_text(json.dumps(self.default_categories))
+
+            app = App()
+            app.show_notification = MagicMock()
+
+            async with app.run_test() as pilot:
+                screen = CategorizeScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                # Patch getenv only when clicking the button
+                with patch("os.getenv") as mock_getenv:
+                    mock_getenv.return_value = None
+
+                    # Click auto-categorize button
+                    auto_button = pilot.app.screen.query_one(
+                        "#auto_categorize_button", Button
+                    )
+                    auto_button.press()
+                    await pilot.pause()
+                    await pilot.pause()
+
+                    # Verify notification was shown
+                    assert pilot.app.show_notification.called
+                    call_args = pilot.app.show_notification.call_args[0][0]
+                    assert "GEMINI_API_KEY" in call_args
+
 
 if __name__ == "__main__":
     unittest.main()

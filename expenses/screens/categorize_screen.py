@@ -15,6 +15,7 @@ from expenses.data_handler import (
     save_categories,
     load_default_categories,
 )
+from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
 from expenses.widgets.clearable_input import ClearableInput
 from textual.widgets import Input
 
@@ -70,6 +71,7 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
                 Horizontal(
                     Button("Apply to Selected", id="apply_button"),
                     Button("Save Categories", id="save_categories_button"),
+                    Button("Auto-Categorize Uncategorized", id="auto_categorize_button"),
                     classes="action-bar",
                 ),
                 Static("Press SPACE to select/deselect rows.", classes="help-text"),
@@ -215,3 +217,68 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
             save_categories(categories_to_save)
             self.app.show_notification("Categories saved successfully!")
             self.app.pop_screen()
+
+        elif event.button.id == "auto_categorize_button":
+            self.run_worker(self.auto_categorize_uncategorized(), exclusive=True)
+
+    async def auto_categorize_uncategorized(self) -> None:
+        """Auto-categorize all uncategorized merchants using Gemini AI."""
+        import os
+
+        # Check if API key is set
+        if not os.getenv("GEMINI_API_KEY"):
+            self.app.show_notification(
+                "GEMINI_API_KEY not set. Please set it to use AI categorization.",
+                timeout=5
+            )
+            return
+
+        # Find all uncategorized merchants
+        uncategorized_merchants = [
+            item["Merchant"]
+            for item in self.all_merchant_data
+            if item["Category"] == "Uncategorized"
+        ]
+
+        if not uncategorized_merchants:
+            self.app.show_notification("No uncategorized merchants found!")
+            return
+
+        # Show progress notification
+        self.app.show_notification(
+            f"Categorizing {len(uncategorized_merchants)} merchants using AI...",
+            timeout=None
+        )
+
+        # Call Gemini API (this runs in a worker thread)
+        suggested_categories = get_gemini_category_suggestions_for_merchants(
+            uncategorized_merchants
+        )
+
+        if suggested_categories:
+            # Update the merchant data with suggested categories
+            for i in range(len(self.all_merchant_data)):
+                merchant = self.all_merchant_data[i]["Merchant"]
+                if merchant in suggested_categories:
+                    self.all_merchant_data[i]["Category"] = suggested_categories[merchant]
+
+            # Refresh the table
+            self.populate_table()
+
+            # Save the categories
+            categories_to_save = {
+                item["Merchant"]: item["Category"]
+                for item in self.all_merchant_data
+                if item["Category"] != "Uncategorized"
+            }
+            save_categories(categories_to_save)
+
+            self.app.show_notification(
+                f"Successfully categorized {len(suggested_categories)} merchants!",
+                timeout=3
+            )
+        else:
+            self.app.show_notification(
+                "Failed to get AI suggestions. Check logs for details.",
+                timeout=5
+            )

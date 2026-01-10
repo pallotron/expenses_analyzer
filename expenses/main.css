@@ -189,8 +189,24 @@ SummaryScreen TabbedContent TabPane {
 }
 
 /* --- Transaction Screen --- */
+TransactionScreen .content-split {
+    width: 1fr;
+    height: 1fr;
+}
+
 #transaction_table {
-    width: 100%;
+    width: 3fr;
+    height: 1fr;
+    margin-right: 2;
+}
+
+TransactionScreen .merchant-summary {
+    width: 2fr;
+    height: 1fr;
+    margin-left: 2;
+}
+
+TransactionScreen .merchant-summary > DataTable {
     height: 1fr;
 }
 

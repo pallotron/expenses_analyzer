@@ -6,7 +6,7 @@ from textual.widgets import DataTable, Static, Button
 from expenses.widgets.clearable_input import ClearableInput
 from textual.widgets import Input
 from textual.app import ComposeResult
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from rich.style import Style
 from rich.text import Text
 
@@ -92,7 +92,19 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Button("Delete Selected", id="delete_button", variant="error"),
             classes="button-bar",
         )
-        yield DataTable(id="transaction_table", cursor_type="row", zebra_stripes=True)
+        # Split view: Transaction table on left, Merchant summary on right
+        yield Horizontal(
+            DataTable(id="transaction_table", cursor_type="row", zebra_stripes=True),
+            Vertical(
+                DataTable(
+                    id="merchant_summary_table",
+                    cursor_type="row",
+                    zebra_stripes=True,
+                ),
+                classes="merchant-summary",
+            ),
+            classes="content-split",
+        )
 
     def on_mount(self) -> None:
         """Load data and populate the table when the screen is mounted."""
@@ -290,6 +302,48 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
             styled_row = [Text(str(cell), style=style) for cell in row_data]
             table.add_row(*styled_row, key=str(i))
+
+        # Update merchant summary table
+        self.populate_merchant_summary(self.display_df)
+
+    def populate_merchant_summary(self, filtered_df: pd.DataFrame) -> None:
+        """Populate the merchant summary table with grouped transaction data."""
+        merchant_table = self.query_one("#merchant_summary_table", DataTable)
+        merchant_table.clear(columns=True)
+
+        if filtered_df.empty:
+            merchant_table.add_columns("Merchant", "Total", "Count", "Category")
+            return
+
+        # Group by DisplayMerchant and aggregate
+        merchant_summary = (
+            filtered_df.groupby("DisplayMerchant", as_index=False)
+            .agg({
+                "Amount": ["sum", "count"],
+                "Category": lambda x: x.mode()[0] if len(x.mode()) > 0 else "Other",
+            })
+        )
+
+        # Flatten multi-level columns
+        merchant_summary.columns = ["Merchant", "Total", "Count", "Category"]
+
+        # Sort by total amount descending
+        merchant_summary = merchant_summary.sort_values("Total", ascending=False)
+
+        # Add columns with appropriate widths
+        merchant_table.add_column("Merchant", width=None)  # Flexible width
+        merchant_table.add_column("Total", width=15)
+        merchant_table.add_column("Count", width=10)
+        merchant_table.add_column("Category", width=20)
+
+        # Add rows
+        for _, row in merchant_summary.iterrows():
+            merchant_table.add_row(
+                row["Merchant"] or "",
+                f"{row['Total']:,.2f}",
+                str(int(row["Count"])),
+                row["Category"] or "",
+            )
 
     def action_toggle_selection(self) -> None:
         """Toggle selection for the current row."""

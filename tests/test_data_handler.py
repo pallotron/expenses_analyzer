@@ -47,6 +47,7 @@ class TestDataHandler(unittest.TestCase):
                 "Merchant": ["Existing Merchant"],
                 "Amount": [10.00],
                 "Deleted": [False],
+                "Type": ["expense"],
             }
         )
         new_df = pd.DataFrame(

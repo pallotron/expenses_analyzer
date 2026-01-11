@@ -44,6 +44,8 @@ def test_populate_table_filtering(
         "Merchant": ["Merchant A", "Merchant B", "Merchant C"],
         "Amount": [10.0, 20.0, 30.0],
         "Source": ["CSV Import", "Plaid", "Manual"],
+        "Deleted": [False, False, False],
+        "Type": ["expense", "expense", "expense"],
     }
     df: pd.DataFrame = pd.DataFrame(data)
     transaction_screen.transactions = df
@@ -64,12 +66,14 @@ def test_populate_table_filtering(
             "#amount_max_filter": "",
             "#source_filter": "",
             "#category_filter": "",
+            "#type_filter": "",
         }
         for key, value in filters.items():
             filter_values[f"#{key}"] = value
 
         widgets: Dict[str, Any] = {
             "#transaction_table": MockDataTable(),
+            "#merchant_summary_table": MockDataTable(),
             "#total_display": MockStatic(),
             "#select_all_button": MockButton(),
         }
@@ -98,13 +102,13 @@ class MockDataTable:
             self.columns = []
         self.rows = []
 
-    def add_column(self, label: str, key: str, width: int) -> None:
+    def add_column(self, label: str, key: str = None, width: int = None) -> None:
         self.columns.append({"label": label, "key": key, "width": width})
 
     def add_rows(self, rows: list[Any]) -> None:
         self.rows.extend(rows)
 
-    def add_row(self, *row: Any, key: Any) -> None:
+    def add_row(self, *row: Any, key: Any = None) -> None:
         self.rows.append({"key": key, "row": row})
 
     def move_cursor(self, row: int) -> None:
@@ -128,6 +132,7 @@ def test_toggle_selection_keeps_cursor_position(
         "Amount": [10.0, 20.0, 30.0],
         "Source": ["CSV Import", "Plaid", "Manual"],
         "Category": ["Category 1", "Category 2", "Category 1"],
+        "Type": ["expense", "expense", "expense"],
     }
     df: pd.DataFrame = pd.DataFrame(data)
     transaction_screen.display_df = df
@@ -140,6 +145,7 @@ def test_toggle_selection_keeps_cursor_position(
     # Mock the query_one method to return our mock table and other widgets
     transaction_screen.query_one = lambda selector, type: {  # type: ignore[assignment]
         "#transaction_table": mock_table,
+        "#merchant_summary_table": MockDataTable(),
         "#total_display": MockStatic(),
         "#select_all_button": MockButton(),
         "#date_min_filter": MockInput(value=""),
@@ -149,6 +155,7 @@ def test_toggle_selection_keeps_cursor_position(
         "#amount_max_filter": MockInput(value=""),
         "#source_filter": MockInput(value=""),
         "#category_filter": MockInput(value=""),
+        "#type_filter": MockInput(value=""),
     }[selector]
 
     # Call the action

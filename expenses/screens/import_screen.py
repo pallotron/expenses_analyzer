@@ -41,6 +41,16 @@ class ImportScreen(BaseScreen):
                 ),
                 Static("Amount Column:"),
                 Select([], id="amount_select"),
+                Static("Transaction Type:"),
+                Select(
+                    [
+                        ("Auto-detect from amount sign", "auto"),
+                        ("All Expenses", "expense"),
+                        ("All Income", "income"),
+                    ],
+                    value="auto",
+                    id="type_select",
+                ),
                 Static("Source/Account Name (optional):"),
                 Input(
                     placeholder="e.g., 'Chase Checking' or 'CSV Import'",
@@ -144,7 +154,7 @@ class ImportScreen(BaseScreen):
         """Check if PayPal row should be skipped based on Balance Impact."""
         return "Balance Impact" in self.df.columns and row["Balance Impact"] != "Debit"
 
-    def _process_row(self, index, row, date_col, merchant_col, amount_col, skip_counts):
+    def _process_row(self, index, row, date_col, merchant_col, amount_col, type_mode, skip_counts):
         """Process a single row from the CSV."""
         logging.debug(f"Processing row {index}")
         logging.debug(f"Raw row data: {row.to_dict()}")
@@ -166,24 +176,34 @@ class ImportScreen(BaseScreen):
         amount_val = clean_amount(pd.Series([row[amount_col]]))[0]
         logging.debug(f"Row {index}: Cleaned amount: {amount_val}")
 
-        # Filter non-expenses
-        if amount_val >= 0:
-            skip_counts["not_expense"] += 1
-            logging.debug(f"Row {index}: Skipping - not an expense (amount >= 0)")
+        # Skip zero amounts
+        if amount_val == 0:
+            skip_counts["zero_amount"] += 1
+            logging.debug(f"Row {index}: Skipping - zero amount")
             return None
 
-        # Special PayPal check
-        if self._should_skip_paypal_row(row):
+        # Determine transaction type
+        if type_mode == "expense":
+            transaction_type = "expense"
+        elif type_mode == "income":
+            transaction_type = "income"
+        else:  # auto-detect
+            # Negative amounts are expenses, positive are income
+            transaction_type = "expense" if amount_val < 0 else "income"
+
+        # Special PayPal check - only for auto mode with expenses
+        if type_mode == "auto" and self._should_skip_paypal_row(row):
             skip_counts["not_debit"] += 1
             logging.debug(f"Row {index}: Skipping - not a debit transaction")
             return None
 
         # Successfully processed
-        logging.debug(f"Row {index}: Successfully processed transaction")
+        logging.debug(f"Row {index}: Successfully processed {transaction_type} transaction")
         return {
             "Date": date_val,
             "Merchant": str(row[merchant_col]),
             "Amount": abs(amount_val),
+            "Type": transaction_type,
         }
 
     def _log_import_summary(self, total_processed, total_imported, skip_counts):
@@ -209,6 +229,7 @@ class ImportScreen(BaseScreen):
             date_col = self.query_one("#date_select", Select).value
             merchant_col = self.query_one("#merchant_select", Select).value
             amount_col = self.query_one("#amount_select", Select).value
+            type_mode = self.query_one("#type_select", Select).value
             suggest_categories = self.query_one("#suggest_categories_checkbox", Checkbox).value
             source = self.query_one("#source_input", Input).value or "CSV Import"
 
@@ -216,14 +237,14 @@ class ImportScreen(BaseScreen):
             skip_counts = {
                 "invalid_date": 0,
                 "empty_merchant": 0,
-                "not_expense": 0,
+                "zero_amount": 0,
                 "not_debit": 0,
             }
-            logging.info("Starting CSV import...")
+            logging.info(f"Starting CSV import with type mode: {type_mode}...")
 
             # Process each row
             for index, row in self.df.iterrows():
-                transaction = self._process_row(index, row, date_col, merchant_col, amount_col, skip_counts)
+                transaction = self._process_row(index, row, date_col, merchant_col, amount_col, type_mode, skip_counts)
                 if transaction:
                     transactions_to_append.append(transaction)
 

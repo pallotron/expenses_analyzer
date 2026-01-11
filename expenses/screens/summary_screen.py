@@ -17,7 +17,7 @@ from expenses.data_handler import (
     load_merchant_aliases,
     apply_merchant_aliases_to_series,
 )
-from expenses.analysis import calculate_trends
+from expenses.analysis import calculate_trends, get_cash_flow_totals
 from typing import Dict, Set, Optional, Any
 
 
@@ -59,11 +59,22 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             )
 
     def compose_content(self) -> ComposeResult:
-        yield Static("Expenses Summary", classes="title")
+        yield Static("Cash Flow Summary", classes="title")
 
         if self.transactions.empty:
             yield Static("No transactions found.")
             return
+
+        # Cash flow overview
+        totals = get_cash_flow_totals(self.transactions)
+        net_color = "green" if totals["net"] >= 0 else "red"
+        yield Static(
+            f"[bold]Income:[/bold] [green]${totals['total_income']:,.2f}[/green]  |  "
+            f"[bold]Expenses:[/bold] [red]${totals['total_expenses']:,.2f}[/red]  |  "
+            f"[bold]Net:[/bold] [{net_color}]${totals['net']:,.2f}[/{net_color}]  |  "
+            f"[bold]Savings Rate:[/bold] {totals['savings_rate']:.1f}%",
+            classes="cash-flow-overview"
+        )
 
         years = sorted(self.transactions["Date"].dt.year.unique(), reverse=True)
 
@@ -280,6 +291,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         table.add_columns("Category", "Amount", "Percentage")
 
         year_df = self.transactions[self.transactions["Date"].dt.year == year]
+        # Filter to expenses only for category breakdown
+        if "Type" in year_df.columns:
+            year_df = year_df[year_df["Type"] == "expense"]
         total = 0.0
         if not year_df.empty:
             category_summary = year_df.groupby("Category")["Amount"].sum().reset_index()
@@ -300,7 +314,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 ]
                 table.add_row(*styled_row, key=category)
 
-        title_widget.update(f"Category breakdown (Total: {total:,.2f})")
+        title_widget.update(f"Expense Categories (Total: {total:,.2f})")
         table.move_cursor(row=cursor_row)
 
     def update_month_view(self, year: int, month: int) -> None:
@@ -316,6 +330,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             (self.transactions["Date"].dt.year == year)
             & (self.transactions["Date"].dt.month == month)
         ]
+        # Filter to expenses only
+        if "Type" in month_df.columns:
+            month_df = month_df[month_df["Type"] == "expense"]
 
         total = 0.0
         if not month_df.empty:
@@ -342,7 +359,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 ]
                 category_table.add_row(*styled_row, key=category)
 
-        title_widget.update(f"Category breakdown (Total: {total:,.2f})")
+        title_widget.update(f"Expense Categories (Total: {total:,.2f})")
         category_table.move_cursor(row=cursor_row)
 
     def update_top_merchants_view(self, year: int, month: Optional[int] = None) -> None:
@@ -356,6 +373,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         else:
             table_id = f"top_merchants_{year}_all"
             df = self.transactions[self.transactions["Date"].dt.year == year].copy()
+
+        # Filter to expenses only for top merchants
+        if "Type" in df.columns:
+            df = df[df["Type"] == "expense"]
 
         try:
             table = self.query_one(f"#{table_id}", DataTable)
@@ -493,6 +514,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         try:
             table.clear(columns=True)
             year_df = self.transactions[self.transactions["Date"].dt.year == year]
+            # Filter to expenses only
+            if "Type" in year_df.columns:
+                year_df = year_df[year_df["Type"] == "expense"]
             if year_df.empty:
                 return
 

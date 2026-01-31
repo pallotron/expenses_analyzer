@@ -402,29 +402,51 @@ def append_transactions(
     new_transactions["Merchant"] = new_transactions["Merchant"].astype(str)
     new_transactions["Type"] = new_transactions["Type"].astype(str)
 
+    # Load merchant aliases for deduplication (used for both soft-delete filtering and dedup)
+    merchant_aliases = load_merchant_aliases()
+
     # --- Filter out new transactions that match soft-deleted ones ---
     deleted_mask = existing_transactions["Deleted"]
     if deleted_mask.any():
         deleted_transactions = existing_transactions[deleted_mask]
-        # Create a set of (Date, Merchant, Amount) tuples for efficient lookup
+
+        # Apply merchant aliases to deleted transactions for matching
+        if merchant_aliases:
+            deleted_aliased = apply_merchant_aliases_to_series(
+                deleted_transactions["Merchant"], merchant_aliases
+            )
+        else:
+            deleted_aliased = deleted_transactions["Merchant"]
+
+        # Create a set of (Date, AliasedMerchant, Amount) tuples for efficient lookup
         deleted_keys = set(
             zip(
                 deleted_transactions["Date"].dt.date,
-                deleted_transactions["Merchant"],
+                deleted_aliased,
                 deleted_transactions["Amount"],
             )
         )
 
+        # Apply merchant aliases to new transactions for matching
+        if merchant_aliases:
+            new_aliased = apply_merchant_aliases_to_series(
+                new_transactions["Merchant"], merchant_aliases
+            )
+        else:
+            new_aliased = new_transactions["Merchant"]
+
         initial_count = len(new_transactions)
         # Create a boolean mask to identify rows to keep
-        keep_mask = ~new_transactions.apply(
-            lambda row: (
-                row["Date"].date(),
-                row["Merchant"],
-                row["Amount"],
-            )
-            in deleted_keys,
-            axis=1,
+        keep_mask = ~pd.Series(
+            [
+                (date.date(), alias, amount) in deleted_keys
+                for date, alias, amount in zip(
+                    new_transactions["Date"],
+                    new_aliased,
+                    new_transactions["Amount"],
+                )
+            ],
+            index=new_transactions.index,
         )
         new_transactions = new_transactions[keep_mask]
         final_count = len(new_transactions)
@@ -439,12 +461,26 @@ def append_transactions(
     # Now combine and deduplicate
     combined = pd.concat([existing_transactions, new_transactions], ignore_index=True)
 
-    # De-duplicate based on Date, Merchant, Amount (keep first occurrence)
+    # Create a temporary column with aliased merchant names for deduplication
+    # This allows "STARBUCKS #1234" and "Starbucks Coffee" to be recognized as duplicates
+    # if they both map to the same alias
+    if merchant_aliases:
+        combined["_DedupeKey"] = apply_merchant_aliases_to_series(
+            combined["Merchant"], merchant_aliases
+        )
+    else:
+        combined["_DedupeKey"] = combined["Merchant"]
+
+    # De-duplicate based on Date, Aliased Merchant, Amount (keep first occurrence)
     # This prevents the same transaction from being imported multiple times, regardless of source
     # It also handles cases where a transaction is re-imported after being restored.
     combined.drop_duplicates(
-        subset=["Date", "Merchant", "Amount"], keep="first", inplace=True
+        subset=["Date", "_DedupeKey", "Amount"], keep="first", inplace=True
     )
+
+    # Remove the temporary deduplication column before saving
+    combined.drop(columns=["_DedupeKey"], inplace=True)
+
     save_transactions_to_parquet(combined)
 
 

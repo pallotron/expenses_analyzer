@@ -96,31 +96,60 @@ def load_categories() -> Dict[str, str]:
         return {}
 
 
-def load_default_categories() -> List[str]:
+def load_default_categories(transaction_type: str = None) -> List[str]:
+    """Load default categories from JSON file.
+
+    Args:
+        transaction_type: If specified ("expense" or "income"), returns only categories
+                         for that type. If None, returns all categories combined.
+
+    Returns:
+        List of category names.
+    """
+    categories_data = None
+
     # User's custom default categories file takes precedence
     if DEFAULT_CATEGORIES_FILE.exists():
         with open(DEFAULT_CATEGORIES_FILE, "r") as f:
             try:
-                return json.load(f)
+                categories_data = json.load(f)
             except json.JSONDecodeError:
                 pass  # Fallback to package default
 
     # If user file doesn't exist or is invalid, load from package
-    try:
-        ref = importlib.resources.files("expenses").joinpath("default_categories.json")
-        with ref.open("r") as f:
-            default_categories = json.load(f)
-            # Copy it to user's config dir for first run
-            try:
-                with open(DEFAULT_CATEGORIES_FILE, "w") as user_f:
-                    json.dump(default_categories, user_f, indent=4)
-            except IOError:
-                logging.warning(
-                    "Could not save default categories to user config directory."
-                )
-            return default_categories
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+    if categories_data is None:
+        try:
+            ref = importlib.resources.files("expenses").joinpath("default_categories.json")
+            with ref.open("r") as f:
+                categories_data = json.load(f)
+                # Copy it to user's config dir for first run
+                try:
+                    with open(DEFAULT_CATEGORIES_FILE, "w") as user_f:
+                        json.dump(categories_data, user_f, indent=4)
+                except IOError:
+                    logging.warning(
+                        "Could not save default categories to user config directory."
+                    )
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+
+    # Handle both old format (list) and new format (dict with expense/income keys)
+    if isinstance(categories_data, list):
+        # Old format: list of categories (all are expense categories)
+        if transaction_type == "income":
+            return []  # No income categories in old format
+        return categories_data
+    elif isinstance(categories_data, dict):
+        # New format: dict with "expense" and "income" keys
+        if transaction_type == "expense":
+            return categories_data.get("expense", [])
+        elif transaction_type == "income":
+            return categories_data.get("income", [])
+        else:
+            # Return all categories combined
+            return categories_data.get("expense", []) + categories_data.get("income", [])
+
+    return []
 
 
 def save_categories(categories: Dict[str, str]) -> None:
@@ -237,7 +266,7 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
     global _corruption_detected
 
     if not TRANSACTIONS_FILE.exists():
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Source", "Deleted"])
+        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type"])
 
     try:
         df = pd.read_parquet(TRANSACTIONS_FILE)
@@ -249,6 +278,10 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
         # Add Deleted column if it doesn't exist (backward compatibility)
         if "Deleted" not in df.columns:
             df["Deleted"] = False
+
+        # Add Type column if it doesn't exist (backward compatibility for cash flow support)
+        if "Type" not in df.columns:
+            df["Type"] = "expense"  # Default existing transactions to expense
 
         # Filter out soft-deleted transactions unless explicitly requested
         if not include_deleted:
@@ -267,7 +300,7 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
         # Set flag for TUI to display notification
         _corruption_detected = error_msg
         # Return empty DataFrame to allow application to continue
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Source", "Deleted"])
+        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type"])
 
 
 def check_and_clear_corruption_flag() -> Optional[str]:
@@ -348,6 +381,10 @@ def append_transactions(
     if "Deleted" not in new_transactions.columns:
         new_transactions["Deleted"] = False
 
+    # Add Type column to new transactions if not present (default to expense)
+    if "Type" not in new_transactions.columns:
+        new_transactions["Type"] = "expense"
+
     # Standardize data types before merging
     existing_transactions["Date"] = pd.to_datetime(existing_transactions["Date"])
     existing_transactions["Amount"] = pd.to_numeric(
@@ -355,6 +392,7 @@ def append_transactions(
     ).fillna(0.0)
     existing_transactions["Amount"] = existing_transactions["Amount"].round(2)
     existing_transactions["Merchant"] = existing_transactions["Merchant"].astype(str)
+    existing_transactions["Type"] = existing_transactions["Type"].astype(str)
 
     new_transactions["Date"] = pd.to_datetime(new_transactions["Date"])
     new_transactions["Amount"] = pd.to_numeric(
@@ -362,30 +400,53 @@ def append_transactions(
     ).fillna(0.0)
     new_transactions["Amount"] = new_transactions["Amount"].round(2)
     new_transactions["Merchant"] = new_transactions["Merchant"].astype(str)
+    new_transactions["Type"] = new_transactions["Type"].astype(str)
+
+    # Load merchant aliases for deduplication (used for both soft-delete filtering and dedup)
+    merchant_aliases = load_merchant_aliases()
 
     # --- Filter out new transactions that match soft-deleted ones ---
     deleted_mask = existing_transactions["Deleted"]
     if deleted_mask.any():
         deleted_transactions = existing_transactions[deleted_mask]
-        # Create a set of (Date, Merchant, Amount) tuples for efficient lookup
+
+        # Apply merchant aliases to deleted transactions for matching
+        if merchant_aliases:
+            deleted_aliased = apply_merchant_aliases_to_series(
+                deleted_transactions["Merchant"], merchant_aliases
+            )
+        else:
+            deleted_aliased = deleted_transactions["Merchant"]
+
+        # Create a set of (Date, AliasedMerchant, Amount) tuples for efficient lookup
         deleted_keys = set(
             zip(
                 deleted_transactions["Date"].dt.date,
-                deleted_transactions["Merchant"],
+                deleted_aliased,
                 deleted_transactions["Amount"],
             )
         )
 
+        # Apply merchant aliases to new transactions for matching
+        if merchant_aliases:
+            new_aliased = apply_merchant_aliases_to_series(
+                new_transactions["Merchant"], merchant_aliases
+            )
+        else:
+            new_aliased = new_transactions["Merchant"]
+
         initial_count = len(new_transactions)
         # Create a boolean mask to identify rows to keep
-        keep_mask = ~new_transactions.apply(
-            lambda row: (
-                row["Date"].date(),
-                row["Merchant"],
-                row["Amount"],
-            )
-            in deleted_keys,
-            axis=1,
+        keep_mask = ~pd.Series(
+            [
+                (date.date(), alias, amount) in deleted_keys
+                for date, alias, amount in zip(
+                    new_transactions["Date"],
+                    new_aliased,
+                    new_transactions["Amount"],
+                )
+            ],
+            index=new_transactions.index,
         )
         new_transactions = new_transactions[keep_mask]
         final_count = len(new_transactions)
@@ -400,12 +461,26 @@ def append_transactions(
     # Now combine and deduplicate
     combined = pd.concat([existing_transactions, new_transactions], ignore_index=True)
 
-    # De-duplicate based on Date, Merchant, Amount (keep first occurrence)
+    # Create a temporary column with aliased merchant names for deduplication
+    # This allows "STARBUCKS #1234" and "Starbucks Coffee" to be recognized as duplicates
+    # if they both map to the same alias
+    if merchant_aliases:
+        combined["_DedupeKey"] = apply_merchant_aliases_to_series(
+            combined["Merchant"], merchant_aliases
+        )
+    else:
+        combined["_DedupeKey"] = combined["Merchant"]
+
+    # De-duplicate based on Date, Aliased Merchant, Amount (keep first occurrence)
     # This prevents the same transaction from being imported multiple times, regardless of source
     # It also handles cases where a transaction is re-imported after being restored.
     combined.drop_duplicates(
-        subset=["Date", "Merchant", "Amount"], keep="first", inplace=True
+        subset=["Date", "_DedupeKey", "Amount"], keep="first", inplace=True
     )
+
+    # Remove the temporary deduplication column before saving
+    combined.drop(columns=["_DedupeKey"], inplace=True)
+
     save_transactions_to_parquet(combined)
 
 

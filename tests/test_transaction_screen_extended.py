@@ -21,15 +21,22 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
         self.transactions_file = Path(self.test_dir) / "transactions.parquet"
         self.categories_file = Path(self.test_dir) / "categories.json"
 
-        # Create test transactions with Category column
+        # Create test transactions with all required columns
+        # Use current year to avoid date filtering issues
+        from datetime import datetime
+        current_year = datetime.now().year
         self.test_transactions = pd.DataFrame(
             {
                 "Date": pd.to_datetime(
-                    ["2025-01-15", "2025-02-10", "2025-03-05", "2025-01-20"]
+                    [f"{current_year}-01-15", f"{current_year}-02-10",
+                     f"{current_year}-03-05", f"{current_year}-01-20"]
                 ),
                 "Merchant": ["Starbucks", "Shell Gas", "Walmart", "Amazon"],
                 "Amount": [5.50, 40.00, 100.00, 75.00],
                 "Category": ["Food & Dining", "Transportation", "Shopping", "Shopping"],
+                "Source": ["CSV Import", "CSV Import", "CSV Import", "CSV Import"],
+                "Deleted": [False, False, False, False],
+                "Type": ["expense", "expense", "expense", "expense"],
             }
         )
 
@@ -135,15 +142,21 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
                 initial_count = len(screen.transactions)
 
-                # Add more transactions
+                # Add more transactions with all required columns
+                from datetime import datetime
+                current_year = datetime.now().year
                 new_transactions = pd.concat(
                     [
                         self.test_transactions,
                         pd.DataFrame(
                             {
-                                "Date": [pd.to_datetime("2025-04-01")],
+                                "Date": [pd.to_datetime(f"{current_year}-04-01")],
                                 "Merchant": ["Target"],
                                 "Amount": [50.00],
+                                "Category": ["Shopping"],
+                                "Source": ["CSV Import"],
+                                "Deleted": [False],
+                                "Type": ["expense"],
                             }
                         ),
                     ]

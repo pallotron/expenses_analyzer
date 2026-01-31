@@ -41,6 +41,18 @@ class ImportScreen(BaseScreen):
                 ),
                 Static("Amount Column:"),
                 Select([], id="amount_select"),
+                Static("Amount Out Column (optional - for banks with separate in/out columns):"),
+                Select([("None - use single column", "")], id="amount_out_select", value=""),
+                Static("Transaction Type:"),
+                Select(
+                    [
+                        ("Auto-detect from amount sign", "auto"),
+                        ("All Expenses", "expense"),
+                        ("All Income", "income"),
+                    ],
+                    value="auto",
+                    id="type_select",
+                ),
                 Static("Source/Account Name (optional):"),
                 Input(
                     placeholder="e.g., 'Chase Checking' or 'CSV Import'",
@@ -102,6 +114,10 @@ class ImportScreen(BaseScreen):
                 select = self.query_one(f"#{select_id}", Select)
                 select.set_options(options)
 
+            # Amount out selector has an extra "None" option
+            amount_out_options = [("None - use single column", "")] + options
+            self.query_one("#amount_out_select", Select).set_options(amount_out_options)
+
             # Show the data sections
             self.query_one("#file_preview_label").display = True
             self.query_one("#file_preview").display = True
@@ -144,8 +160,14 @@ class ImportScreen(BaseScreen):
         """Check if PayPal row should be skipped based on Balance Impact."""
         return "Balance Impact" in self.df.columns and row["Balance Impact"] != "Debit"
 
-    def _process_row(self, index, row, date_col, merchant_col, amount_col, skip_counts):
-        """Process a single row from the CSV."""
+    def _process_row(
+        self, index, row, date_col, merchant_col, amount_col, type_mode, skip_counts, amount_out_col=None
+    ):
+        """Process a single row from the CSV.
+
+        If amount_out_col is provided (dual-column mode), the amount_col is treated
+        as "money in" (income) and amount_out_col as "money out" (expenses).
+        """
         logging.debug(f"Processing row {index}")
         logging.debug(f"Raw row data: {row.to_dict()}")
 
@@ -162,28 +184,72 @@ class ImportScreen(BaseScreen):
             logging.debug(f"Row {index}: Skipping - empty merchant")
             return None
 
-        # Parse amount
-        amount_val = clean_amount(pd.Series([row[amount_col]]))[0]
-        logging.debug(f"Row {index}: Cleaned amount: {amount_val}")
+        # Parse amount - handle dual-column mode
+        if amount_out_col:
+            # Dual-column mode: separate columns for money in/out
+            amount_in_val = clean_amount(pd.Series([row[amount_col]]))[0]
+            amount_out_val = clean_amount(pd.Series([row[amount_out_col]]))[0]
+            logging.debug(f"Row {index}: Dual-column - in: {amount_in_val}, out: {amount_out_val}")
 
-        # Filter non-expenses
-        if amount_val >= 0:
-            skip_counts["not_expense"] += 1
-            logging.debug(f"Row {index}: Skipping - not an expense (amount >= 0)")
-            return None
+            # Determine which column has the value
+            has_income = amount_in_val != 0
+            has_expense = amount_out_val != 0
 
-        # Special PayPal check
-        if self._should_skip_paypal_row(row):
+            if has_income and has_expense:
+                # Both columns have values - unusual, log warning and use the larger absolute value
+                logging.warning(f"Row {index}: Both in/out columns have values, using larger absolute value")
+                if abs(amount_in_val) >= abs(amount_out_val):
+                    amount_val = abs(amount_in_val)
+                    transaction_type = "income"
+                else:
+                    amount_val = abs(amount_out_val)
+                    transaction_type = "expense"
+            elif has_income:
+                amount_val = abs(amount_in_val)
+                transaction_type = "income"
+            elif has_expense:
+                amount_val = abs(amount_out_val)
+                transaction_type = "expense"
+            else:
+                # Neither column has a value
+                skip_counts["zero_amount"] += 1
+                logging.debug(f"Row {index}: Skipping - zero amount in both columns")
+                return None
+        else:
+            # Single-column mode (original behavior)
+            amount_val = clean_amount(pd.Series([row[amount_col]]))[0]
+            logging.debug(f"Row {index}: Cleaned amount: {amount_val}")
+
+            # Skip zero amounts
+            if amount_val == 0:
+                skip_counts["zero_amount"] += 1
+                logging.debug(f"Row {index}: Skipping - zero amount")
+                return None
+
+            # Determine transaction type
+            if type_mode == "expense":
+                transaction_type = "expense"
+            elif type_mode == "income":
+                transaction_type = "income"
+            else:  # auto-detect
+                # Negative amounts are expenses, positive are income
+                transaction_type = "expense" if amount_val < 0 else "income"
+
+            amount_val = abs(amount_val)
+
+        # Special PayPal check - only for auto mode with expenses (single-column only)
+        if not amount_out_col and type_mode == "auto" and self._should_skip_paypal_row(row):
             skip_counts["not_debit"] += 1
             logging.debug(f"Row {index}: Skipping - not a debit transaction")
             return None
 
         # Successfully processed
-        logging.debug(f"Row {index}: Successfully processed transaction")
+        logging.debug(f"Row {index}: Successfully processed {transaction_type} transaction")
         return {
             "Date": date_val,
             "Merchant": str(row[merchant_col]),
-            "Amount": abs(amount_val),
+            "Amount": amount_val,
+            "Type": transaction_type,
         }
 
     def _log_import_summary(self, total_processed, total_imported, skip_counts):
@@ -209,6 +275,9 @@ class ImportScreen(BaseScreen):
             date_col = self.query_one("#date_select", Select).value
             merchant_col = self.query_one("#merchant_select", Select).value
             amount_col = self.query_one("#amount_select", Select).value
+            amount_out_val = self.query_one("#amount_out_select", Select).value
+            amount_out_col = amount_out_val if amount_out_val and amount_out_val != Select.BLANK else None
+            type_mode = self.query_one("#type_select", Select).value
             suggest_categories = self.query_one("#suggest_categories_checkbox", Checkbox).value
             source = self.query_one("#source_input", Input).value or "CSV Import"
 
@@ -216,14 +285,22 @@ class ImportScreen(BaseScreen):
             skip_counts = {
                 "invalid_date": 0,
                 "empty_merchant": 0,
-                "not_expense": 0,
+                "zero_amount": 0,
                 "not_debit": 0,
             }
-            logging.info("Starting CSV import...")
+
+            if amount_out_col:
+                logging.info(
+                    f"Starting CSV import with dual-column mode (in: {amount_col}, out: {amount_out_col})..."
+                )
+            else:
+                logging.info(f"Starting CSV import with type mode: {type_mode}...")
 
             # Process each row
             for index, row in self.df.iterrows():
-                transaction = self._process_row(index, row, date_col, merchant_col, amount_col, skip_counts)
+                transaction = self._process_row(
+                    index, row, date_col, merchant_col, amount_col, type_mode, skip_counts, amount_out_col
+                )
                 if transaction:
                     transactions_to_append.append(transaction)
 

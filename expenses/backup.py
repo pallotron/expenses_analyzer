@@ -18,20 +18,44 @@ from expenses.config import (
 # Auto-backup configuration
 AUTO_BACKUP_DIR = CONFIG_DIR / "auto_backups"
 BACKUP_RETENTION_DAYS = 7  # Keep backups for at least 7 days
+BACKUP_MIN_INTERVAL_SECONDS = 300  # Minimum 5 minutes between backups
+BACKUP_MAX_COUNT = 50  # Keep at most 50 backups
 
 
-def create_auto_backup() -> Optional[Path]:
+def _get_newest_backup_time() -> Optional[datetime]:
+    """Get the timestamp of the most recent backup.
+
+    Returns:
+        datetime of newest backup, or None if no backups exist
+    """
+    if not AUTO_BACKUP_DIR.exists():
+        return None
+
+    backups = list(AUTO_BACKUP_DIR.glob("backup_*.tar.gz"))
+    if not backups:
+        return None
+
+    # Get the most recently modified backup
+    newest = max(backups, key=lambda p: p.stat().st_mtime)
+    return datetime.fromtimestamp(newest.stat().st_mtime)
+
+
+def create_auto_backup(force: bool = False) -> Optional[Path]:
     """Create automatic backup tarball of all important config files.
 
     This function creates a compressed tarball containing:
     - transactions.parquet
     - categories.json
     - merchant_aliases.json (if exists)
-    - plaid_items.json (if exists)
     - default_categories.json (if exists)
 
-    Backups are retained for at least BACKUP_RETENTION_DAYS (default: 7 days)
-    before being automatically cleaned up.
+    Backups are throttled to prevent excessive creation:
+    - Minimum BACKUP_MIN_INTERVAL_SECONDS (5 min) between backups
+    - Maximum BACKUP_MAX_COUNT (50) backups retained
+    - Backups older than BACKUP_RETENTION_DAYS (7 days) are removed
+
+    Args:
+        force: If True, create backup regardless of throttling
 
     Returns:
         Path to backup tarball if successful, None otherwise
@@ -41,6 +65,18 @@ def create_auto_backup() -> Optional[Path]:
     if not TRANSACTIONS_FILE.exists():
         logging.debug("No transactions file to backup")
         return None
+
+    # Check if we should skip this backup due to throttling
+    if not force:
+        newest_backup_time = _get_newest_backup_time()
+        if newest_backup_time:
+            seconds_since_last = (datetime.now() - newest_backup_time).total_seconds()
+            if seconds_since_last < BACKUP_MIN_INTERVAL_SECONDS:
+                logging.debug(
+                    f"Skipping backup: only {seconds_since_last:.0f}s since last backup "
+                    f"(minimum {BACKUP_MIN_INTERVAL_SECONDS}s)"
+                )
+                return None
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_file = AUTO_BACKUP_DIR / f"backup_{timestamp}.tar.gz"
@@ -85,30 +121,53 @@ def create_auto_backup() -> Optional[Path]:
 
 
 def _cleanup_old_backups() -> None:
-    """Remove backups older than BACKUP_RETENTION_DAYS to save disk space."""
+    """Remove old backups based on age and count limits.
+
+    Cleanup rules:
+    1. Remove backups older than BACKUP_RETENTION_DAYS
+    2. Keep at most BACKUP_MAX_COUNT backups (removing oldest first)
+    """
     if not AUTO_BACKUP_DIR.exists():
         return
 
     cutoff_time = datetime.now().timestamp() - (BACKUP_RETENTION_DAYS * 24 * 60 * 60)
 
-    # Get all backup tarballs
-    backups = list(AUTO_BACKUP_DIR.glob("backup_*.tar.gz"))
-
-    # Remove backups older than retention period
-    for backup in backups:
+    # Get all backup tarballs with their modification times
+    backups = []
+    for backup in AUTO_BACKUP_DIR.glob("backup_*.tar.gz"):
         try:
-            if backup.stat().st_mtime < cutoff_time:
+            mtime = backup.stat().st_mtime
+            backups.append((backup, mtime))
+        except OSError:
+            continue
+
+    # Sort by modification time (newest first)
+    backups.sort(key=lambda x: x[1], reverse=True)
+
+    # Remove backups that are either too old or exceed the count limit
+    for i, (backup, mtime) in enumerate(backups):
+        should_remove = False
+        reason = ""
+
+        if mtime < cutoff_time:
+            should_remove = True
+            reason = f"older than {BACKUP_RETENTION_DAYS} days"
+        elif i >= BACKUP_MAX_COUNT:
+            should_remove = True
+            reason = f"exceeds max count of {BACKUP_MAX_COUNT}"
+
+        if should_remove:
+            try:
                 backup.unlink()
-                logging.debug(
-                    f"Removed old backup: {backup.name} (older than {BACKUP_RETENTION_DAYS} days)"
-                )
-        except OSError as e:
-            logging.warning(f"Could not remove old backup {backup.name}: {e}")
+                logging.debug(f"Removed backup: {backup.name} ({reason})")
+            except OSError as e:
+                logging.warning(f"Could not remove backup {backup.name}: {e}")
 
 
 def _create_emergency_backup() -> None:
     """Create an emergency backup before restoration."""
-    emergency_backup = create_auto_backup()
+    # Always force emergency backups regardless of throttling
+    emergency_backup = create_auto_backup(force=True)
     if emergency_backup:
         emergency_name = emergency_backup.name.replace("backup_", "emergency_")
         emergency_backup.rename(emergency_backup.parent / emergency_name)

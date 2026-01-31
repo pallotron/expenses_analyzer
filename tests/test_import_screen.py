@@ -167,8 +167,8 @@ class TestImportScreen(unittest.IsolatedAsyncioTestCase):
                 assert len(df) == 2
                 assert all(df["Amount"] > 0)  # Should convert to positive
 
-    async def test_import_skips_positive_amounts(self) -> None:
-        """Test that import skips positive amounts (income)."""
+    async def test_import_auto_detects_transaction_types(self) -> None:
+        """Test that import auto-detects transaction types from amount sign."""
         with (
             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
@@ -205,10 +205,16 @@ class TestImportScreen(unittest.IsolatedAsyncioTestCase):
                 screen.import_data()
                 await pilot.pause()
 
-                # Only negative amounts (expenses) should be imported
+                # All transactions should be imported with Type column
                 df = pd.read_parquet(self.transactions_file)
-                assert len(df) == 2  # Salary should be skipped
-                assert "Salary" not in df["Merchant"].values
+                assert len(df) == 3  # All transactions should be imported
+                assert "Salary" in df["Merchant"].values  # Income should be included
+                assert "Type" in df.columns
+                # Negative amounts = expense, positive = income
+                salary_row = df[df["Merchant"] == "Salary"]
+                assert salary_row["Type"].iloc[0] == "income"
+                expense_rows = df[df["Merchant"] != "Salary"]
+                assert all(expense_rows["Type"] == "expense")
 
     async def test_import_skips_invalid_dates(self) -> None:
         """Test that import skips rows with invalid dates."""

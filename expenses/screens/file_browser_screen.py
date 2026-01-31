@@ -65,13 +65,15 @@ class FileBrowserScreen(BaseScreen):
         start_path = str(Path.home())
         yield Vertical(
             Button("Up a directory", id="up_button"),
+            Button("Refresh", id="refresh_button"),
             DirectoryTree(start_path, id="file_tree"),
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Called when the 'Up' button is pressed."""
+        """Called when a button is pressed."""
+        tree = self.query_one(DirectoryTree)
+
         if event.button.id == "up_button":
-            tree = self.query_one(DirectoryTree)
             current_path = Path(tree.path).resolve()
             parent_path = current_path.parent
 
@@ -79,6 +81,9 @@ class FileBrowserScreen(BaseScreen):
             if parent_path != current_path and self._is_safe_path(parent_path):
                 tree.path = str(parent_path)
             # If parent would escape safe roots, stay at current location
+
+        elif event.button.id == "refresh_button":
+            tree.reload()
 
     def on_directory_tree_file_selected(
         self, event: DirectoryTree.FileSelected

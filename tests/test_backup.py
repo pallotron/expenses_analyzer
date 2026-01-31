@@ -269,10 +269,10 @@ class TestBackup(unittest.TestCase):
             )
             save_transactions_to_parquet(df)
 
-            # Create multiple backups
+            # Create multiple backups (force=True to bypass throttling in tests)
             for i in range(3):
-                create_auto_backup()
-                time.sleep(1.1)  # Ensure different timestamps (1 second resolution)
+                create_auto_backup(force=True)
+                time.sleep(0.1)  # Small delay for different timestamps
 
             # List backups
             backups = list_backups()
@@ -306,9 +306,9 @@ class TestBackup(unittest.TestCase):
             )
             save_transactions_to_parquet(df)
 
-            create_auto_backup()
-            time.sleep(1.1)
-            create_auto_backup()
+            create_auto_backup(force=True)
+            time.sleep(0.1)
+            create_auto_backup(force=True)
 
             # Get stats
             stats = get_backup_stats()

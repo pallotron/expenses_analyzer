@@ -40,6 +40,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         year: int | None = None,
         month: int | None = None,
         merchant: str | None = None,
+        transaction_type: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -47,7 +48,8 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         self.filter_merchant: str | None = merchant
         self.filter_year: int = year if year is not None else datetime.now().year
         self.filter_month: int | None = month
-        self.columns: list[str] = ["Date", "Merchant", "Amount", "Source", "Category"]
+        self.filter_type: str | None = transaction_type
+        self.columns: list[str] = ["Date", "Merchant", "Amount", "Type", "Source", "Category"]
         self.sort_column: str = "Date"
         self.sort_order: str = "desc"
         self.selected_rows: set[int] = set()
@@ -83,6 +85,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 placeholder="Filter by Category...",
                 id="category_filter",
                 value=self.filter_category or "",
+            ),
+            ClearableInput(
+                placeholder="Type (income/expense)...",
+                id="type_filter",
+                value=self.filter_type or "",
             ),
             id="filters",
         )
@@ -184,6 +191,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         )
 
         # --- Filtering ---
+        type_filter_value = self.query_one("#type_filter", ClearableInput).value
         filters = {
             "date_min": (
                 "Date",
@@ -232,6 +240,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 "contains",
                 self.query_one("#category_filter", ClearableInput).value,
             ),
+            "type": (
+                "Type",
+                "contains",
+                type_filter_value,
+            ),
         }
         display_df = self.transactions.copy()
 
@@ -247,11 +260,26 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         display_df = apply_filters(display_df, filters)
 
+        # Ensure Type column exists (backward compatibility)
+        if "Type" not in display_df.columns:
+            display_df["Type"] = "expense"
+
         self.display_df = display_df
 
-        # --- Calculate and Display Total ---
-        total_amount = self.display_df["Amount"].sum()
-        total_display.update(f"Total: {total_amount:,.2f}")
+        # --- Calculate and Display Cash Flow Summary ---
+        if "Type" in self.display_df.columns:
+            income_total = self.display_df[self.display_df["Type"] == "income"]["Amount"].sum()
+            expense_total = self.display_df[self.display_df["Type"] == "expense"]["Amount"].sum()
+            net = income_total - expense_total
+            net_color = "green" if net >= 0 else "red"
+            total_display.update(
+                f"[green]Income: {income_total:,.2f}[/green] | "
+                f"[red]Expenses: {expense_total:,.2f}[/red] | "
+                f"[{net_color}]Net: {net:,.2f}[/{net_color}]"
+            )
+        else:
+            total_amount = self.display_df["Amount"].sum()
+            total_display.update(f"Total: {total_amount:,.2f}")
 
         # --- Update Select All Button ---
         select_all_button = self.query_one("#select_all_button", Button)
@@ -289,13 +317,23 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         # --- Format and Add Rows ---
         selected_style = Style(bgcolor="yellow", color="black")
+        income_style = Style(color="green")
+        expense_style = Style(color="white")
         for i, row in self.display_df.iterrows():
-            style = selected_style if i in self.selected_rows else ""
+            is_income = row.get("Type", "expense") == "income"
+            if i in self.selected_rows:
+                style = selected_style
+            elif is_income:
+                style = income_style
+            else:
+                style = expense_style
 
+            row_type = row.get("Type", "expense")
             row_data = [
                 row["Date"].strftime("%Y-%m-%d") if pd.notna(row["Date"]) else "",
                 row["DisplayMerchant"] or row["Merchant"] or "",
                 f"{row['Amount']:,.2f}" if pd.notna(row["Amount"]) else "",
+                row_type.capitalize() if row_type else "Expense",
                 row.get("Source", "Unknown") or "Unknown",
                 row["Category"] or "",
             ]

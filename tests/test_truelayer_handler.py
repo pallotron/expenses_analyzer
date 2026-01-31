@@ -321,16 +321,23 @@ def test_convert_truelayer_transactions_to_dataframe(sample_transactions):
     df = convert_truelayer_transactions_to_dataframe(sample_transactions, "Test Bank")
 
     assert df is not None
-    assert len(df) == 2  # Only 2 debits, 1 credit should be filtered out
-    assert list(df.columns) == ["Date", "Merchant", "Amount"]
+    assert len(df) == 3  # All transactions (2 debits + 1 credit)
+    assert list(df.columns) == ["Date", "Merchant", "Amount", "Type"]
 
-    # Check first transaction (Coffee Shop)
+    # Check first transaction (Coffee Shop - expense)
     assert df.iloc[0]["Merchant"] == "Coffee Shop"
     assert df.iloc[0]["Amount"] == 5.50  # Should be positive
+    assert df.iloc[0]["Type"] == "expense"
 
-    # Check second transaction (Grocery Store)
+    # Check second transaction (Grocery Store - expense)
     assert df.iloc[1]["Merchant"] == "Grocery Store"
     assert df.iloc[1]["Amount"] == 45.30  # Should be positive
+    assert df.iloc[1]["Type"] == "expense"
+
+    # Check third transaction (Salary Payment - income)
+    assert df.iloc[2]["Merchant"] == "Salary Payment"
+    assert df.iloc[2]["Amount"] == 2500.00  # Should be positive
+    assert df.iloc[2]["Type"] == "income"
 
 
 def test_convert_truelayer_transactions_empty():
@@ -340,7 +347,7 @@ def test_convert_truelayer_transactions_empty():
 
 
 def test_convert_truelayer_transactions_only_credits():
-    """Test conversion when only credit transactions exist."""
+    """Test conversion when only credit transactions exist (income)."""
     credit_transactions = [
         {
             "timestamp": "2024-01-15T10:30:00Z",
@@ -351,7 +358,11 @@ def test_convert_truelayer_transactions_only_credits():
     ]
 
     df = convert_truelayer_transactions_to_dataframe(credit_transactions, "Test Bank")
-    assert df is None  # Should return None as no debits
+    assert df is not None  # Should return DataFrame with income transaction
+    assert len(df) == 1
+    assert df.iloc[0]["Merchant"] == "Salary"
+    assert df.iloc[0]["Amount"] == 2500.00
+    assert df.iloc[0]["Type"] == "income"
 
 
 @patch("expenses.truelayer_handler.get_accounts")

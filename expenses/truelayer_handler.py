@@ -551,7 +551,7 @@ def convert_truelayer_transactions_to_dataframe(
         provider_name: The name of the provider/institution.
 
     Returns:
-        A DataFrame with Date, Merchant, Amount columns, or None if no transactions.
+        A DataFrame with Date, Merchant, Amount, Type columns, or None if no transactions.
     """
     if not transactions:
         return None
@@ -578,22 +578,27 @@ def convert_truelayer_transactions_to_dataframe(
     # Use description as merchant name
     df["Merchant"] = df["description"]
 
-    # TrueLayer returns negative amounts for debits (money going out)
-    # We want positive amounts for expenses
-    df["Amount"] = -df["amount"]
+    # Keep amounts positive for both income and expenses
+    df["Amount"] = df["amount"].abs()
 
-    # Filter to only include debits (expenses)
+    # Assign Type based on transaction_type (DEBIT = expense, CREDIT = income)
     if "transaction_type" in df.columns:
-        df = df[df["transaction_type"] == "DEBIT"]
+        df["Type"] = df["transaction_type"].map({
+            "DEBIT": "expense",
+            "CREDIT": "income"
+        })
+        # Handle any unknown transaction types as expenses
+        df["Type"] = df["Type"].fillna("expense")
     else:
-        # If no transaction_type, filter by amount (debits should now be positive after negation)
-        df = df[df["Amount"] > 0]
+        # If no transaction_type, infer from original amount sign
+        # Negative amounts are debits (expenses), positive are credits (income)
+        df["Type"] = df["amount"].apply(lambda x: "expense" if x < 0 else "income")
 
     if len(df) == 0:
         return None
 
     # Keep only the columns we need
-    df = df[["Date", "Merchant", "Amount"]]
+    df = df[["Date", "Merchant", "Amount", "Type"]]
 
     return df
 
@@ -680,7 +685,7 @@ def process_and_store_transactions(
         provider_name: The name of the provider/institution (used if AccountSource not present).
     """
     if transactions_df is None or len(transactions_df) == 0:
-        logging.info("No expense transactions to add from TrueLayer.")
+        logging.info("No transactions to add from TrueLayer.")
         return
 
     # If AccountSource column exists (from sync_all_accounts), use it for per-account tracking

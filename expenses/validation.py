@@ -82,7 +82,7 @@ def _validate_amounts(df: pd.DataFrame, max_amount: float) -> List[str]:
             if too_large.any():
                 errors.append(
                     f"Found {too_large.sum()} row(s) with amounts (absolute value) "
-                    f"exceeding ${max_amount:,.2f}"
+                    f"exceeding {max_amount:,.2f}"
                 )
 
             # Check for zero amounts
@@ -113,6 +113,29 @@ def _validate_types(df: pd.DataFrame) -> List[str]:
                 errors.append("Amount column cannot be converted to numeric type")
     except Exception as e:
         errors.append(f"Type validation failed: {e}")
+    return errors
+
+
+def _validate_transaction_type(df: pd.DataFrame) -> List[str]:
+    """Validate Type column values (must be 'expense' or 'income')."""
+    errors = []
+    if "Type" not in df.columns:
+        # Type column is optional for backward compatibility
+        return errors
+
+    try:
+        valid_types = {"expense", "income"}
+        type_values = df["Type"].astype(str).str.lower()
+        invalid_mask = ~type_values.isin(valid_types)
+        if invalid_mask.any():
+            invalid_count = invalid_mask.sum()
+            invalid_values = df.loc[invalid_mask, "Type"].unique()[:5]  # Show first 5
+            errors.append(
+                f"Found {invalid_count} row(s) with invalid Type values. "
+                f"Must be 'expense' or 'income'. Invalid values: {list(invalid_values)}"
+            )
+    except Exception as e:
+        errors.append(f"Type column validation failed: {e}")
     return errors
 
 
@@ -158,6 +181,7 @@ def validate_transaction_dataframe(
     errors.extend(_validate_merchants(df))
     errors.extend(_validate_amounts(df, max_amount))
     errors.extend(_validate_types(df))
+    errors.extend(_validate_transaction_type(df))
 
     # If we found any errors, raise ValidationError
     if errors:

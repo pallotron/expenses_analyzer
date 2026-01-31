@@ -27,12 +27,75 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
     BINDINGS = [
         Binding("space", "toggle_selection", "Toggle Selection"),
         Binding("enter", "drill_down", "Drill Down"),
+        Binding("ctrl+m", "toggle_compact", "Compact Mode"),
+        Binding("f", "toggle_focus", "Focus Mode"),
     ]
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.load_and_prepare_data()
         self.selected_rows: Set[str] = set()
+        self.compact_mode: bool = False
+        self.focus_mode: bool = False
+
+    def action_toggle_compact(self) -> None:
+        """Toggle compact mode for All Year tabs."""
+        self.compact_mode = not self.compact_mode
+        for container in self.query(".all-year-container"):
+            if self.compact_mode:
+                container.add_class("compact")
+            else:
+                container.remove_class("compact")
+
+    def action_toggle_focus(self) -> None:
+        """Toggle focus mode to maximize the focused panel."""
+        if self.focus_mode:
+            # Restore all panels
+            for panel in self.query(".panel-hidden"):
+                panel.remove_class("panel-hidden")
+            for panel in self.query(".panel-focused"):
+                panel.remove_class("panel-focused")
+            self.focus_mode = False
+            return
+
+        # Find which panel contains the focused widget
+        focused = self.app.focused
+        if focused is None:
+            return
+
+        # Find the parent panel (expense-breakdown, income-breakdown, or monthly-breakdown)
+        panel_classes = ["expense-breakdown", "income-breakdown", "monthly-breakdown",
+                         "expense-column", "income-column"]
+        focused_panel = None
+        for ancestor in focused.ancestors:
+            for cls in panel_classes:
+                if ancestor.has_class(cls):
+                    focused_panel = ancestor
+                    break
+            if focused_panel:
+                break
+
+        if focused_panel is None:
+            return
+
+        # Get the parent grid (summary-grid or month-grid)
+        parent_grid = None
+        for ancestor in focused_panel.ancestors:
+            if ancestor.has_class("summary-grid") or ancestor.has_class("month-grid"):
+                parent_grid = ancestor
+                break
+
+        if parent_grid is None:
+            return
+
+        # Hide other panels, focus the current one
+        for child in parent_grid.children:
+            if child == focused_panel:
+                child.add_class("panel-focused")
+            else:
+                child.add_class("panel-hidden")
+
+        self.focus_mode = True
 
     def load_and_prepare_data(self) -> None:
         """Loads and prepares transaction and category data."""
@@ -138,6 +201,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                     classes="summary-grid",
                                 ),
                                 id=f"all_year_container_{year}",
+                                classes="all-year-container",
                             )
 
                         # Add individual month tabs
@@ -659,16 +723,21 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             aggfunc="sum",
             fill_value=0,
         )
+        # Transpose, apply rolling (on rows), then transpose back
+        # This replaces the deprecated axis=1 parameter
+        transposed = all_monthly_summary.T
         rolling_mean = (
-            all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
+            transposed.rolling(window=12, min_periods=1)
             .mean()
-            .shift(1, axis=1)
+            .shift(1)
+            .T
         )
         rolling_std = (
-            all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
+            transposed.rolling(window=12, min_periods=1)
             .std()
-            .shift(1, axis=1)
+            .shift(1)
             .fillna(0)
+            .T
         )
         return rolling_mean, rolling_std
 

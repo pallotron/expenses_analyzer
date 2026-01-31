@@ -659,16 +659,21 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             aggfunc="sum",
             fill_value=0,
         )
+        # Transpose, apply rolling (on rows), then transpose back
+        # This replaces the deprecated axis=1 parameter
+        transposed = all_monthly_summary.T
         rolling_mean = (
-            all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
+            transposed.rolling(window=12, min_periods=1)
             .mean()
-            .shift(1, axis=1)
+            .shift(1)
+            .T
         )
         rolling_std = (
-            all_monthly_summary.rolling(window=12, axis=1, min_periods=1)
+            transposed.rolling(window=12, min_periods=1)
             .std()
-            .shift(1, axis=1)
+            .shift(1)
             .fillna(0)
+            .T
         )
         return rolling_mean, rolling_std
 

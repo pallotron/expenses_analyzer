@@ -184,6 +184,14 @@ SummaryScreen TabbedContent TabPane {
     width: 60;
 }
 
+.expense-breakdown, .expense-column {
+    width: 80;
+}
+
+.income-breakdown, .income-column {
+    width: 60;
+}
+
 .monthly-breakdown {
     width: 1fr;
 }

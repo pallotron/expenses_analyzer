@@ -99,7 +99,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                             cursor_type="row",
                                             zebra_stripes=True,
                                         ),
-                                        classes="category-breakdown",
+                                        classes="category-breakdown expense-breakdown",
                                     ),
                                     Vertical(
                                         Static(
@@ -116,14 +116,21 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                             cursor_type="row",
                                             zebra_stripes=True,
                                         ),
-                                        classes="category-breakdown",
+                                        classes="category-breakdown income-breakdown",
                                     ),
                                     Vertical(
                                         Static(
-                                            "Monthly Breakdown", classes="table_title"
+                                            "Monthly Expense Breakdown", classes="table_title"
                                         ),
                                         DataTable(
                                             id=f"monthly_breakdown_{year}_all",
+                                            zebra_stripes=True,
+                                        ),
+                                        Static(
+                                            "Monthly Income Breakdown", classes="table_title"
+                                        ),
+                                        DataTable(
+                                            id=f"monthly_income_breakdown_{year}_all",
                                             zebra_stripes=True,
                                         ),
                                         classes="monthly-breakdown",
@@ -396,7 +403,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 category = row["Category"]
                 style = selected_style if category in self.selected_rows else ""
                 percentage = (row["Amount"] / total) * 100 if total > 0 else 0
-                bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=50)
+                bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=25)
                 styled_row = [
                     Text(category, style=style),
                     Text(f"{row['Amount']:,.2f}", style=style),
@@ -475,13 +482,8 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 display_merchant = row["DisplayMerchant"]
                 amount = row["Amount"]
                 category = row["Category"]
-                truncated_merchant = (
-                    display_merchant[:15] + "..."
-                    if len(display_merchant) > 15
-                    else display_merchant
-                )
                 table.add_row(
-                    truncated_merchant, category, f"{amount:,.2f}", key=display_merchant
+                    display_merchant, category, f"{amount:,.2f}", key=display_merchant
                 )
 
     def update_cash_flow(self, year: int, month: Optional[int] = None) -> None:
@@ -585,7 +587,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 category = row["Category"]
                 style = selected_style if category in self.selected_rows else ""
                 percentage = (row["Amount"] / total) * 100 if total > 0 else 0
-                bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=50)
+                bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=25)
                 styled_row = [
                     Text(category, style=style),
                     Text(f"{row['Amount']:,.2f}", style=style),
@@ -644,13 +646,8 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 display_merchant = row["DisplayMerchant"]
                 amount = row["Amount"]
                 category = row["Category"]
-                truncated_merchant = (
-                    display_merchant[:15] + "..."
-                    if len(display_merchant) > 15
-                    else display_merchant
-                )
                 table.add_row(
-                    truncated_merchant, category, f"{amount:,.2f}", key=f"income_{display_merchant}"
+                    display_merchant, category, f"{amount:,.2f}", key=f"income_{display_merchant}"
                 )
 
     def _calculate_historical_stats(self):
@@ -786,14 +783,70 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         except Exception as e:
             logging.error(f"An error occurred in _populate_monthly_breakdown: {e}", exc_info=True)
 
+    def _populate_monthly_income_breakdown(self, table: DataTable, year: int) -> None:
+        """Helper function to populate a table with monthly income breakdown data."""
+        try:
+            table.clear(columns=True)
+            year_df = self.transactions[self.transactions["Date"].dt.year == year]
+            # Filter to income only
+            if "Type" in year_df.columns:
+                year_df = year_df[year_df["Type"] == "income"]
+            if year_df.empty:
+                return
+
+            # Prepare data
+            month_map = {m: datetime(2000, m, 1).strftime("%b") for m in range(1, 13)}
+            monthly_summary = self._prepare_monthly_summary(year_df, month_map)
+
+            # Setup table
+            month_columns = list(month_map.values())
+            columns = ["Category", "Total", "Average"] + month_columns
+            table.add_columns(*columns)
+
+            # Add total row
+            total_row_data = monthly_summary[month_columns].sum()
+            total_row_data["Total"] = total_row_data.sum()
+            total_row_data["Average"] = total_row_data["Total"] / 12
+            total_row_values = [total_row_data["Total"], total_row_data["Average"]] + [
+                total_row_data[col] for col in month_columns
+            ]
+            table.add_row(
+                "[bold]Total[/bold]",
+                *[f"[bold]{val:,.2f}[/bold]" for val in total_row_values],
+            )
+
+            # Add category rows
+            selected_style = Style(bgcolor="yellow", color="black")
+            for category_name, row in monthly_summary.iterrows():
+                style = selected_style if category_name in self.selected_rows else Style.null()
+                styled_cells = [Text(category_name, style=style)]
+                styled_cells.append(Text(f"{row['Total']:,.2f}", style=style))
+                styled_cells.append(Text(f"{row['Average']:,.2f}", style=style))
+
+                for month_name in month_columns:
+                    value = row[month_name]
+                    cell_text = f"{value:,.2f}" if value > 0 else "-"
+                    styled_cells.append(Text(cell_text, style=style))
+
+                table.add_row(*styled_cells, key=f"income_{category_name}")
+        except Exception as e:
+            logging.error(f"An error occurred in _populate_monthly_income_breakdown: {e}", exc_info=True)
+
     def update_all_year_monthly_view(self, year: int) -> None:
-        """Populates the right-hand table in the 'All Year' tab."""
+        """Populates the monthly breakdown tables in the 'All Year' tab."""
         try:
             table = self.query_one(f"#monthly_breakdown_{year}_all", DataTable)
             table.fixed_columns = 3
             self._populate_monthly_breakdown(table, year)
         except Exception as e:
-            logging.warning(f"Error updating monthly breakdown for year {year}: {e}")
+            logging.warning(f"Error updating monthly expense breakdown for year {year}: {e}")
+
+        try:
+            income_table = self.query_one(f"#monthly_income_breakdown_{year}_all", DataTable)
+            income_table.fixed_columns = 3
+            self._populate_monthly_income_breakdown(income_table, year)
+        except Exception as e:
+            logging.warning(f"Error updating monthly income breakdown for year {year}: {e}")
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
         """Handle cell selection to navigate to the transaction screen."""

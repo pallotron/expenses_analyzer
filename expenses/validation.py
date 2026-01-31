@@ -82,7 +82,7 @@ def _validate_amounts(df: pd.DataFrame, max_amount: float) -> List[str]:
             if too_large.any():
                 errors.append(
                     f"Found {too_large.sum()} row(s) with amounts (absolute value) "
-                    f"exceeding ${max_amount:,.2f}"
+                    f"exceeding {max_amount:,.2f}"
                 )
 
             # Check for zero amounts

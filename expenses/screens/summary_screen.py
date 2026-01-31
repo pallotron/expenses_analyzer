@@ -502,9 +502,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
             cash_flow_widget = self.query_one(f"#{widget_id}", Static)
             cash_flow_widget.update(
-                f"[bold]Income:[/bold] [green]${totals['total_income']:,.2f}[/green]  |  "
-                f"[bold]Expenses:[/bold] [red]${totals['total_expenses']:,.2f}[/red]  |  "
-                f"[bold]Net:[/bold] [{net_color}]${totals['net']:,.2f}[/{net_color}]  |  "
+                f"[bold]Income:[/bold] [green]{totals['total_income']:,.2f}[/green]  |  "
+                f"[bold]Expenses:[/bold] [red]{totals['total_expenses']:,.2f}[/red]  |  "
+                f"[bold]Net:[/bold] [{net_color}]{totals['net']:,.2f}[/{net_color}]  |  "
                 f"[bold]Savings Rate:[/bold] {totals['savings_rate']:.1f}%"
             )
         except Exception as e:

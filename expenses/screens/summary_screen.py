@@ -65,17 +65,6 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             yield Static("No transactions found.")
             return
 
-        # Cash flow overview
-        totals = get_cash_flow_totals(self.transactions)
-        net_color = "green" if totals["net"] >= 0 else "red"
-        yield Static(
-            f"[bold]Income:[/bold] [green]${totals['total_income']:,.2f}[/green]  |  "
-            f"[bold]Expenses:[/bold] [red]${totals['total_expenses']:,.2f}[/red]  |  "
-            f"[bold]Net:[/bold] [{net_color}]${totals['net']:,.2f}[/{net_color}]  |  "
-            f"[bold]Savings Rate:[/bold] {totals['savings_rate']:.1f}%",
-            classes="cash-flow-overview"
-        )
-
         years = sorted(self.transactions["Date"].dt.year.unique(), reverse=True)
 
         with TabbedContent(id="year_tabs"):
@@ -93,19 +82,37 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                         # Add "All Year" tab first
                         with TabPane("All Year", id=f"month_{year}_all"):
                             yield Vertical(
+                                Static(id=f"cash_flow_{year}_all", classes="cash-flow-summary"),
                                 Horizontal(
                                     Vertical(
                                         Static(
-                                            "Category breakdown", classes="table_title"
+                                            "Expense Categories", classes="table_title"
                                         ),
                                         DataTable(
                                             id=f"category_breakdown_{year}_all",
                                             cursor_type="row",
                                             zebra_stripes=True,
                                         ),
-                                        Static("Top Merchants", classes="table_title"),
+                                        Static("Top Expense Merchants", classes="table_title"),
                                         DataTable(
                                             id=f"top_merchants_{year}_all",
+                                            cursor_type="row",
+                                            zebra_stripes=True,
+                                        ),
+                                        classes="category-breakdown",
+                                    ),
+                                    Vertical(
+                                        Static(
+                                            "Income Categories", classes="table_title"
+                                        ),
+                                        DataTable(
+                                            id=f"income_breakdown_{year}_all",
+                                            cursor_type="row",
+                                            zebra_stripes=True,
+                                        ),
+                                        Static("Top Income Sources", classes="table_title"),
+                                        DataTable(
+                                            id=f"top_income_{year}_all",
                                             cursor_type="row",
                                             zebra_stripes=True,
                                         ),
@@ -131,16 +138,37 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                             month_name = datetime(2000, month, 1).strftime("%B")
                             with TabPane(month_name, id=f"month_{year}_{month}"):
                                 yield Vertical(
-                                    Static("Category breakdown", classes="table_title"),
-                                    DataTable(
-                                        id=f"category_breakdown_{year}_{month}",
-                                        zebra_stripes=True,
-                                    ),
-                                    Static("Top Merchants", classes="table_title"),
-                                    DataTable(
-                                        id=f"top_merchants_{year}_{month}",
-                                        cursor_type="row",
-                                        zebra_stripes=True,
+                                    Static(id=f"cash_flow_{year}_{month}", classes="cash-flow-summary"),
+                                    Horizontal(
+                                        Vertical(
+                                            Static("Expense Categories", classes="table_title"),
+                                            DataTable(
+                                                id=f"category_breakdown_{year}_{month}",
+                                                zebra_stripes=True,
+                                            ),
+                                            Static("Top Expense Merchants", classes="table_title"),
+                                            DataTable(
+                                                id=f"top_merchants_{year}_{month}",
+                                                cursor_type="row",
+                                                zebra_stripes=True,
+                                            ),
+                                            classes="expense-column",
+                                        ),
+                                        Vertical(
+                                            Static("Income Categories", classes="table_title"),
+                                            DataTable(
+                                                id=f"income_breakdown_{year}_{month}",
+                                                zebra_stripes=True,
+                                            ),
+                                            Static("Top Income Sources", classes="table_title"),
+                                            DataTable(
+                                                id=f"top_income_{year}_{month}",
+                                                cursor_type="row",
+                                                zebra_stripes=True,
+                                            ),
+                                            classes="income-column",
+                                        ),
+                                        classes="month-grid",
                                     ),
                                     classes="single_month_container",
                                 )
@@ -188,13 +216,19 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                     active_month_id = month_tabs.active
 
                     if active_month_id and active_month_id.endswith("_all"):
+                        self.update_cash_flow(year)
                         self.update_all_year_category_view(year)
                         self.update_all_year_monthly_view(year)
                         self.update_top_merchants_view(year)
+                        self.update_all_year_income_view(year)
+                        self.update_top_income_view(year)
                     elif active_month_id:
                         month = int(active_month_id.split("_")[2])
+                        self.update_cash_flow(year, month)
                         self.update_month_view(year, month)
                         self.update_top_merchants_view(year, month)
+                        self.update_month_income_view(year, month)
+                        self.update_top_income_view(year, month)
             except Exception as e:
                 logging.warning(f"Error updating summary screen on resume: {e}")
 
@@ -204,9 +238,12 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         active_year_id = year_tabs.active
         if active_year_id:
             year = int(active_year_id.split("_")[1])
+            self.update_cash_flow(year)
             self.update_all_year_category_view(year)
             self.update_all_year_monthly_view(year)
             self.update_top_merchants_view(year)
+            self.update_all_year_income_view(year)
+            self.update_top_income_view(year)
             self.query_one(f"#category_breakdown_{year}_all", DataTable).focus()
 
     def on_tabbed_content_tab_activated(
@@ -217,22 +254,31 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
         if event.tabbed_content.id == "year_tabs":
             year = int(event.pane.id.split("_")[1])
+            self.update_cash_flow(year)
             self.update_all_year_category_view(year)
             self.update_all_year_monthly_view(year)
             self.update_top_merchants_view(year)
+            self.update_all_year_income_view(year)
+            self.update_top_income_view(year)
 
         elif event.tabbed_content.id.startswith("month_tabs_"):
             year = int(event.tabbed_content.id.split("_")[2])
             pane_id = event.pane.id.split("_")
 
             if pane_id[-1] == "all":
+                self.update_cash_flow(year)
                 self.update_all_year_category_view(year)
                 self.update_all_year_monthly_view(year)
                 self.update_top_merchants_view(year)
+                self.update_all_year_income_view(year)
+                self.update_top_income_view(year)
             else:
                 month = int(pane_id[2])
+                self.update_cash_flow(year, month)
                 self.update_month_view(year, month)
                 self.update_top_merchants_view(year, month)
+                self.update_month_income_view(year, month)
+                self.update_top_income_view(year, month)
 
     def action_toggle_selection(self) -> None:
         """Toggle selection for the current row in the focused table."""
@@ -436,6 +482,175 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 )
                 table.add_row(
                     truncated_merchant, category, f"{amount:,.2f}", key=display_merchant
+                )
+
+    def update_cash_flow(self, year: int, month: Optional[int] = None) -> None:
+        """Updates the cash flow summary for a year or specific month."""
+        try:
+            if month:
+                widget_id = f"cash_flow_{year}_{month}"
+                df = self.transactions[
+                    (self.transactions["Date"].dt.year == year)
+                    & (self.transactions["Date"].dt.month == month)
+                ]
+            else:
+                widget_id = f"cash_flow_{year}_all"
+                df = self.transactions[self.transactions["Date"].dt.year == year]
+
+            totals = get_cash_flow_totals(df)
+            net_color = "green" if totals["net"] >= 0 else "red"
+
+            cash_flow_widget = self.query_one(f"#{widget_id}", Static)
+            cash_flow_widget.update(
+                f"[bold]Income:[/bold] [green]${totals['total_income']:,.2f}[/green]  |  "
+                f"[bold]Expenses:[/bold] [red]${totals['total_expenses']:,.2f}[/red]  |  "
+                f"[bold]Net:[/bold] [{net_color}]${totals['net']:,.2f}[/{net_color}]  |  "
+                f"[bold]Savings Rate:[/bold] {totals['savings_rate']:.1f}%"
+            )
+        except Exception as e:
+            logging.warning(f"Error updating cash flow for {year}/{month}: {e}")
+
+    def update_all_year_income_view(self, year: int) -> None:
+        """Populates the income categories table in the 'All Year' tab."""
+        try:
+            table = self.query_one(f"#income_breakdown_{year}_all", DataTable)
+        except Exception as e:
+            logging.warning(f"Income breakdown table not found for year {year}: {e}")
+            return
+
+        cursor_row = table.cursor_row
+        table.clear(columns=True)
+        table.add_columns("Category", "Amount", "Percentage")
+
+        year_df = self.transactions[self.transactions["Date"].dt.year == year]
+        # Filter to income only
+        if "Type" in year_df.columns:
+            year_df = year_df[year_df["Type"] == "income"]
+
+        total = 0.0
+        if not year_df.empty:
+            category_summary = year_df.groupby("Category")["Amount"].sum().reset_index()
+            category_summary = category_summary.sort_values(
+                by="Amount", ascending=False
+            )
+
+            total = category_summary["Amount"].sum()
+            selected_style = Style(bgcolor="yellow", color="black")
+            for _, row in category_summary.iterrows():
+                category = row["Category"]
+                style = selected_style if category in self.selected_rows else ""
+                percentage = (row["Amount"] / total) * 100 if total > 0 else 0
+                styled_row = [
+                    Text(category, style=style),
+                    Text(f"{row['Amount']:,.2f}", style=style),
+                    Text(f"{percentage:.2f}%", style=style),
+                ]
+                table.add_row(*styled_row, key=f"income_{category}")
+
+        table.move_cursor(row=cursor_row)
+
+    def update_month_income_view(self, year: int, month: int) -> None:
+        """Populates the income categories table for a specific month."""
+        try:
+            table = self.query_one(f"#income_breakdown_{year}_{month}", DataTable)
+        except Exception as e:
+            logging.warning(f"Income breakdown table not found for {year}/{month}: {e}")
+            return
+
+        cursor_row = table.cursor_row
+        table.clear(columns=True)
+        table.add_columns("Category", "Amount", "Percentage", "Bar")
+
+        month_df = self.transactions[
+            (self.transactions["Date"].dt.year == year)
+            & (self.transactions["Date"].dt.month == month)
+        ]
+        # Filter to income only
+        if "Type" in month_df.columns:
+            month_df = month_df[month_df["Type"] == "income"]
+
+        total = 0.0
+        if not month_df.empty:
+            category_summary = (
+                month_df.groupby("Category")["Amount"].sum().reset_index()
+            )
+            category_summary = category_summary.sort_values(
+                by="Amount", ascending=False
+            )
+
+            total = category_summary["Amount"].sum()
+            max_amount = category_summary["Amount"].max()
+            selected_style = Style(bgcolor="yellow", color="black")
+            for _, row in category_summary.iterrows():
+                category = row["Category"]
+                style = selected_style if category in self.selected_rows else ""
+                percentage = (row["Amount"] / total) * 100 if total > 0 else 0
+                bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=50)
+                styled_row = [
+                    Text(category, style=style),
+                    Text(f"{row['Amount']:,.2f}", style=style),
+                    Text(f"{percentage:.2f}%", style=style),
+                    bar,
+                ]
+                table.add_row(*styled_row, key=f"income_{category}")
+
+        table.move_cursor(row=cursor_row)
+
+    def update_top_income_view(self, year: int, month: Optional[int] = None) -> None:
+        """Populates the top income sources table for a given period."""
+        if month:
+            table_id = f"top_income_{year}_{month}"
+            df = self.transactions[
+                (self.transactions["Date"].dt.year == year)
+                & (self.transactions["Date"].dt.month == month)
+            ].copy()
+        else:
+            table_id = f"top_income_{year}_all"
+            df = self.transactions[self.transactions["Date"].dt.year == year].copy()
+
+        # Filter to income only
+        if "Type" in df.columns:
+            df = df[df["Type"] == "income"]
+
+        try:
+            table = self.query_one(f"#{table_id}", DataTable)
+        except Exception as e:
+            logging.warning(f"DataTable for {table_id} not found: {e}")
+            return
+
+        table.clear(columns=True)
+        table.add_columns("Source", "Category", "Amount")
+
+        if not df.empty:
+            # Ensure DisplayMerchant column exists
+            if "DisplayMerchant" not in df.columns:
+                df["DisplayMerchant"] = df["Merchant"]
+
+            # Group by DisplayMerchant (alias) to combine transactions with same alias
+            merchant_summary = (
+                df.groupby("DisplayMerchant", as_index=False)
+                .agg(
+                    {
+                        "Amount": "sum",
+                        "Category": lambda x: (
+                            x.mode()[0] if len(x.mode()) > 0 else "Other"
+                        ),
+                    }
+                )
+                .sort_values("Amount", ascending=False)
+            )
+
+            for _, row in merchant_summary.iterrows():
+                display_merchant = row["DisplayMerchant"]
+                amount = row["Amount"]
+                category = row["Category"]
+                truncated_merchant = (
+                    display_merchant[:15] + "..."
+                    if len(display_merchant) > 15
+                    else display_merchant
+                )
+                table.add_row(
+                    truncated_merchant, category, f"{amount:,.2f}", key=f"income_{display_merchant}"
                 )
 
     def _calculate_historical_stats(self):

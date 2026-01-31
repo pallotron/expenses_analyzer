@@ -87,6 +87,12 @@ DataTable .datatable--even-row {
 
 #categorization_table {
     height: 1fr;
+    border: solid $primary;
+    padding: 0 1;
+}
+
+#categorization_table:focus-within {
+    border: solid $success;
 }
 
 #category_suggestions_list {
@@ -171,6 +177,23 @@ SummaryScreen TabbedContent TabPane {
 .category-breakdown, .monthly-breakdown, .single_month_container {
     height: 1fr; /* Make containers fill their parent's height */
     width: 1fr;
+    border: solid $primary;
+    padding: 0 1;
+}
+
+.category-breakdown:focus-within,
+.monthly-breakdown:focus-within,
+.single_month_container:focus-within {
+    border: solid $success;
+}
+
+.expense-column, .income-column {
+    border: solid $primary;
+    padding: 0 1;
+}
+
+.expense-column:focus-within, .income-column:focus-within {
+    border: solid $success;
 }
 
 .category-breakdown > DataTable,
@@ -196,6 +219,47 @@ SummaryScreen TabbedContent TabPane {
     width: 1fr;
 }
 
+/* --- Compact Mode for All Year tab only (toggled with Ctrl+M) --- */
+.all-year-container.compact .summary-grid {
+    padding: 0;
+}
+
+.all-year-container.compact .table_title {
+    padding: 0;
+    height: 1;
+}
+
+.all-year-container.compact .expense-breakdown {
+    width: 50;
+}
+
+.all-year-container.compact .income-breakdown {
+    width: 40;
+}
+
+.all-year-container.compact .category-breakdown {
+    width: 40;
+}
+
+.all-year-container.compact .cash-flow-summary {
+    padding: 0;
+    height: 1;
+}
+
+.all-year-container.compact .category-breakdown,
+.all-year-container.compact .monthly-breakdown {
+    padding: 0;
+}
+
+/* --- Focus Mode (toggle with 'f' key) --- */
+.panel-hidden {
+    display: none;
+}
+
+.panel-focused {
+    width: 1fr;
+}
+
 /* --- Transaction Screen --- */
 TransactionScreen .content-split {
     width: 1fr;
@@ -205,13 +269,25 @@ TransactionScreen .content-split {
 #transaction_table {
     width: 3fr;
     height: 1fr;
-    margin-right: 2;
+    margin-right: 1;
+    border: solid $primary;
+    padding: 0 1;
+}
+
+#transaction_table:focus-within {
+    border: solid $success;
 }
 
 TransactionScreen .merchant-summary {
     width: 2fr;
     height: 1fr;
-    margin-left: 2;
+    margin-left: 1;
+    border: solid $primary;
+    padding: 0 1;
+}
+
+TransactionScreen .merchant-summary:focus-within {
+    border: solid $success;
 }
 
 TransactionScreen .merchant-summary > DataTable {
@@ -236,6 +312,12 @@ TransactionScreen .button-bar > Button {
 BuildDeleteScreen #table_scroll {
     height: 1fr;
     min-height: 20;
+    border: solid $primary;
+    padding: 0 1;
+}
+
+BuildDeleteScreen #table_scroll:focus-within {
+    border: solid $success;
 }
 
 BuildDeleteScreen #preview_table {
@@ -294,4 +376,52 @@ ConfirmationScreen #help_text {
     padding: 1;
     color: $text-muted;
     text-style: italic;
+}
+
+/* --- Import Screen --- */
+#file_preview {
+    border: solid $primary;
+    padding: 0 1;
+}
+
+#file_preview:focus-within {
+    border: solid $success;
+}
+
+/* --- Backup Screen --- */
+#backups_table {
+    border: solid $primary;
+    padding: 0 1;
+}
+
+#backups_table:focus-within {
+    border: solid $success;
+}
+
+/* --- TrueLayer Screen --- */
+#transaction_preview {
+    border: solid $primary;
+    padding: 0 1;
+}
+
+#transaction_preview:focus-within {
+    border: solid $success;
+}
+
+#connections_list {
+    border: solid $primary;
+    padding: 0 1;
+}
+
+#connections_list:focus-within {
+    border: solid $success;
+}
+
+#accounts_container {
+    border: solid $primary;
+    padding: 0 1;
+}
+
+#accounts_container:focus-within {
+    border: solid $success;
 }

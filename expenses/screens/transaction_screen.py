@@ -49,7 +49,14 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         self.filter_year: int = year if year is not None else datetime.now().year
         self.filter_month: int | None = month
         self.filter_type: str | None = transaction_type
-        self.columns: list[str] = ["Date", "Merchant", "Amount", "Type", "Source", "Category"]
+        self.columns: list[str] = [
+            "Date",
+            "Merchant",
+            "Amount",
+            "Type",
+            "Source",
+            "Category",
+        ]
         self.sort_column: str = "Date"
         self.sort_order: str = "desc"
         self.selected_rows: set[int] = set()
@@ -268,8 +275,12 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         # --- Calculate and Display Cash Flow Summary ---
         if "Type" in self.display_df.columns:
-            income_total = self.display_df[self.display_df["Type"] == "income"]["Amount"].sum()
-            expense_total = self.display_df[self.display_df["Type"] == "expense"]["Amount"].sum()
+            income_total = self.display_df[self.display_df["Type"] == "income"][
+                "Amount"
+            ].sum()
+            expense_total = self.display_df[self.display_df["Type"] == "expense"][
+                "Amount"
+            ].sum()
             net = income_total - expense_total
             net_color = "green" if net >= 0 else "red"
             total_display.update(
@@ -354,12 +365,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             return
 
         # Group by DisplayMerchant and aggregate
-        merchant_summary = (
-            filtered_df.groupby("DisplayMerchant", as_index=False)
-            .agg({
+        merchant_summary = filtered_df.groupby("DisplayMerchant", as_index=False).agg(
+            {
                 "Amount": ["sum", "count"],
                 "Category": lambda x: x.mode()[0] if len(x.mode()) > 0 else "Other",
-            })
+            }
         )
 
         # Flatten multi-level columns

@@ -348,7 +348,9 @@ def get_valid_access_token(connection: Dict[str, Any]) -> str | None:
     return connection["access_token"]
 
 
-def _fetch_bank_accounts(session: requests.Session, headers: dict) -> List[Dict[str, Any]]:
+def _fetch_bank_accounts(
+    session: requests.Session, headers: dict
+) -> List[Dict[str, Any]]:
     """Fetch traditional bank accounts from TrueLayer API."""
     try:
         api_url = f"{_get_api_base_url()}/data/v1/accounts"
@@ -373,7 +375,9 @@ def _fetch_bank_accounts(session: requests.Session, headers: dict) -> List[Dict[
         return []
 
 
-def _fetch_credit_cards(session: requests.Session, headers: dict) -> List[Dict[str, Any]]:
+def _fetch_credit_cards(
+    session: requests.Session, headers: dict
+) -> List[Dict[str, Any]]:
     """Fetch credit/debit cards from TrueLayer API."""
     try:
         api_url = f"{_get_api_base_url()}/data/v1/cards"
@@ -466,8 +470,9 @@ def _get_transactions_api_url(account_id: str, account_type: str) -> str:
     return f"{base_url}/data/v1/accounts/{account_id}/transactions"
 
 
-def _fetch_paginated_transactions(session: requests.Session, api_url: str,
-                                  headers: dict, params: dict) -> List[Dict[str, Any]]:
+def _fetch_paginated_transactions(
+    session: requests.Session, api_url: str, headers: dict, params: dict
+) -> List[Dict[str, Any]]:
     """Fetch all transactions with pagination support."""
     all_transactions = []
 
@@ -524,8 +529,12 @@ def fetch_transactions(
     params = {"from": from_date, "to": to_date}
 
     try:
-        all_transactions = _fetch_paginated_transactions(session, api_url, headers, params)
-        logging.info(f"Fetched {len(all_transactions)} transactions for account {account_id}")
+        all_transactions = _fetch_paginated_transactions(
+            session, api_url, headers, params
+        )
+        logging.info(
+            f"Fetched {len(all_transactions)} transactions for account {account_id}"
+        )
         return all_transactions
 
     except requests.exceptions.RequestException as e:
@@ -583,10 +592,9 @@ def convert_truelayer_transactions_to_dataframe(
 
     # Assign Type based on transaction_type (DEBIT = expense, CREDIT = income)
     if "transaction_type" in df.columns:
-        df["Type"] = df["transaction_type"].map({
-            "DEBIT": "expense",
-            "CREDIT": "income"
-        })
+        df["Type"] = df["transaction_type"].map(
+            {"DEBIT": "expense", "CREDIT": "income"}
+        )
         # Handle any unknown transaction types as expenses
         df["Type"] = df["Type"].fillna("expense")
     else:

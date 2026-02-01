@@ -25,7 +25,9 @@ def _load_existing_categories(transaction_type: str = "expense") -> List[str]:
                 existing_categories = data
             else:
                 return _load_default_categories_for_type(transaction_type)
-        logging.info(f"Loaded {len(existing_categories)} existing categories from {CATEGORIES_FILE}.")
+        logging.info(
+            f"Loaded {len(existing_categories)} existing categories from {CATEGORIES_FILE}."
+        )
         return existing_categories
     except json.JSONDecodeError as e:
         logging.error(f"Error decoding categories.json: {e}")
@@ -53,7 +55,9 @@ def _load_default_categories_for_type(transaction_type: str = "expense") -> List
     return []
 
 
-def _build_category_guidance(existing_categories: List[str], transaction_type: str = "expense") -> str:
+def _build_category_guidance(
+    existing_categories: List[str], transaction_type: str = "expense"
+) -> str:
     """Build category guidance string for the prompt."""
     if not existing_categories:
         return ""
@@ -65,8 +69,9 @@ def _build_category_guidance(existing_categories: List[str], transaction_type: s
     )
 
 
-def _build_gemini_prompt(merchant_names: List[str], category_guidance: str,
-                          transaction_type: str = "expense") -> str:
+def _build_gemini_prompt(
+    merchant_names: List[str], category_guidance: str, transaction_type: str = "expense"
+) -> str:
     """Build the prompt for Gemini API."""
     merchant_list_str = "\n".join([f"- {name}" for name in merchant_names])
 
@@ -115,13 +120,14 @@ def _build_gemini_prompt(merchant_names: List[str], category_guidance: str,
 
 def _parse_gemini_response(response_text: str) -> Dict[str, str]:
     """Parse and clean the Gemini API response."""
-    cleaned_response = response_text.strip().replace("```json", "").replace("```", "").strip()
+    cleaned_response = (
+        response_text.strip().replace("```json", "").replace("```", "").strip()
+    )
     return json.loads(cleaned_response)
 
 
 def get_gemini_category_suggestions_for_merchants(
-    merchant_names: List[str],
-    transaction_type: str = "expense"
+    merchant_names: List[str], transaction_type: str = "expense"
 ) -> Dict[str, str]:
     """Uses the Gemini API to suggest categories for a list of merchant names.
 
@@ -145,7 +151,9 @@ def get_gemini_category_suggestions_for_merchants(
     prompt = _build_gemini_prompt(merchant_names, category_guidance, transaction_type)
 
     try:
-        logging.info(f"Requesting category suggestions for {len(merchant_names)} merchants from Gemini.")
+        logging.info(
+            f"Requesting category suggestions for {len(merchant_names)} merchants from Gemini."
+        )
         response = model.generate_content(prompt)
         categories = _parse_gemini_response(response.text)
         logging.info(f"Received {len(categories)} category suggestions from Gemini.")

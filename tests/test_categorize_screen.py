@@ -602,8 +602,12 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
                 # Verify Walmart is uncategorized
                 walmart_data = next(
-                    (item for item in screen.all_merchant_data if item["Merchant"] == "Walmart"),
-                    None
+                    (
+                        item
+                        for item in screen.all_merchant_data
+                        if item["Merchant"] == "Walmart"
+                    ),
+                    None,
                 )
                 assert walmart_data is not None
                 assert walmart_data["Category"] == "Uncategorized"
@@ -621,8 +625,12 @@ class TestCategorizeScreen(unittest.IsolatedAsyncioTestCase):
 
                 # Verify Walmart is now categorized
                 walmart_data = next(
-                    (item for item in screen.all_merchant_data if item["Merchant"] == "Walmart"),
-                    None
+                    (
+                        item
+                        for item in screen.all_merchant_data
+                        if item["Merchant"] == "Walmart"
+                    ),
+                    None,
                 )
                 assert walmart_data["Category"] == "Shopping"
 

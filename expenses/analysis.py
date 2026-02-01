@@ -32,7 +32,9 @@ def calculate_trends(data: List[float]) -> List[Tuple[float, str]]:
     return trends
 
 
-def calculate_income_summary(transactions: pd.DataFrame, period: str = "month") -> pd.DataFrame:
+def calculate_income_summary(
+    transactions: pd.DataFrame, period: str = "month"
+) -> pd.DataFrame:
     """Calculate total income by period.
 
     Args:
@@ -63,7 +65,9 @@ def calculate_income_summary(transactions: pd.DataFrame, period: str = "month") 
     return result
 
 
-def calculate_expense_summary(transactions: pd.DataFrame, period: str = "month") -> pd.DataFrame:
+def calculate_expense_summary(
+    transactions: pd.DataFrame, period: str = "month"
+) -> pd.DataFrame:
     """Calculate total expenses by period.
 
     Args:
@@ -94,7 +98,9 @@ def calculate_expense_summary(transactions: pd.DataFrame, period: str = "month")
     return result
 
 
-def calculate_net_cash_flow(transactions: pd.DataFrame, period: str = "month") -> pd.DataFrame:
+def calculate_net_cash_flow(
+    transactions: pd.DataFrame, period: str = "month"
+) -> pd.DataFrame:
     """Calculate net cash flow (income - expenses) by period.
 
     Args:
@@ -127,7 +133,9 @@ def calculate_net_cash_flow(transactions: pd.DataFrame, period: str = "month") -
     return result[["Period", "Income", "Expenses", "Net"]]
 
 
-def calculate_savings_rate(transactions: pd.DataFrame, period: str = "month") -> pd.DataFrame:
+def calculate_savings_rate(
+    transactions: pd.DataFrame, period: str = "month"
+) -> pd.DataFrame:
     """Calculate savings rate: (income - expenses) / income * 100.
 
     Args:
@@ -140,21 +148,21 @@ def calculate_savings_rate(transactions: pd.DataFrame, period: str = "month") ->
     cash_flow = calculate_net_cash_flow(transactions, period)
 
     if cash_flow.empty:
-        return pd.DataFrame(columns=["Period", "Income", "Expenses", "Net", "SavingsRate"])
+        return pd.DataFrame(
+            columns=["Period", "Income", "Expenses", "Net", "SavingsRate"]
+        )
 
     # Calculate savings rate, handling zero income gracefully
     cash_flow["SavingsRate"] = cash_flow.apply(
         lambda row: (row["Net"] / row["Income"] * 100) if row["Income"] > 0 else 0.0,
-        axis=1
+        axis=1,
     )
 
     return cash_flow
 
 
 def calculate_category_breakdown_by_type(
-    transactions: pd.DataFrame,
-    transaction_type: str,
-    period: str = "month"
+    transactions: pd.DataFrame, transaction_type: str, period: str = "month"
 ) -> pd.DataFrame:
     """Calculate category breakdown filtered by transaction type.
 
@@ -204,7 +212,7 @@ def get_cash_flow_totals(transactions: pd.DataFrame) -> dict:
             "total_income": 0.0,
             "total_expenses": 0.0,
             "net": 0.0,
-            "savings_rate": 0.0
+            "savings_rate": 0.0,
         }
 
     total_income = transactions[transactions["Type"] == "income"]["Amount"].sum()
@@ -216,5 +224,5 @@ def get_cash_flow_totals(transactions: pd.DataFrame) -> dict:
         "total_income": total_income,
         "total_expenses": total_expenses,
         "net": net,
-        "savings_rate": savings_rate
+        "savings_rate": savings_rate,
     }

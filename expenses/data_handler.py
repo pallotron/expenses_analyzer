@@ -119,7 +119,9 @@ def load_default_categories(transaction_type: str = None) -> List[str]:
     # If user file doesn't exist or is invalid, load from package
     if categories_data is None:
         try:
-            ref = importlib.resources.files("expenses").joinpath("default_categories.json")
+            ref = importlib.resources.files("expenses").joinpath(
+                "default_categories.json"
+            )
             with ref.open("r") as f:
                 categories_data = json.load(f)
                 # Copy it to user's config dir for first run
@@ -147,7 +149,9 @@ def load_default_categories(transaction_type: str = None) -> List[str]:
             return categories_data.get("income", [])
         else:
             # Return all categories combined
-            return categories_data.get("expense", []) + categories_data.get("income", [])
+            return categories_data.get("expense", []) + categories_data.get(
+                "income", []
+            )
 
     return []
 
@@ -248,6 +252,22 @@ def apply_merchant_aliases_to_series(
 
 
 # --- Transaction Loading & Saving ---
+def get_unique_sources() -> List[str]:
+    """Get unique source names from existing transactions.
+
+    Returns:
+        Sorted list of unique source names, excluding 'Unknown'.
+    """
+    df = load_transactions_from_parquet(include_deleted=False)
+    if df.empty or "Source" not in df.columns:
+        return []
+
+    sources = df["Source"].dropna().unique().tolist()
+    # Filter out "Unknown" as it's a placeholder for old data
+    sources = [s for s in sources if s and s != "Unknown"]
+    return sorted(sources)
+
+
 def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFrame:
     """Load transactions from parquet file with corruption detection.
 
@@ -266,7 +286,9 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
     global _corruption_detected
 
     if not TRANSACTIONS_FILE.exists():
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type"])
+        return pd.DataFrame(
+            columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type"]
+        )
 
     try:
         df = pd.read_parquet(TRANSACTIONS_FILE)
@@ -300,7 +322,9 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
         # Set flag for TUI to display notification
         _corruption_detected = error_msg
         # Return empty DataFrame to allow application to continue
-        return pd.DataFrame(columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type"])
+        return pd.DataFrame(
+            columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type"]
+        )
 
 
 def check_and_clear_corruption_flag() -> Optional[str]:

@@ -64,8 +64,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             return
 
         # Find the parent panel (expense-breakdown, income-breakdown, or monthly-breakdown)
-        panel_classes = ["expense-breakdown", "income-breakdown", "monthly-breakdown",
-                         "expense-column", "income-column"]
+        panel_classes = [
+            "expense-breakdown",
+            "income-breakdown",
+            "monthly-breakdown",
+            "expense-column",
+            "income-column",
+        ]
         focused_panel = None
         for ancestor in focused.ancestors:
             for cls in panel_classes:
@@ -145,7 +150,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                         # Add "All Year" tab first
                         with TabPane("All Year", id=f"month_{year}_all"):
                             yield Vertical(
-                                Static(id=f"cash_flow_{year}_all", classes="cash-flow-summary"),
+                                Static(
+                                    id=f"cash_flow_{year}_all",
+                                    classes="cash-flow-summary",
+                                ),
                                 Horizontal(
                                     Vertical(
                                         Static(
@@ -156,7 +164,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                             cursor_type="row",
                                             zebra_stripes=True,
                                         ),
-                                        Static("Top Expense Merchants", classes="table_title"),
+                                        Static(
+                                            "Top Expense Merchants",
+                                            classes="table_title",
+                                        ),
                                         DataTable(
                                             id=f"top_merchants_{year}_all",
                                             cursor_type="row",
@@ -173,7 +184,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                             cursor_type="row",
                                             zebra_stripes=True,
                                         ),
-                                        Static("Top Income Sources", classes="table_title"),
+                                        Static(
+                                            "Top Income Sources", classes="table_title"
+                                        ),
                                         DataTable(
                                             id=f"top_income_{year}_all",
                                             cursor_type="row",
@@ -183,14 +196,16 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                     ),
                                     Vertical(
                                         Static(
-                                            "Monthly Expense Breakdown", classes="table_title"
+                                            "Monthly Expense Breakdown",
+                                            classes="table_title",
                                         ),
                                         DataTable(
                                             id=f"monthly_breakdown_{year}_all",
                                             zebra_stripes=True,
                                         ),
                                         Static(
-                                            "Monthly Income Breakdown", classes="table_title"
+                                            "Monthly Income Breakdown",
+                                            classes="table_title",
                                         ),
                                         DataTable(
                                             id=f"monthly_income_breakdown_{year}_all",
@@ -209,15 +224,24 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                             month_name = datetime(2000, month, 1).strftime("%B")
                             with TabPane(month_name, id=f"month_{year}_{month}"):
                                 yield Vertical(
-                                    Static(id=f"cash_flow_{year}_{month}", classes="cash-flow-summary"),
+                                    Static(
+                                        id=f"cash_flow_{year}_{month}",
+                                        classes="cash-flow-summary",
+                                    ),
                                     Horizontal(
                                         Vertical(
-                                            Static("Expense Categories", classes="table_title"),
+                                            Static(
+                                                "Expense Categories",
+                                                classes="table_title",
+                                            ),
                                             DataTable(
                                                 id=f"category_breakdown_{year}_{month}",
                                                 zebra_stripes=True,
                                             ),
-                                            Static("Top Expense Merchants", classes="table_title"),
+                                            Static(
+                                                "Top Expense Merchants",
+                                                classes="table_title",
+                                            ),
                                             DataTable(
                                                 id=f"top_merchants_{year}_{month}",
                                                 cursor_type="row",
@@ -226,12 +250,18 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                             classes="expense-column",
                                         ),
                                         Vertical(
-                                            Static("Income Categories", classes="table_title"),
+                                            Static(
+                                                "Income Categories",
+                                                classes="table_title",
+                                            ),
                                             DataTable(
                                                 id=f"income_breakdown_{year}_{month}",
                                                 zebra_stripes=True,
                                             ),
-                                            Static("Top Income Sources", classes="table_title"),
+                                            Static(
+                                                "Top Income Sources",
+                                                classes="table_title",
+                                            ),
                                             DataTable(
                                                 id=f"top_income_{year}_{month}",
                                                 cursor_type="row",
@@ -711,7 +741,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 amount = row["Amount"]
                 category = row["Category"]
                 table.add_row(
-                    display_merchant, category, f"{amount:,.2f}", key=f"income_{display_merchant}"
+                    display_merchant,
+                    category,
+                    f"{amount:,.2f}",
+                    key=f"income_{display_merchant}",
                 )
 
     def _calculate_historical_stats(self):
@@ -726,18 +759,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         # Transpose, apply rolling (on rows), then transpose back
         # This replaces the deprecated axis=1 parameter
         transposed = all_monthly_summary.T
-        rolling_mean = (
-            transposed.rolling(window=12, min_periods=1)
-            .mean()
-            .shift(1)
-            .T
-        )
+        rolling_mean = transposed.rolling(window=12, min_periods=1).mean().shift(1).T
         rolling_std = (
-            transposed.rolling(window=12, min_periods=1)
-            .std()
-            .shift(1)
-            .fillna(0)
-            .T
+            transposed.rolling(window=12, min_periods=1).std().shift(1).fillna(0).T
         )
         return rolling_mean, rolling_std
 
@@ -764,13 +788,25 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         month_columns_for_avg = list(month_map.values())
         monthly_summary["Total"] = monthly_summary.sum(axis=1)
         non_zero_months = (monthly_summary[month_columns_for_avg] > 0).sum(axis=1)
-        monthly_summary["Average"] = monthly_summary["Total"].divide(non_zero_months).fillna(0)
+        monthly_summary["Average"] = (
+            monthly_summary["Total"].divide(non_zero_months).fillna(0)
+        )
         monthly_summary = monthly_summary.sort_values(by="Total", ascending=False)
 
         return monthly_summary
 
-    def _create_monthly_cell(self, amount, trend, category_name, year, month_name,
-                             style, rolling_mean, rolling_std, trend_styles):
+    def _create_monthly_cell(
+        self,
+        amount,
+        trend,
+        category_name,
+        year,
+        month_name,
+        style,
+        rolling_mean,
+        rolling_std,
+        trend_styles,
+    ):
         """Create a styled cell for a monthly amount with trend."""
         month_num = datetime.strptime(month_name, "%b").month
         current_date = pd.Timestamp(f"{year}-{month_num}-01")
@@ -780,9 +816,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         if category_name in rolling_mean.index and current_date in rolling_mean.columns:
             historical_mean = rolling_mean.loc[category_name, current_date]
             historical_std = rolling_std.loc[category_name, current_date]
-            if (pd.notna(historical_mean) and pd.notna(historical_std) and
-                    historical_mean > 0 and historical_std > 0 and
-                    amount > historical_mean + 2 * historical_std):
+            if (
+                pd.notna(historical_mean)
+                and pd.notna(historical_std)
+                and historical_mean > 0
+                and historical_std > 0
+                and amount > historical_mean + 2 * historical_std
+            ):
                 cell_style = style + Style(bgcolor="dark_red")
 
         cell_text = Text(f"{amount:,.2f}", style=cell_style)
@@ -833,7 +873,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             }
 
             for category_name, row in monthly_summary.iterrows():
-                style = selected_style if category_name in self.selected_rows else Style.null()
+                style = (
+                    selected_style
+                    if category_name in self.selected_rows
+                    else Style.null()
+                )
                 styled_cells = [Text(category_name, style=style)]
                 styled_cells.append(Text(f"{row['Total']:,.2f}", style=style))
                 styled_cells.append(Text(f"{row['Average']:,.2f}", style=style))
@@ -843,14 +887,23 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
                 for i, month_name in enumerate(month_columns):
                     cell = self._create_monthly_cell(
-                        monthly_values[i], trends[i][1], category_name, year, month_name,
-                        style, rolling_mean, rolling_std, trend_styles
+                        monthly_values[i],
+                        trends[i][1],
+                        category_name,
+                        year,
+                        month_name,
+                        style,
+                        rolling_mean,
+                        rolling_std,
+                        trend_styles,
                     )
                     styled_cells.append(cell)
 
                 table.add_row(*styled_cells, key=category_name)
         except Exception as e:
-            logging.error(f"An error occurred in _populate_monthly_breakdown: {e}", exc_info=True)
+            logging.error(
+                f"An error occurred in _populate_monthly_breakdown: {e}", exc_info=True
+            )
 
     def _populate_monthly_income_breakdown(self, table: DataTable, year: int) -> None:
         """Helper function to populate a table with monthly income breakdown data."""
@@ -887,7 +940,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             # Add category rows
             selected_style = Style(bgcolor="yellow", color="black")
             for category_name, row in monthly_summary.iterrows():
-                style = selected_style if category_name in self.selected_rows else Style.null()
+                style = (
+                    selected_style
+                    if category_name in self.selected_rows
+                    else Style.null()
+                )
                 styled_cells = [Text(category_name, style=style)]
                 styled_cells.append(Text(f"{row['Total']:,.2f}", style=style))
                 styled_cells.append(Text(f"{row['Average']:,.2f}", style=style))
@@ -899,7 +956,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
                 table.add_row(*styled_cells, key=f"income_{category_name}")
         except Exception as e:
-            logging.error(f"An error occurred in _populate_monthly_income_breakdown: {e}", exc_info=True)
+            logging.error(
+                f"An error occurred in _populate_monthly_income_breakdown: {e}",
+                exc_info=True,
+            )
 
     def update_all_year_monthly_view(self, year: int) -> None:
         """Populates the monthly breakdown tables in the 'All Year' tab."""
@@ -908,14 +968,20 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             table.fixed_columns = 3
             self._populate_monthly_breakdown(table, year)
         except Exception as e:
-            logging.warning(f"Error updating monthly expense breakdown for year {year}: {e}")
+            logging.warning(
+                f"Error updating monthly expense breakdown for year {year}: {e}"
+            )
 
         try:
-            income_table = self.query_one(f"#monthly_income_breakdown_{year}_all", DataTable)
+            income_table = self.query_one(
+                f"#monthly_income_breakdown_{year}_all", DataTable
+            )
             income_table.fixed_columns = 3
             self._populate_monthly_income_breakdown(income_table, year)
         except Exception as e:
-            logging.warning(f"Error updating monthly income breakdown for year {year}: {e}")
+            logging.warning(
+                f"Error updating monthly income breakdown for year {year}: {e}"
+            )
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
         """Handle cell selection to navigate to the transaction screen."""
@@ -1046,7 +1112,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             logging.warning(f"Could not get row key: {e}")
             return None, None, None
 
-    def _handle_monthly_breakdown_table(self, table: DataTable, first_cell_str: str, year: int):
+    def _handle_monthly_breakdown_table(
+        self, table: DataTable, first_cell_str: str, year: int
+    ):
         """Handle drill-down for monthly breakdown tables."""
         category = first_cell_str
         month = None
@@ -1070,7 +1138,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
     def action_drill_down(self) -> None:
         """Drill down into transactions from the current table row or cell."""
         focused_widget = self.app.focused
-        if not isinstance(focused_widget, DataTable) or focused_widget.cursor_row is None:
+        if (
+            not isinstance(focused_widget, DataTable)
+            or focused_widget.cursor_row is None
+        ):
             return
 
         table = focused_widget
@@ -1093,22 +1164,30 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         # Handle different table types
         category, merchant, month = None, None, None
         if table_id and table_id.startswith("category_breakdown"):
-            category, merchant, month = self._handle_category_breakdown_table(first_cell_str, year)
+            category, merchant, month = self._handle_category_breakdown_table(
+                first_cell_str, year
+            )
         elif table_id and table_id.startswith("top_merchants"):
             category, merchant, month = self._handle_top_merchants_table(table, year)
         elif table_id and table_id.startswith("monthly_breakdown"):
-            category, merchant, month = self._handle_monthly_breakdown_table(table, first_cell_str, year)
+            category, merchant, month = self._handle_monthly_breakdown_table(
+                table, first_cell_str, year
+            )
         else:
             return
 
         # Navigate to transactions screen
         if merchant:
             self.app.push_screen(
-                self.app.SCREENS["transactions"](merchant=merchant, year=year, month=month)
+                self.app.SCREENS["transactions"](
+                    merchant=merchant, year=year, month=month
+                )
             )
         elif category:
             self.app.push_screen(
-                self.app.SCREENS["transactions"](category=category, year=year, month=month)
+                self.app.SCREENS["transactions"](
+                    category=category, year=year, month=month
+                )
             )
 
     def update_table(self) -> None:

@@ -95,19 +95,29 @@ def _parse_date_new(date_str):
             return pd.to_datetime(date_str, errors="coerce", dayfirst=True)
 
 
-def _print_mismatch_summary(mismatched_rows: pd.DataFrame, date_col: str, merchant_col: str):
+def _print_mismatch_summary(
+    mismatched_rows: pd.DataFrame, date_col: str, merchant_col: str
+):
     """Print summary of date mismatches found in CSV."""
     print(f"\n{'='*80}")
-    print(f"WARNING: Found {len(mismatched_rows)} transactions with date parsing differences!")
+    print(
+        f"WARNING: Found {len(mismatched_rows)} transactions with date parsing differences!"
+    )
     print(f"{'='*80}\n")
     print("Transactions that were parsed differently:\n")
-    print(f"{'Original Date':<25} {'OLD Parsing':<20} {'NEW Parsing':<20} {'Merchant':<30}")
+    print(
+        f"{'Original Date':<25} {'OLD Parsing':<20} {'NEW Parsing':<20} {'Merchant':<30}"
+    )
     print("-" * 100)
 
     for idx, row in mismatched_rows.head(30).iterrows():
         original = str(row[date_col])[:24]
-        old_date = row["Date_Old"].strftime("%Y-%m-%d") if pd.notna(row["Date_Old"]) else "NaT"
-        new_date = row["Date_New"].strftime("%Y-%m-%d") if pd.notna(row["Date_New"]) else "NaT"
+        old_date = (
+            row["Date_Old"].strftime("%Y-%m-%d") if pd.notna(row["Date_Old"]) else "NaT"
+        )
+        new_date = (
+            row["Date_New"].strftime("%Y-%m-%d") if pd.notna(row["Date_New"]) else "NaT"
+        )
         merchant = str(row[merchant_col])[:29]
         print(f"{original:<25} {old_date:<20} {new_date:<20} {merchant:<30}")
 
@@ -115,10 +125,16 @@ def _print_mismatch_summary(mismatched_rows: pd.DataFrame, date_col: str, mercha
         print(f"\n... and {len(mismatched_rows) - 30} more")
 
 
-def _find_affected_transactions(mismatched_rows: pd.DataFrame, db_df: pd.DataFrame,
-                                merchant_col: str, amount_col: str, date_col: str) -> list:
+def _find_affected_transactions(
+    mismatched_rows: pd.DataFrame,
+    db_df: pd.DataFrame,
+    merchant_col: str,
+    amount_col: str,
+    date_col: str,
+) -> list:
     """Find transactions in database that were affected by wrong date parsing."""
     import re
+
     affected_in_db = []
 
     for idx, row in mismatched_rows.iterrows():
@@ -132,20 +148,26 @@ def _find_affected_transactions(mismatched_rows: pd.DataFrame, db_df: pd.DataFra
 
         merchant_pattern = re.escape(merchant[:20])
         matches = db_df[
-            (db_df["Merchant"].str.contains(merchant_pattern, case=False, na=False, regex=True))
+            (
+                db_df["Merchant"].str.contains(
+                    merchant_pattern, case=False, na=False, regex=True
+                )
+            )
             & (abs(db_df["Amount"] - amount) < 0.01)
             & (db_df["Date"].dt.date == old_date.date())
         ]
 
         if not matches.empty:
-            affected_in_db.append({
-                "CSV_Date": str(row[date_col]),
-                "DB_Date": matches.iloc[0]["Date"],
-                "Correct_Date": new_date,
-                "Merchant": merchant,
-                "Amount": amount,
-                "Source": matches.iloc[0].get("Source", "Unknown"),
-            })
+            affected_in_db.append(
+                {
+                    "CSV_Date": str(row[date_col]),
+                    "DB_Date": matches.iloc[0]["Date"],
+                    "Correct_Date": new_date,
+                    "Merchant": merchant,
+                    "Amount": amount,
+                    "Source": matches.iloc[0].get("Source", "Unknown"),
+                }
+            )
 
     return affected_in_db
 
@@ -158,7 +180,9 @@ def _print_database_issues(affected_in_db: list, mismatched_rows: pd.DataFrame):
         return
 
     print(f"Found {len(affected_in_db)} transactions in DATABASE with WRONG dates:\n")
-    print(f"{'DB Date (WRONG)':<20} {'Should Be':<20} {'Merchant':<30} {'Amount':<10} {'Source'}")
+    print(
+        f"{'DB Date (WRONG)':<20} {'Should Be':<20} {'Merchant':<30} {'Amount':<10} {'Source'}"
+    )
     print("-" * 100)
 
     affected_df = pd.DataFrame(affected_in_db)
@@ -178,7 +202,9 @@ def _print_database_issues(affected_in_db: list, mismatched_rows: pd.DataFrame):
     print(f"{'='*80}")
     print(f"Total transactions in CSV with date mismatches: {len(mismatched_rows)}")
     print(f"Transactions in DATABASE affected by wrong parsing: {len(affected_in_db)}")
-    print(f"\nTo fix: Delete these {len(affected_in_db)} transactions and re-import the CSV.")
+    print(
+        f"\nTo fix: Delete these {len(affected_in_db)} transactions and re-import the CSV."
+    )
 
 
 def check_date_mismatches(csv_path: str):
@@ -198,25 +224,33 @@ def check_date_mismatches(csv_path: str):
     # Detect columns
     date_col = _detect_date_column(csv_df)
     if date_col is None:
-        print(f"Could not find date column. Available columns: {csv_df.columns.tolist()}")
+        print(
+            f"Could not find date column. Available columns: {csv_df.columns.tolist()}"
+        )
         return
     print(f"Using date column: {date_col}")
 
     merchant_col = _detect_merchant_column(csv_df)
     if merchant_col is None:
-        print(f"Could not find merchant column. Available columns: {csv_df.columns.tolist()}")
+        print(
+            f"Could not find merchant column. Available columns: {csv_df.columns.tolist()}"
+        )
         return
     print(f"Using merchant column: {merchant_col}")
 
     amount_col = _detect_amount_column(csv_df)
     if amount_col is None:
-        print(f"Could not find amount column. Available columns: {csv_df.columns.tolist()}")
+        print(
+            f"Could not find amount column. Available columns: {csv_df.columns.tolist()}"
+        )
         return
     print()
 
     # Parse dates with both methods
     print("Parsing CSV dates with OLD method (dayfirst=True)...")
-    csv_df["Date_Old"] = pd.to_datetime(csv_df[date_col], errors="coerce", dayfirst=True)
+    csv_df["Date_Old"] = pd.to_datetime(
+        csv_df[date_col], errors="coerce", dayfirst=True
+    )
 
     print("Parsing CSV dates with NEW method (ISO first)...")
     csv_df["Date_New"] = csv_df[date_col].apply(_parse_date_new)

@@ -23,7 +23,9 @@ def _validate_schema(df: pd.DataFrame) -> List[str]:
     return []
 
 
-def _validate_dates(df: pd.DataFrame, min_date: datetime, max_date: datetime) -> List[str]:
+def _validate_dates(
+    df: pd.DataFrame, min_date: datetime, max_date: datetime
+) -> List[str]:
     """Validate date column values and ranges."""
     errors = []
     try:
@@ -59,7 +61,9 @@ def _validate_merchants(df: pd.DataFrame) -> List[str]:
         merchants = df["Merchant"].astype(str)
         empty_merchants = (merchants.str.strip() == "") | merchants.isna()
         if empty_merchants.any():
-            return [f"Found {empty_merchants.sum()} row(s) with empty or missing merchant names"]
+            return [
+                f"Found {empty_merchants.sum()} row(s) with empty or missing merchant names"
+            ]
     except Exception as e:
         return [f"Merchant validation failed: {e}"]
     return []
@@ -72,7 +76,9 @@ def _validate_amounts(df: pd.DataFrame, max_amount: float) -> List[str]:
         amounts = pd.to_numeric(df["Amount"], errors="coerce")
         invalid_amounts = amounts.isna()
         if invalid_amounts.any():
-            errors.append(f"Found {invalid_amounts.sum()} row(s) with non-numeric amounts")
+            errors.append(
+                f"Found {invalid_amounts.sum()} row(s) with non-numeric amounts"
+            )
 
         # Check for unreasonably large amounts
         valid_amounts = amounts[~invalid_amounts]
@@ -88,7 +94,9 @@ def _validate_amounts(df: pd.DataFrame, max_amount: float) -> List[str]:
             # Check for zero amounts
             zero = valid_amounts == 0
             if zero.any():
-                logging.warning(f"Found {zero.sum()} row(s) with zero amounts - allowed but unusual")
+                logging.warning(
+                    f"Found {zero.sum()} row(s) with zero amounts - allowed but unusual"
+                )
     except Exception as e:
         errors.append(f"Amount validation failed: {e}")
     return errors
@@ -169,7 +177,9 @@ def validate_transaction_dataframe(
     # 1. Schema validation
     errors = _validate_schema(df)
     if errors:
-        raise ValidationError("Schema validation failed: missing required columns", errors)
+        raise ValidationError(
+            "Schema validation failed: missing required columns", errors
+        )
 
     # 2. Empty DataFrame check
     if df.empty:
@@ -215,7 +225,9 @@ def validate_and_clean_dataframe(df: pd.DataFrame, **validation_kwargs) -> pd.Da
 
     # Ensure Date is datetime
     if "Date" in cleaned.columns:
-        cleaned["Date"] = pd.to_datetime(cleaned["Date"], errors="coerce", format="mixed")
+        cleaned["Date"] = pd.to_datetime(
+            cleaned["Date"], errors="coerce", format="mixed"
+        )
 
     # Ensure Amount is numeric
     if "Amount" in cleaned.columns:

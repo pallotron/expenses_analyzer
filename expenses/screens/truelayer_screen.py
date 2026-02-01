@@ -96,14 +96,18 @@ class TrueLayerScreen(BaseScreen):
             # --- Bottom Section: Status & Preview ---
             Static("", id="sync_status", classes="label"),
             Container(
-                Static("Transaction Preview", classes="table_title", id="preview_title"),
+                Static(
+                    "Transaction Preview", classes="table_title", id="preview_title"
+                ),
                 Static("", id="preview_summary", classes="label"),
                 VerticalScroll(
                     DataTable(id="transaction_preview", cursor_type="row"),
                     classes="preview_scroll",
                 ),
                 Horizontal(
-                    Button("Import These Transactions", id="import_button", disabled=True),
+                    Button(
+                        "Import These Transactions", id="import_button", disabled=True
+                    ),
                     Button("Cancel", id="cancel_preview_button"),
                     classes="horizontal_buttons",
                 ),
@@ -368,7 +372,9 @@ class TrueLayerScreen(BaseScreen):
             name="_sync_transactions_worker",
         )
 
-    def _determine_sync_from_date(self, connection: dict, force_resync: bool) -> str | None:
+    def _determine_sync_from_date(
+        self, connection: dict, force_resync: bool
+    ) -> str | None:
         """Determine the start date for transaction sync based on last sync."""
         if force_resync:
             return None
@@ -377,7 +383,9 @@ class TrueLayerScreen(BaseScreen):
             return last_sync.split("T")[0]
         return None
 
-    def _process_connection(self, connection: dict, selected_account_ids: list, force_resync: bool):
+    def _process_connection(
+        self, connection: dict, selected_account_ids: list, force_resync: bool
+    ):
         """Process a single TrueLayer connection and return transactions."""
         access_token = get_valid_access_token(connection)
         if not access_token:
@@ -394,7 +402,9 @@ class TrueLayerScreen(BaseScreen):
         if not selected_accounts:
             return None, None
 
-        df = self._sync_selected_accounts(access_token, provider_name, selected_accounts, from_date)
+        df = self._sync_selected_accounts(
+            access_token, provider_name, selected_accounts, from_date
+        )
         return df, None
 
     def _sync_transactions_worker(
@@ -411,7 +421,9 @@ class TrueLayerScreen(BaseScreen):
         for connection in connections:
             connection_id = connection.get("connection_id")
             try:
-                df, err = self._process_connection(connection, selected_account_ids, force_resync)
+                df, err = self._process_connection(
+                    connection, selected_account_ids, force_resync
+                )
                 if err:
                     error_message = err
                     continue
@@ -420,12 +432,16 @@ class TrueLayerScreen(BaseScreen):
 
             except ScaExceededError:
                 # Must use call_from_thread to update UI from worker thread
-                self.app.call_from_thread(self._handle_reauthentication_required, connection_id)
+                self.app.call_from_thread(
+                    self._handle_reauthentication_required, connection_id
+                )
                 error_message = "Permissions expired for one or more connections."
                 continue
             except Exception as e:
                 logging.error(f"Error syncing connection {connection_id}: {e}")
-                error_message = f"Error syncing {connection.get('provider_name', 'a bank')}."
+                error_message = (
+                    f"Error syncing {connection.get('provider_name', 'a bank')}."
+                )
                 continue
 
         if not all_transactions_df:
@@ -572,7 +588,9 @@ class TrueLayerScreen(BaseScreen):
         sources_info = ""
         if "AccountSource" in df.columns:
             sources = df.groupby("AccountSource").size()
-            sources_info = " from " + ", ".join([f"{src} ({count})" for src, count in sources.items()])
+            sources_info = " from " + ", ".join(
+                [f"{src} ({count})" for src, count in sources.items()]
+            )
 
         # Update summary
         summary_text = (
@@ -601,7 +619,8 @@ class TrueLayerScreen(BaseScreen):
         if total_transactions > max_preview_rows:
             # Add a note about truncation
             self.query_one("#preview_summary").update(
-                summary_text + f"\n(Showing first {max_preview_rows} of {total_transactions} transactions)"
+                summary_text
+                + f"\n(Showing first {max_preview_rows} of {total_transactions} transactions)"
             )
 
         # Show the preview section

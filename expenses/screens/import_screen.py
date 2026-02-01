@@ -6,7 +6,7 @@ from textual.containers import Vertical, VerticalScroll
 
 from typing import Any
 from expenses.screens.base_screen import BaseScreen
-from expenses.data_handler import clean_amount, append_transactions
+from expenses.data_handler import clean_amount, append_transactions, get_unique_sources
 
 
 class ImportScreen(BaseScreen):
@@ -41,8 +41,12 @@ class ImportScreen(BaseScreen):
                 ),
                 Static("Amount Column:"),
                 Select([], id="amount_select"),
-                Static("Amount Out Column (optional - for banks with separate in/out columns):"),
-                Select([("None - use single column", "")], id="amount_out_select", value=""),
+                Static(
+                    "Amount Out Column (optional - for banks with separate in/out columns):"
+                ),
+                Select(
+                    [("None - use single column", "")], id="amount_out_select", value=""
+                ),
                 Static("Transaction Type:"),
                 Select(
                     [
@@ -54,10 +58,10 @@ class ImportScreen(BaseScreen):
                     id="type_select",
                 ),
                 Static("Source/Account Name (optional):"),
+                Select([], id="source_select"),
                 Input(
-                    placeholder="e.g., 'Chase Checking' or 'CSV Import'",
-                    id="source_input",
-                    value="CSV Import",
+                    placeholder="Enter custom source name...",
+                    id="custom_source_input",
                 ),
                 Button("Import Transactions", id="import_button", disabled=True),
             ),
@@ -69,6 +73,40 @@ class ImportScreen(BaseScreen):
         self.query_one("#file_preview_label").display = False
         self.query_one("#file_preview").display = False
         self.query_one("#map_columns_label").display = False
+
+        # Populate source selector with existing sources
+        self._populate_source_selector()
+        # Hide custom source input by default
+        self.query_one("#custom_source_input").display = False
+
+    def _populate_source_selector(self) -> None:
+        """Populate the source selector with existing sources from the database."""
+        existing_sources = get_unique_sources()
+
+        # Build options: existing sources + "Custom..." option
+        if existing_sources:
+            options = [(source, source) for source in existing_sources]
+            default_value = existing_sources[0]
+        else:
+            # Fallback for empty database
+            options = [("CSV Import", "CSV Import")]
+            default_value = "CSV Import"
+        options.append(("Custom...", "__custom__"))
+
+        source_select = self.query_one("#source_select", Select)
+        source_select.set_options(options)
+        source_select.value = default_value
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Handle source selector changes to show/hide custom input."""
+        if event.select.id == "source_select":
+            custom_input = self.query_one("#custom_source_input", Input)
+            if event.value == "__custom__":
+                custom_input.display = True
+                custom_input.focus()
+            else:
+                custom_input.display = False
+                custom_input.value = ""
 
     def handle_file_select(self, path: str) -> None:
         """Callback for when a file is selected in the browser."""
@@ -85,8 +123,8 @@ class ImportScreen(BaseScreen):
             self.import_data()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Trigger import when Enter is pressed in the source input."""
-        if event.input.id == "source_input":
+        """Trigger import when Enter is pressed in the custom source input."""
+        if event.input.id == "custom_source_input":
             import_button = self.query_one("#import_button", Button)
             if not import_button.disabled:
                 self.import_data()
@@ -161,7 +199,15 @@ class ImportScreen(BaseScreen):
         return "Balance Impact" in self.df.columns and row["Balance Impact"] != "Debit"
 
     def _process_row(
-        self, index, row, date_col, merchant_col, amount_col, type_mode, skip_counts, amount_out_col=None
+        self,
+        index,
+        row,
+        date_col,
+        merchant_col,
+        amount_col,
+        type_mode,
+        skip_counts,
+        amount_out_col=None,
     ):
         """Process a single row from the CSV.
 
@@ -189,7 +235,9 @@ class ImportScreen(BaseScreen):
             # Dual-column mode: separate columns for money in/out
             amount_in_val = clean_amount(pd.Series([row[amount_col]]))[0]
             amount_out_val = clean_amount(pd.Series([row[amount_out_col]]))[0]
-            logging.debug(f"Row {index}: Dual-column - in: {amount_in_val}, out: {amount_out_val}")
+            logging.debug(
+                f"Row {index}: Dual-column - in: {amount_in_val}, out: {amount_out_val}"
+            )
 
             # Determine which column has the value
             has_income = amount_in_val != 0
@@ -197,7 +245,9 @@ class ImportScreen(BaseScreen):
 
             if has_income and has_expense:
                 # Both columns have values - unusual, log warning and use the larger absolute value
-                logging.warning(f"Row {index}: Both in/out columns have values, using larger absolute value")
+                logging.warning(
+                    f"Row {index}: Both in/out columns have values, using larger absolute value"
+                )
                 if abs(amount_in_val) >= abs(amount_out_val):
                     amount_val = abs(amount_in_val)
                     transaction_type = "income"
@@ -238,13 +288,19 @@ class ImportScreen(BaseScreen):
             amount_val = abs(amount_val)
 
         # Special PayPal check - only for auto mode with expenses (single-column only)
-        if not amount_out_col and type_mode == "auto" and self._should_skip_paypal_row(row):
+        if (
+            not amount_out_col
+            and type_mode == "auto"
+            and self._should_skip_paypal_row(row)
+        ):
             skip_counts["not_debit"] += 1
             logging.debug(f"Row {index}: Skipping - not a debit transaction")
             return None
 
         # Successfully processed
-        logging.debug(f"Row {index}: Successfully processed {transaction_type} transaction")
+        logging.debug(
+            f"Row {index}: Successfully processed {transaction_type} transaction"
+        )
         return {
             "Date": date_val,
             "Merchant": str(row[merchant_col]),
@@ -262,7 +318,11 @@ class ImportScreen(BaseScreen):
 
         if total_skipped > 0:
             skip_details = ", ".join(
-                [f"{count} {reason}" for reason, count in skip_counts.items() if count > 0]
+                [
+                    f"{count} {reason}"
+                    for reason, count in skip_counts.items()
+                    if count > 0
+                ]
             )
             logging.info(f"Skip breakdown: {skip_details}")
 
@@ -276,10 +336,24 @@ class ImportScreen(BaseScreen):
             merchant_col = self.query_one("#merchant_select", Select).value
             amount_col = self.query_one("#amount_select", Select).value
             amount_out_val = self.query_one("#amount_out_select", Select).value
-            amount_out_col = amount_out_val if amount_out_val and amount_out_val != Select.BLANK else None
+            amount_out_col = (
+                amount_out_val
+                if amount_out_val and amount_out_val != Select.BLANK
+                else None
+            )
             type_mode = self.query_one("#type_select", Select).value
-            suggest_categories = self.query_one("#suggest_categories_checkbox", Checkbox).value
-            source = self.query_one("#source_input", Input).value or "CSV Import"
+            suggest_categories = self.query_one(
+                "#suggest_categories_checkbox", Checkbox
+            ).value
+
+            # Get source from selector or custom input
+            source_select_value = self.query_one("#source_select", Select).value
+            if source_select_value == "__custom__":
+                source = (
+                    self.query_one("#custom_source_input", Input).value or "CSV Import"
+                )
+            else:
+                source = source_select_value or "CSV Import"
 
             transactions_to_append = []
             skip_counts = {
@@ -299,18 +373,29 @@ class ImportScreen(BaseScreen):
             # Process each row
             for index, row in self.df.iterrows():
                 transaction = self._process_row(
-                    index, row, date_col, merchant_col, amount_col, type_mode, skip_counts, amount_out_col
+                    index,
+                    row,
+                    date_col,
+                    merchant_col,
+                    amount_col,
+                    type_mode,
+                    skip_counts,
+                    amount_out_col,
                 )
                 if transaction:
                     transactions_to_append.append(transaction)
 
             # Log summary
-            self._log_import_summary(len(self.df), len(transactions_to_append), skip_counts)
+            self._log_import_summary(
+                len(self.df), len(transactions_to_append), skip_counts
+            )
 
             # Import transactions
             if transactions_to_append:
                 processed_df = pd.DataFrame(transactions_to_append)
-                append_transactions(processed_df, suggest_categories=suggest_categories, source=source)
+                append_transactions(
+                    processed_df, suggest_categories=suggest_categories, source=source
+                )
             else:
                 logging.warning("No valid transactions found to import")
 

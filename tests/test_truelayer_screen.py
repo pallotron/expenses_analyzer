@@ -10,7 +10,10 @@ class TestTrueLayerScreen(unittest.TestCase):
         """Test screen initializes with correct default values."""
         with (
             patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_ID", "test_id"),
-            patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET", "test_secret"),
+            patch(
+                "expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET",
+                "test_secret",
+            ),
         ):
             screen = TrueLayerScreen()
             assert screen.code_check_timer is None
@@ -25,7 +28,10 @@ class TestTrueLayerScreen(unittest.TestCase):
         """Test that redirect URI is correctly configured."""
         with (
             patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_ID", "test_id"),
-            patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET", "test_secret"),
+            patch(
+                "expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET",
+                "test_secret",
+            ),
         ):
             screen = TrueLayerScreen()
             assert "localhost:3000" in screen.redirect_uri
@@ -35,7 +41,10 @@ class TestTrueLayerScreen(unittest.TestCase):
         """Test that pending transactions is initialized as None."""
         with (
             patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_ID", "test_id"),
-            patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET", "test_secret"),
+            patch(
+                "expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET",
+                "test_secret",
+            ),
         ):
             screen = TrueLayerScreen()
             assert screen.pending_transactions is None
@@ -46,7 +55,10 @@ class TestTrueLayerScreen(unittest.TestCase):
         """Test that screen has compose_content method."""
         with (
             patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_ID", "test_id"),
-            patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET", "test_secret"),
+            patch(
+                "expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET",
+                "test_secret",
+            ),
         ):
             screen = TrueLayerScreen()
             assert hasattr(screen, "compose_content")
@@ -56,7 +68,10 @@ class TestTrueLayerScreen(unittest.TestCase):
         """Test that accounts list is initialized as empty."""
         with (
             patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_ID", "test_id"),
-            patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET", "test_secret"),
+            patch(
+                "expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET",
+                "test_secret",
+            ),
         ):
             screen = TrueLayerScreen()
             assert isinstance(screen.accounts_list, list)
@@ -66,7 +81,10 @@ class TestTrueLayerScreen(unittest.TestCase):
         """Test that account checkboxes dict is initialized as empty."""
         with (
             patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_ID", "test_id"),
-            patch("expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET", "test_secret"),
+            patch(
+                "expenses.screens.truelayer_screen.TRUELAYER_CLIENT_SECRET",
+                "test_secret",
+            ),
         ):
             screen = TrueLayerScreen()
             assert isinstance(screen.account_checkboxes, dict)

@@ -71,7 +71,9 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
                 Horizontal(
                     Button("Apply to Selected", id="apply_button"),
                     Button("Save Categories", id="save_categories_button"),
-                    Button("Auto-Categorize Uncategorized", id="auto_categorize_button"),
+                    Button(
+                        "Auto-Categorize Uncategorized", id="auto_categorize_button"
+                    ),
                     classes="action-bar",
                 ),
                 Static("Press SPACE to select/deselect rows.", classes="help-text"),
@@ -229,7 +231,7 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
         if not os.getenv("GEMINI_API_KEY"):
             self.app.show_notification(
                 "GEMINI_API_KEY not set. Please set it to use AI categorization.",
-                timeout=5
+                timeout=5,
             )
             return
 
@@ -247,7 +249,7 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
         # Show progress notification
         self.app.show_notification(
             f"Categorizing {len(uncategorized_merchants)} merchants using AI...",
-            timeout=None
+            timeout=None,
         )
 
         # Call Gemini API (this runs in a worker thread)
@@ -260,7 +262,9 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
             for i in range(len(self.all_merchant_data)):
                 merchant = self.all_merchant_data[i]["Merchant"]
                 if merchant in suggested_categories:
-                    self.all_merchant_data[i]["Category"] = suggested_categories[merchant]
+                    self.all_merchant_data[i]["Category"] = suggested_categories[
+                        merchant
+                    ]
 
             # Refresh the table
             self.populate_table()
@@ -275,10 +279,9 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
 
             self.app.show_notification(
                 f"Successfully categorized {len(suggested_categories)} merchants!",
-                timeout=3
+                timeout=3,
             )
         else:
             self.app.show_notification(
-                "Failed to get AI suggestions. Check logs for details.",
-                timeout=5
+                "Failed to get AI suggestions. Check logs for details.", timeout=5
             )

@@ -166,13 +166,16 @@ class TestServerManagement(unittest.TestCase):
 
     @patch("expenses.oauth_server.app.run")
     @patch("expenses.oauth_server.threading.Thread")
-    def test_run_oauth_server_starts_successfully(self, mock_thread: Mock, mock_run: Mock):
+    def test_run_oauth_server_starts_successfully(
+        self, mock_thread: Mock, mock_run: Mock
+    ):
         """Test that OAuth server starts successfully."""
         mock_thread_instance = MagicMock()
         mock_thread.return_value = mock_thread_instance
 
         # Reset server state
         import expenses.oauth_server as oauth_module
+
         oauth_module._server_running = False
 
         run_oauth_server(port=3000)
@@ -190,6 +193,7 @@ class TestServerManagement(unittest.TestCase):
         """Test that server doesn't start if already running."""
         # Set server as already running
         import expenses.oauth_server as oauth_module
+
         oauth_module._server_running = True
 
         run_oauth_server(port=3000)
@@ -202,6 +206,7 @@ class TestServerManagement(unittest.TestCase):
     def test_run_oauth_server_custom_port(self, mock_thread: Mock, mock_run: Mock):
         """Test starting server on custom port."""
         import expenses.oauth_server as oauth_module
+
         oauth_module._server_running = False
 
         run_oauth_server(port=5000)
@@ -291,12 +296,12 @@ class TestConcurrency(unittest.TestCase):
 
     def test_concurrent_set_operations(self):
         """Test multiple threads setting codes simultaneously."""
+
         def set_code(code_value):
             self.store.set_auth_code(code_value)
 
         threads = [
-            threading.Thread(target=set_code, args=(f"code_{i}",))
-            for i in range(5)
+            threading.Thread(target=set_code, args=(f"code_{i}",)) for i in range(5)
         ]
 
         for t in threads:

@@ -24,12 +24,17 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
         # Create test transactions with all required columns
         # Use current year to avoid date filtering issues
         from datetime import datetime
+
         current_year = datetime.now().year
         self.test_transactions = pd.DataFrame(
             {
                 "Date": pd.to_datetime(
-                    [f"{current_year}-01-15", f"{current_year}-02-10",
-                     f"{current_year}-03-05", f"{current_year}-01-20"]
+                    [
+                        f"{current_year}-01-15",
+                        f"{current_year}-02-10",
+                        f"{current_year}-03-05",
+                        f"{current_year}-01-20",
+                    ]
                 ),
                 "Merchant": ["Starbucks", "Shell Gas", "Walmart", "Amazon"],
                 "Amount": [5.50, 40.00, 100.00, 75.00],
@@ -144,6 +149,7 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
                 # Add more transactions with all required columns
                 from datetime import datetime
+
                 current_year = datetime.now().year
                 new_transactions = pd.concat(
                     [

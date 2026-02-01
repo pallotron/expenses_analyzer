@@ -226,7 +226,9 @@ def restore_from_backup(backup_file: Path) -> bool:
         _create_emergency_backup()
 
         # Extract the backup to a temporary directory first
-        temp_dir = AUTO_BACKUP_DIR / f"restore_temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        temp_dir = (
+            AUTO_BACKUP_DIR / f"restore_temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
         temp_dir.mkdir(exist_ok=True)
 
         try:

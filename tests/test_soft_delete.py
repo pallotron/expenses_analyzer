@@ -461,7 +461,9 @@ class TestSoftDelete(unittest.TestCase):
 
             # Active transactions should still be empty
             active = load_transactions_from_parquet()
-            assert len(active) == 0, "Re-imported deleted transaction should be filtered"
+            assert (
+                len(active) == 0
+            ), "Re-imported deleted transaction should be filtered"
 
 
 if __name__ == "__main__":

@@ -577,6 +577,80 @@ def delete_transactions(transactions_to_delete: pd.DataFrame) -> None:
     save_transactions_to_parquet(updated_transactions)
 
 
+def update_transactions(updates: List[Dict]) -> int:
+    """Update multiple transactions by their DataFrame index.
+
+    Args:
+        updates: List of dicts, each containing 'original_index' and fields to update.
+                 Supported fields: Date, Merchant, Amount, Source, Type
+
+    Returns:
+        Number of transactions successfully updated.
+
+    Raises:
+        ValidationError: If the modified DataFrame fails validation.
+    """
+    if not updates:
+        return 0
+
+    # Create auto-backup before modification
+    create_auto_backup()
+
+    # Load ALL transactions including soft-deleted ones
+    all_transactions = load_transactions_from_parquet(include_deleted=True)
+
+    updated_count = 0
+    for update in updates:
+        original_index = update.get("original_index")
+        if original_index is None:
+            logging.warning("Update missing 'original_index', skipping")
+            continue
+
+        if original_index not in all_transactions.index:
+            logging.warning(
+                f"Index {original_index} not found in transactions, skipping"
+            )
+            continue
+
+        # Apply updates for each supported field
+        for field in ["Date", "Merchant", "Amount", "Source", "Type"]:
+            if field in update:
+                new_value = update[field]
+                if field == "Date":
+                    new_value = pd.to_datetime(new_value)
+                elif field == "Amount":
+                    new_value = float(new_value)
+                all_transactions.at[original_index, field] = new_value
+
+        updated_count += 1
+
+    if updated_count > 0:
+        # Validate modified DataFrame before saving
+        validate_transaction_dataframe(all_transactions)
+        save_transactions_to_parquet(all_transactions)
+        logging.info(f"Updated {updated_count} transaction(s)")
+
+    return updated_count
+
+
+def update_single_transaction(original_index: int, **fields) -> bool:
+    """Update a single transaction by its DataFrame index.
+
+    Args:
+        original_index: The DataFrame index of the transaction to update.
+        **fields: Fields to update (Date, Merchant, Amount, Source, Type)
+
+    Returns:
+        True if update was successful, False otherwise.
+    """
+    if not fields:
+        return False
+
+    update = {"original_index": original_index, **fields}
+    result = update_transactions([update])
+    return result == 1
+
+
 def restore_deleted_transactions(transactions_to_restore: pd.DataFrame) -> None:
     """Restore soft-deleted transactions by setting Deleted=False.
 

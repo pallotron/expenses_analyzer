@@ -1,7 +1,13 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import pandas as pd
-from expenses.data_handler import clean_amount, append_transactions, delete_transactions
+from expenses.data_handler import (
+    clean_amount,
+    append_transactions,
+    delete_transactions,
+    update_transactions,
+    update_single_transaction,
+)
 
 
 class TestDataHandler(unittest.TestCase):
@@ -166,6 +172,109 @@ class TestDataHandler(unittest.TestCase):
         # Should remain unchanged (no match to delete)
         self.assertEqual(len(saved_df), 1)
         self.assertEqual(saved_df["Deleted"].iloc[0], False)
+
+    @patch("expenses.data_handler.load_transactions_from_parquet")
+    @patch("expenses.data_handler.save_transactions_to_parquet")
+    def test_update_single_transaction(
+        self, mock_save: MagicMock, mock_load: MagicMock
+    ) -> None:
+        """Test updating a single transaction."""
+        existing_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2025-01-01", "2025-01-02"]),
+                "Merchant": ["Merchant A", "Merchant B"],
+                "Amount": [10.00, 20.00],
+                "Source": ["Manual", "Manual"],
+                "Deleted": [False, False],
+                "Type": ["expense", "expense"],
+            }
+        )
+        mock_load.return_value = existing_df.copy()
+
+        # Update the first transaction
+        result = update_single_transaction(0, Merchant="Updated Merchant", Amount=15.00)
+
+        self.assertTrue(result)
+        mock_save.assert_called_once()
+        saved_df = mock_save.call_args[0][0]
+        self.assertEqual(saved_df.loc[0, "Merchant"], "Updated Merchant")
+        self.assertEqual(saved_df.loc[0, "Amount"], 15.00)
+        # Second transaction should be unchanged
+        self.assertEqual(saved_df.loc[1, "Merchant"], "Merchant B")
+
+    @patch("expenses.data_handler.load_transactions_from_parquet")
+    @patch("expenses.data_handler.save_transactions_to_parquet")
+    def test_update_transactions_multiple(
+        self, mock_save: MagicMock, mock_load: MagicMock
+    ) -> None:
+        """Test updating multiple transactions."""
+        existing_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
+                "Merchant": ["Merchant A", "Merchant B", "Merchant C"],
+                "Amount": [10.00, 20.00, 30.00],
+                "Source": ["Manual", "Manual", "Manual"],
+                "Deleted": [False, False, False],
+                "Type": ["expense", "expense", "expense"],
+            }
+        )
+        mock_load.return_value = existing_df.copy()
+
+        # Update multiple transactions
+        updates = [
+            {"original_index": 0, "Type": "income"},
+            {"original_index": 2, "Type": "income", "Source": "Bulk Edit"},
+        ]
+        result = update_transactions(updates)
+
+        self.assertEqual(result, 2)
+        mock_save.assert_called_once()
+        saved_df = mock_save.call_args[0][0]
+        self.assertEqual(saved_df.loc[0, "Type"], "income")
+        self.assertEqual(saved_df.loc[1, "Type"], "expense")  # Unchanged
+        self.assertEqual(saved_df.loc[2, "Type"], "income")
+        self.assertEqual(saved_df.loc[2, "Source"], "Bulk Edit")
+
+    @patch("expenses.data_handler.load_transactions_from_parquet")
+    @patch("expenses.data_handler.save_transactions_to_parquet")
+    def test_update_transactions_empty_list(
+        self, mock_save: MagicMock, mock_load: MagicMock
+    ) -> None:
+        """Test updating with empty list returns 0."""
+        result = update_transactions([])
+        self.assertEqual(result, 0)
+        mock_save.assert_not_called()
+        mock_load.assert_not_called()
+
+    @patch("expenses.data_handler.load_transactions_from_parquet")
+    @patch("expenses.data_handler.save_transactions_to_parquet")
+    def test_update_transactions_invalid_index(
+        self, mock_save: MagicMock, mock_load: MagicMock
+    ) -> None:
+        """Test updating with invalid index is skipped."""
+        existing_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2025-01-01"]),
+                "Merchant": ["Merchant A"],
+                "Amount": [10.00],
+                "Source": ["Manual"],
+                "Deleted": [False],
+                "Type": ["expense"],
+            }
+        )
+        mock_load.return_value = existing_df.copy()
+
+        # Try to update non-existent index
+        updates = [{"original_index": 999, "Merchant": "Should Not Exist"}]
+        result = update_transactions(updates)
+
+        self.assertEqual(result, 0)
+        mock_save.assert_not_called()
+
+    def test_update_single_transaction_no_fields(self) -> None:
+        """Test updating with no fields returns False."""
+        result = update_single_transaction(0)
+        self.assertFalse(result)
 
 
 if __name__ == "__main__":

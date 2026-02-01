@@ -17,6 +17,8 @@ from expenses.data_handler import (
     load_merchant_aliases,
     save_merchant_aliases,
     apply_merchant_aliases_to_series,
+    update_single_transaction,
+    update_transactions,
 )
 from expenses.screens.base_screen import BaseScreen
 from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
@@ -32,6 +34,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
     BINDINGS = [
         Binding("space", "toggle_selection", "Toggle Selection"),
         Binding("e", "edit_merchant", "Edit Merchant"),
+        Binding("b", "bulk_edit", "Bulk Edit"),
     ]
 
     def __init__(
@@ -422,6 +425,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         elif event.button.id == "select_all_button":
             self.select_all_transactions()
 
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle Enter key on a row - opens the edit dialog."""
+        if event.data_table.id == "transaction_table":
+            self.action_edit_transaction()
+
     def select_all_transactions(self) -> None:
         """Select or deselect all visible transactions."""
         if not self.display_df.empty:
@@ -506,4 +514,119 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         self.app.push_screen(
             EditTransactionScreen(original_merchant, current_alias), handle_edit_result
+        )
+
+    def action_edit_transaction(self) -> None:
+        """Edit the current transaction (Enter key)."""
+        table = self.query_one("#transaction_table", DataTable)
+        if table.cursor_row is None:
+            return
+
+        if self.display_df.empty:
+            return
+
+        # Get the original index from the display DataFrame
+        row_index = self.display_df.index[table.cursor_row]
+        row = self.transactions.loc[row_index]
+
+        # Build transaction data dict
+        transaction_data = {
+            "Date": row["Date"],
+            "Merchant": row["Merchant"],
+            "Amount": row["Amount"],
+            "Source": row.get("Source", "Unknown"),
+            "Type": row.get("Type", "expense"),
+        }
+
+        # Import here to avoid circular import
+        from expenses.screens.edit_single_transaction_screen import (
+            EditSingleTransactionScreen,
+        )
+
+        def handle_edit_result(result):
+            """Handle the result from the edit screen."""
+            if not result:
+                return  # User cancelled
+
+            original_index = result.pop("original_index")
+
+            try:
+                success = update_single_transaction(original_index, **result)
+                if success:
+                    self.app.show_notification("Transaction updated", timeout=3)
+                    # Reload data
+                    self.on_screen_resume(None)
+                    # Restore cursor position
+                    table.move_cursor(row=table.cursor_row)
+                else:
+                    self.app.show_notification(
+                        "Failed to update transaction", timeout=3
+                    )
+            except Exception as e:
+                logging.error(f"Error updating transaction: {e}")
+                self.app.show_notification(f"Error: {e}", timeout=5)
+
+        self.app.push_screen(
+            EditSingleTransactionScreen(transaction_data, row_index),
+            handle_edit_result,
+        )
+
+    def action_bulk_edit(self) -> None:
+        """Bulk edit selected transactions (b key)."""
+        if not self.selected_rows:
+            self.app.show_notification("No transactions selected", timeout=3)
+            return
+
+        # Import here to avoid circular import
+        from expenses.screens.bulk_edit_transaction_screen import (
+            BulkEditTransactionScreen,
+        )
+
+        # Get existing merchants (use DisplayMerchant which has aliases applied)
+        existing_merchants = []
+        if not self.display_df.empty and "DisplayMerchant" in self.display_df.columns:
+            existing_merchants = (
+                self.display_df["DisplayMerchant"].dropna().unique().tolist()
+            )
+
+        # Get existing sources
+        existing_sources = []
+        if not self.transactions.empty and "Source" in self.transactions.columns:
+            existing_sources = self.transactions["Source"].dropna().unique().tolist()
+
+        def handle_bulk_edit_result(result):
+            """Handle the result from the bulk edit screen."""
+            if not result:
+                return  # User cancelled
+
+            # Build updates list for all selected rows
+            updates = []
+            for row_index in self.selected_rows:
+                update = {"original_index": row_index, **result}
+                updates.append(update)
+
+            try:
+                count = update_transactions(updates)
+                if count > 0:
+                    self.app.show_notification(
+                        f"Updated {count} transaction(s)", timeout=3
+                    )
+                    # Clear selection and reload
+                    self.selected_rows.clear()
+                    self.on_screen_resume(None)
+                else:
+                    self.app.show_notification(
+                        "No transactions were updated", timeout=3
+                    )
+            except Exception as e:
+                logging.error(f"Error bulk updating transactions: {e}")
+                self.app.show_notification(f"Error: {e}", timeout=5)
+
+        self.app.push_screen(
+            BulkEditTransactionScreen(
+                len(self.selected_rows),
+                existing_merchants=existing_merchants,
+                existing_sources=existing_sources,
+            ),
+            handle_bulk_edit_result,
         )

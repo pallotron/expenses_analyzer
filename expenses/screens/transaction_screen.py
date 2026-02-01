@@ -50,7 +50,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         self.filter_category: str | None = category
         self.filter_merchant: str | None = merchant
         self.filter_year: int = year if year is not None else datetime.now().year
-        self.filter_month: int | None = month
+        self.filter_month: int | None = month if month is not None else datetime.now().month
         self.filter_type: str | None = transaction_type
         self.columns: list[str] = [
             "Date",

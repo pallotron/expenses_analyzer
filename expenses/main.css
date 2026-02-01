@@ -150,6 +150,30 @@ Notification.visible {
 }
 
 /* --- Summary Screen --- */
+.source-filter-bar {
+    height: 3;
+    padding: 0 1;
+    align: left middle;
+}
+
+.source-filter-bar .filter-label {
+    width: auto;
+    padding: 0 1;
+}
+
+.source-filter-bar Checkbox {
+    width: auto;
+    margin: 0 1;
+    padding: 0;
+}
+
+.source-filter-bar Button {
+    width: auto;
+    min-width: 8;
+    height: 3;
+    margin: 0 1;
+}
+
 #year_tabs {
     height: 1fr; /* Allow year tabs to take all available vertical space */
 }

@@ -1,6 +1,6 @@
 import logging
 from textual.app import ComposeResult
-from textual.widgets import Static, TabbedContent, TabPane, DataTable
+from textual.widgets import Static, TabbedContent, TabPane, DataTable, Input, Checkbox, Button
 from textual.containers import Horizontal, Vertical
 import pandas as pd
 from datetime import datetime
@@ -33,6 +33,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
+        self.source_filter: Set[str] = set()  # Empty set means all sources
         self.load_and_prepare_data()
         self.selected_rows: Set[str] = set()
         self.compact_mode: bool = False
@@ -104,27 +105,113 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     def load_and_prepare_data(self) -> None:
         """Loads and prepares transaction and category data."""
-        self.transactions: pd.DataFrame = load_transactions_from_parquet()
+        self._all_transactions: pd.DataFrame = load_transactions_from_parquet()
         self.categories: Dict[str, str] = load_categories()
         self.merchant_aliases: Dict[str, str] = load_merchant_aliases()
         logging.info(f"Loaded {len(self.merchant_aliases)} merchant alias patterns")
-        if not self.transactions.empty:
-            self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
+        if not self._all_transactions.empty:
+            self._all_transactions["Date"] = pd.to_datetime(self._all_transactions["Date"])
             # Apply merchant aliases for display
-            self.transactions["DisplayMerchant"] = apply_merchant_aliases_to_series(
-                self.transactions["Merchant"], self.merchant_aliases
+            self._all_transactions["DisplayMerchant"] = apply_merchant_aliases_to_series(
+                self._all_transactions["Merchant"], self.merchant_aliases
             )
             # Log some examples
             if len(self.merchant_aliases) > 0:
-                sample_size = min(5, len(self.transactions))
+                sample_size = min(5, len(self._all_transactions))
                 logging.debug("Sample after applying aliases:")
-                for idx, row in self.transactions.head(sample_size).iterrows():
+                for idx, row in self._all_transactions.head(sample_size).iterrows():
                     logging.debug(
                         f"  '{row['Merchant']}' -> '{row['DisplayMerchant']}'"
                     )
-            self.transactions["Category"] = (
-                self.transactions["Merchant"].map(self.categories).fillna("Other")
+            self._all_transactions["Category"] = (
+                self._all_transactions["Merchant"].map(self.categories).fillna("Other")
             )
+
+    @property
+    def transactions(self) -> pd.DataFrame:
+        """Returns transactions filtered by source if a filter is set."""
+        if not hasattr(self, '_all_transactions') or self._all_transactions.empty:
+            return pd.DataFrame()
+        if self.source_filter:
+            # Filter by selected sources
+            return self._all_transactions[
+                self._all_transactions["Source"].isin(self.source_filter)
+            ].copy()
+        return self._all_transactions
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        """Handle source filter checkbox change."""
+        checkbox_id = event.checkbox.id
+        if checkbox_id and checkbox_id.startswith("source_"):
+            # Look up the actual source name from the ID map
+            source_name = self._source_id_map.get(checkbox_id)
+            if source_name:
+                if event.value:
+                    self.source_filter.add(source_name)
+                else:
+                    self.source_filter.discard(source_name)
+                logging.info(f"Source filter changed to: {self.source_filter}")
+                self._refresh_current_view()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses."""
+        if event.button.id == "select_all_sources":
+            self._set_all_source_checkboxes(True)
+        elif event.button.id == "select_none_sources":
+            self._set_all_source_checkboxes(False)
+
+    def _set_all_source_checkboxes(self, value: bool) -> None:
+        """Set all source checkboxes to the given value."""
+        for checkbox_id, source_name in self._source_id_map.items():
+            try:
+                checkbox = self.query_one(f"#{checkbox_id}", Checkbox)
+                checkbox.value = value
+            except Exception:
+                pass
+        # Update the filter set
+        if value:
+            self.source_filter = set(self._source_id_map.values())
+        else:
+            self.source_filter = set()
+        self._refresh_current_view()
+
+    def _get_single_source_filter(self) -> Optional[str]:
+        """Get source filter for TransactionScreen (only if single source selected)."""
+        if len(self.source_filter) == 1:
+            return next(iter(self.source_filter))
+        return None
+
+    def _refresh_current_view(self) -> None:
+        """Refresh the current view based on active tabs."""
+        if not hasattr(self, '_all_transactions') or self._all_transactions.empty:
+            return
+
+        try:
+            year_tabs = self.query_one("#year_tabs", TabbedContent)
+            active_year_id = year_tabs.active
+            if not active_year_id:
+                return
+
+            year = int(active_year_id.split("_")[1])
+            month_tabs = self.query_one(f"#month_tabs_{year}", TabbedContent)
+            active_month_id = month_tabs.active
+
+            if active_month_id and active_month_id.endswith("_all"):
+                self.update_cash_flow(year)
+                self.update_all_year_category_view(year)
+                self.update_all_year_monthly_view(year)
+                self.update_top_merchants_view(year)
+                self.update_all_year_income_view(year)
+                self.update_top_income_view(year)
+            elif active_month_id:
+                month = int(active_month_id.split("_")[2])
+                self.update_cash_flow(year, month)
+                self.update_month_view(year, month)
+                self.update_top_merchants_view(year, month)
+                self.update_month_income_view(year, month)
+                self.update_top_income_view(year, month)
+        except Exception as e:
+            logging.warning(f"Error refreshing view after source filter change: {e}")
 
     def compose_content(self) -> ComposeResult:
         yield Static("Cash Flow Summary", classes="title")
@@ -132,6 +219,31 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         if self.transactions.empty:
             yield Static("No transactions found.")
             return
+
+        # Get unique sources for the filter
+        sources = sorted(self._all_transactions["Source"].dropna().unique().tolist())
+        # Initialize source_filter with all sources selected
+        self.source_filter = set(sources)
+        # Store mapping from sanitized ID to source name
+        self._source_id_map: Dict[str, str] = {}
+
+        def sanitize_id(s: str) -> str:
+            """Convert source name to valid widget ID."""
+            return s.replace(" ", "_").replace("-", "_")
+
+        source_checkboxes = []
+        for s in sources:
+            safe_id = f"source_{sanitize_id(s)}"
+            self._source_id_map[safe_id] = s
+            source_checkboxes.append(Checkbox(s, value=True, id=safe_id))
+
+        yield Horizontal(
+            Static("Sources: ", classes="filter-label"),
+            Button("All", id="select_all_sources", variant="default"),
+            Button("None", id="select_none_sources", variant="default"),
+            *source_checkboxes,
+            classes="source-filter-bar",
+        )
 
         years = sorted(self.transactions["Date"].dt.year.unique(), reverse=True)
 
@@ -1028,7 +1140,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             return
 
         self.app.push_screen(
-            self.app.SCREENS["transactions"](category=category, year=year, month=month)
+            self.app.SCREENS["transactions"](
+                category=category, year=year, month=month, source=self._get_single_source_filter()
+            )
         )
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
@@ -1076,13 +1190,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             # For merchants, show transactions for that merchant
             self.app.push_screen(
                 self.app.SCREENS["transactions"](
-                    merchant=merchant, year=year, month=month
+                    merchant=merchant, year=year, month=month, source=self._get_single_source_filter()
                 )
             )
         elif category:
             self.app.push_screen(
                 self.app.SCREENS["transactions"](
-                    category=category, year=year, month=month
+                    category=category, year=year, month=month, source=self._get_single_source_filter()
                 )
             )
 
@@ -1180,13 +1294,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         if merchant:
             self.app.push_screen(
                 self.app.SCREENS["transactions"](
-                    merchant=merchant, year=year, month=month
+                    merchant=merchant, year=year, month=month, source=self._get_single_source_filter()
                 )
             )
         elif category:
             self.app.push_screen(
                 self.app.SCREENS["transactions"](
-                    category=category, year=year, month=month
+                    category=category, year=year, month=month, source=self._get_single_source_filter()
                 )
             )
 

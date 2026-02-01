@@ -44,13 +44,23 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         month: int | None = None,
         merchant: str | None = None,
         transaction_type: str | None = None,
+        source: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.filter_category: str | None = category
         self.filter_merchant: str | None = merchant
-        self.filter_year: int = year if year is not None else datetime.now().year
-        self.filter_month: int | None = month if month is not None else datetime.now().month
+        self.filter_source: str | None = source
+        # Only default to current year/month when opening screen directly (no year specified)
+        # When drilling down from summary with year but no month, show full year
+        if year is None:
+            # Direct open - default to current month
+            self.filter_year: int = datetime.now().year
+            self.filter_month: int | None = datetime.now().month
+        else:
+            # Drill-down from summary - use provided values
+            self.filter_year = year
+            self.filter_month = month  # None means "all year"
         self.filter_type: str | None = transaction_type
         self.columns: list[str] = [
             "Date",
@@ -90,7 +100,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             ),
             ClearableInput(placeholder="Min Amount...", id="amount_min_filter"),
             ClearableInput(placeholder="Max Amount...", id="amount_max_filter"),
-            ClearableInput(placeholder="Filter by Source...", id="source_filter"),
+            ClearableInput(
+                placeholder="Filter by Source...",
+                id="source_filter",
+                value=self.filter_source or "",
+            ),
             ClearableInput(
                 placeholder="Filter by Category...",
                 id="category_filter",
@@ -364,19 +378,35 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         merchant_table.clear(columns=True)
 
         if filtered_df.empty:
-            merchant_table.add_columns("Merchant", "Total", "Count", "Category")
+            merchant_table.add_columns("Merchant", "Total", "Count", "Type", "Category")
             return
+
+        # Ensure Type column exists
+        if "Type" not in filtered_df.columns:
+            filtered_df = filtered_df.copy()
+            filtered_df["Type"] = "expense"
+
+        def get_type_summary(types):
+            """Return type summary: Income, Expense, or Mixed."""
+            unique_types = types.dropna().unique()
+            if len(unique_types) == 0:
+                return "Expense"
+            elif len(unique_types) == 1:
+                return unique_types[0].capitalize()
+            else:
+                return "Mixed"
 
         # Group by DisplayMerchant and aggregate
         merchant_summary = filtered_df.groupby("DisplayMerchant", as_index=False).agg(
             {
                 "Amount": ["sum", "count"],
+                "Type": get_type_summary,
                 "Category": lambda x: x.mode()[0] if len(x.mode()) > 0 else "Other",
             }
         )
 
         # Flatten multi-level columns
-        merchant_summary.columns = ["Merchant", "Total", "Count", "Category"]
+        merchant_summary.columns = ["Merchant", "Total", "Count", "Type", "Category"]
 
         # Sort by total amount descending
         merchant_summary = merchant_summary.sort_values("Total", ascending=False)
@@ -385,6 +415,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         merchant_table.add_column("Merchant", width=None)  # Flexible width
         merchant_table.add_column("Total", width=15)
         merchant_table.add_column("Count", width=10)
+        merchant_table.add_column("Type", width=10)
         merchant_table.add_column("Category", width=20)
 
         # Add rows
@@ -393,6 +424,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 row["Merchant"] or "",
                 f"{row['Total']:,.2f}",
                 str(int(row["Count"])),
+                row["Type"] or "Expense",
                 row["Category"] or "",
             )
 

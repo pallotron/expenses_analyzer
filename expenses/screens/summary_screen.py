@@ -289,7 +289,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                     ),
                                     Vertical(
                                         Static(
-                                            "Income Categories", classes="table_title"
+                                            "Income Categories",
+                                            classes="table_title",
+                                            id=f"income_title_{year}_all",
                                         ),
                                         DataTable(
                                             id=f"income_breakdown_{year}_all",
@@ -365,6 +367,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                             Static(
                                                 "Income Categories",
                                                 classes="table_title",
+                                                id=f"income_title_{year}_{month}",
                                             ),
                                             DataTable(
                                                 id=f"income_breakdown_{year}_{month}",
@@ -755,6 +758,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 ]
                 table.add_row(*styled_row, key=f"income_{category}")
 
+        # Update the title with the total
+        try:
+            title_widget = self.query_one(f"#income_title_{year}_all", Static)
+            title_widget.update(f"Income Categories (Total: {total:,.2f})")
+        except Exception as e:
+            logging.warning(f"Income title widget not found for year {year}: {e}")
+
         table.move_cursor(row=cursor_row)
 
     def update_month_income_view(self, year: int, month: int) -> None:
@@ -801,6 +811,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                     bar,
                 ]
                 table.add_row(*styled_row, key=f"income_{category}")
+
+        # Update the title with the total
+        try:
+            title_widget = self.query_one(f"#income_title_{year}_{month}", Static)
+            title_widget.update(f"Income Categories (Total: {total:,.2f})")
+        except Exception as e:
+            logging.warning(f"Income title widget not found for {year}/{month}: {e}")
 
         table.move_cursor(row=cursor_row)
 

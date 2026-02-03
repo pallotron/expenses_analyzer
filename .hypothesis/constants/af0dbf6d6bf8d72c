@@ -1,4 +1,0 @@
-# file: /Users/pallotron/code/expenses-analyzer/.venv/bin/pytest
-# hypothesis_version: 6.145.0
-
-['-script.pyw', '.exe', '__main__']

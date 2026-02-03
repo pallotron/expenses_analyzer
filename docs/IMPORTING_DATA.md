@@ -12,7 +12,7 @@ To get started, you'll need to import your transaction data. The application sup
 
 2. **Select your CSV file(s)**: Use the file browser to navigate to and select the CSV file(s) you wish to import.
 
-   ![File Browser](screenshots/Import-002-Browse.svg)
+   ![File Browser](screenshots/import-002-browse.jpg)
 
 3. **Map Columns**: The application will show a preview of your CSV and guide you through mapping your columns (e.g., 'Date', 'Merchant', 'Amount') to the application's internal fields.
 

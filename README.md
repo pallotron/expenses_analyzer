@@ -23,7 +23,8 @@ Please contribute if you can or report bugs/issues!
 
 ## Features
 
-- **Import Transactions**: Import your financial transactions from CSV files.
+- **Import Transactions**: Import your financial transactions from CSV files (recommended, most stable).
+- **Bank Integration** (experimental): Link your bank accounts via TrueLayer (UK/Europe) to automatically sync transactions. This feature is still experimental; CSV import is more reliable.
 - **Automatic Categorization**: Automatically categorizes your expenses using Google's Generative AI.
 - **Expense Summary**: View a summary of your expenses, broken down by year and month.
 - **Category Breakdown**: See a detailed breakdown of your spending by category.
@@ -58,9 +59,7 @@ With the project now packaged, you can install it system-wide using `pip`. This 
 
 ### Developer Setup
 
-If you want to work on the code, you can follow the steps below to set up a development environment.
-
-As a convenience, you can also use `make install` which will create the virtual environment and install the required dependencies.
+If you want to work on the code, the recommended approach is to use the Makefile which handles virtual environment creation and dependency installation using `uv`:
 
 1. **Clone the repository:**
 
@@ -75,18 +74,14 @@ As a convenience, you can also use `make install` which will create the virtual 
    python3 --version
    ```
 
-3. **Create a virtual environment:**
+3. **Set up the development environment:**
 
    ```bash
-   python3 -m venv .venv
+   make venv
    source .venv/bin/activate
    ```
 
-4. **Install the dependencies:**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
+   This will create a virtual environment using `uv` and install all dependencies.
 
 ## Additional Tools
 

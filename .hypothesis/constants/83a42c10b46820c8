@@ -1,4 +1,0 @@
-# file: /Users/pallotron/code/expenses-analyzer/expenses/config.py
-# hypothesis_version: 6.145.0
-
-['.config', 'app.log', 'categories.json', 'expenses_analyzer', 'transactions.parquet']

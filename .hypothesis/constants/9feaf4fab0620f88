@@ -1,4 +1,0 @@
-# file: /Users/pallotron/code/expenses-analyzer/expenses/transaction_filter.py
-# hypothesis_version: 6.145.0
-
-['<=', '==', '>=', 'contains']

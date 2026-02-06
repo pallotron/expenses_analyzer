@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 import os
 import json
 import logging
@@ -143,8 +143,7 @@ def get_gemini_category_suggestions_for_merchants(
         logging.warning("GEMINI_API_KEY not set. Skipping category suggestions.")
         return {}
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-flash-latest")
+    client = genai.Client(api_key=api_key)
 
     existing_categories = _load_existing_categories(transaction_type)
     category_guidance = _build_category_guidance(existing_categories, transaction_type)
@@ -154,7 +153,10 @@ def get_gemini_category_suggestions_for_merchants(
         logging.info(
             f"Requesting category suggestions for {len(merchant_names)} merchants from Gemini."
         )
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
         categories = _parse_gemini_response(response.text)
         logging.info(f"Received {len(categories)} category suggestions from Gemini.")
         return categories

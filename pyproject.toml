@@ -15,7 +15,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: OS Independent",
 ]
-dependencies = ["pandas", "textual", "pyarrow", "google-generativeai", "requests", "flask"]
+dependencies = ["pandas", "textual", "pyarrow", "google-genai", "requests", "flask"]
 
 [project.optional-dependencies]
 dev = ["pytest-asyncio"]

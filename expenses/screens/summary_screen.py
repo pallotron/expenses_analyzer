@@ -29,6 +29,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         Binding("enter", "drill_down", "Drill Down"),
         Binding("ctrl+m", "toggle_compact", "Compact Mode"),
         Binding("f", "toggle_focus", "Focus Mode"),
+        Binding("e", "export_pdf", "Export PDF"),
     ]
 
     def __init__(self, **kwargs: Any) -> None:
@@ -102,6 +103,37 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 child.add_class("panel-hidden")
 
         self.focus_mode = True
+
+    def action_export_pdf(self) -> None:
+        """Export current summary view to PDF."""
+        from expenses.pdf_export import export_summary_pdf
+
+        year = None
+        month = None
+        try:
+            year_tabs = self.query_one("#year_tabs", TabbedContent)
+            active_year_id = year_tabs.active
+            if active_year_id:
+                year = int(active_year_id.split("_")[1])
+                month_tabs = self.query_one(f"#month_tabs_{year}", TabbedContent)
+                active_month_id = month_tabs.active
+                if active_month_id and not active_month_id.endswith("_all"):
+                    month = int(active_month_id.split("_")[2])
+        except Exception:
+            pass
+
+        try:
+            filepath = export_summary_pdf(
+                transactions=self.transactions,
+                categories=self.categories,
+                year=year,
+                month=month,
+                source_filter=self.source_filter if self.source_filter else None,
+            )
+            self.app.show_notification(f"Exported to {filepath}")
+        except Exception as e:
+            logging.error(f"PDF export failed: {e}", exc_info=True)
+            self.app.show_notification(f"Export failed: {e}")
 
     def load_and_prepare_data(self) -> None:
         """Loads and prepares transaction and category data."""

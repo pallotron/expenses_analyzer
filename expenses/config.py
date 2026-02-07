@@ -13,6 +13,7 @@ TRANSACTIONS_FILE: Path = CONFIG_DIR / "transactions.parquet"
 DEFAULT_CATEGORIES_FILE: Path = CONFIG_DIR / "default_categories.json"
 MERCHANT_ALIASES_FILE: Path = CONFIG_DIR / "merchant_aliases.json"
 LOG_FILE: Path = CONFIG_DIR / "app.log"
+EXPORTS_DIR: Path = CONFIG_DIR / "exports"
 
 # TrueLayer API Configuration
 TRUELAYER_CLIENT_ID = os.getenv("TRUELAYER_CLIENT_ID")

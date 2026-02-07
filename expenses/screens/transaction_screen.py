@@ -35,6 +35,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         Binding("space", "toggle_selection", "Toggle Selection"),
         Binding("e", "edit_merchant", "Edit Merchant"),
         Binding("b", "bulk_edit", "Bulk Edit"),
+        Binding("p", "export_pdf", "Export PDF"),
     ]
 
     def __init__(
@@ -662,3 +663,48 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             ),
             handle_bulk_edit_result,
         )
+
+    def action_export_pdf(self) -> None:
+        """Export current filtered transactions to PDF."""
+        from expenses.pdf_export import export_transactions_pdf
+
+        if self.display_df.empty:
+            self.app.show_notification("No transactions to export")
+            return
+
+        # Build filters description from current filter inputs
+        filter_parts = []
+        try:
+            date_min = self.query_one("#date_min_filter", ClearableInput).value
+            date_max = self.query_one("#date_max_filter", ClearableInput).value
+            merchant = self.query_one("#merchant_filter", ClearableInput).value
+            source = self.query_one("#source_filter", ClearableInput).value
+            category = self.query_one("#category_filter", ClearableInput).value
+            type_filter = self.query_one("#type_filter", ClearableInput).value
+            if date_min:
+                filter_parts.append(f"From: {date_min}")
+            if date_max:
+                filter_parts.append(f"To: {date_max}")
+            if merchant:
+                filter_parts.append(f"Merchant: {merchant}")
+            if source:
+                filter_parts.append(f"Source: {source}")
+            if category:
+                filter_parts.append(f"Category: {category}")
+            if type_filter:
+                filter_parts.append(f"Type: {type_filter}")
+        except Exception:
+            pass
+
+        filters_desc = "\n".join(filter_parts) if filter_parts else None
+
+        try:
+            filepath = export_transactions_pdf(
+                transactions=self.display_df,
+                categories=self.categories,
+                filters_description=filters_desc,
+            )
+            self.app.show_notification(f"Exported to {filepath}")
+        except Exception as e:
+            logging.error(f"PDF export failed: {e}", exc_info=True)
+            self.app.show_notification(f"Export failed: {e}")

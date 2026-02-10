@@ -16,6 +16,8 @@ from expenses.data_handler import (
     load_categories,
     load_merchant_aliases,
     apply_merchant_aliases_to_series,
+    load_category_types,
+    get_category_spending_type,
 )
 from expenses.analysis import calculate_trends, get_cash_flow_totals
 from typing import Dict, Set, Optional, Any
@@ -37,6 +39,8 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         self.source_filter: Set[str] = set()  # Empty set means all sources
         self.load_and_prepare_data()
         self.selected_rows: Set[str] = set()
+        self.sort_column: str = ""
+        self.sort_order: str = "asc"
         self.compact_mode: bool = False
         self.focus_mode: bool = False
 
@@ -140,6 +144,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         self._all_transactions: pd.DataFrame = load_transactions_from_parquet()
         self.categories: Dict[str, str] = load_categories()
         self.merchant_aliases: Dict[str, str] = load_merchant_aliases()
+        self.category_types: dict = load_category_types()
         logging.info(f"Loaded {len(self.merchant_aliases)} merchant alias patterns")
         if not self._all_transactions.empty:
             self._all_transactions["Date"] = pd.to_datetime(self._all_transactions["Date"])
@@ -582,7 +587,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         )
         cursor_row = table.cursor_row
         table.clear(columns=True)
-        table.add_columns("Category", "Amount", "Percentage")
+        table.add_columns("Category", "Type", "Amount", "Percentage")
 
         year_df = self.transactions[self.transactions["Date"].dt.year == year]
         # Filter to expenses only for category breakdown
@@ -601,8 +606,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 category = row["Category"]
                 style = selected_style if category in self.selected_rows else ""
                 percentage = (row["Amount"] / total) * 100 if total > 0 else 0
+                stype = get_category_spending_type(
+                    category, self.category_types
+                )
+                type_label = "Ess." if stype == "essential" else "Discr."
                 styled_row = [
                     Text(category, style=style),
+                    Text(type_label, style=style),
                     Text(f"{row['Amount']:,.2f}", style=style),
                     Text(f"{percentage:.2f}%", style=style),
                 ]
@@ -619,7 +629,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         title_widget = self.query_one(f"#month_{year}_{month} .table_title", Static)
         cursor_row = category_table.cursor_row
         category_table.clear(columns=True)
-        category_table.add_columns("Category", "Amount", "Percentage", "Bar")
+        category_table.add_columns("Category", "Type", "Amount", "Percentage", "Bar")
         month_df = self.transactions[
             (self.transactions["Date"].dt.year == year)
             & (self.transactions["Date"].dt.month == month)
@@ -645,8 +655,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 style = selected_style if category in self.selected_rows else ""
                 percentage = (row["Amount"] / total) * 100 if total > 0 else 0
                 bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=25)
+                stype = get_category_spending_type(
+                    category, self.category_types
+                )
+                type_label = "Ess." if stype == "essential" else "Discr."
                 styled_row = [
                     Text(category, style=style),
+                    Text(type_label, style=style),
                     Text(f"{row['Amount']:,.2f}", style=style),
                     Text(f"{percentage:.2f}%", style=style),
                     bar,  # Plain string, no Text() wrapper, no style
@@ -679,7 +694,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             return  # Table might not exist yet
 
         table.clear(columns=True)
-        table.add_columns("Merchant", "Category", "Amount")
+        table.add_columns("Merchant", "Category", "Type", "Amount")
 
         if not df.empty:
             # Ensure DisplayMerchant column exists (it should from load_and_prepare_data)
@@ -723,8 +738,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 display_merchant = row["DisplayMerchant"]
                 amount = row["Amount"]
                 category = row["Category"]
+                stype = get_category_spending_type(
+                    category, self.category_types
+                )
+                type_label = "Ess." if stype == "essential" else "Discr."
                 table.add_row(
-                    display_merchant, category, f"{amount:,.2f}", key=display_merchant
+                    display_merchant, category, type_label,
+                    f"{amount:,.2f}", key=display_merchant,
                 )
 
     def update_cash_flow(self, year: int, month: Optional[int] = None) -> None:
@@ -743,15 +763,98 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             totals = get_cash_flow_totals(df)
             net_color = "green" if totals["net"] >= 0 else "red"
 
-            cash_flow_widget = self.query_one(f"#{widget_id}", Static)
-            cash_flow_widget.update(
+            line1 = (
                 f"[bold]Income:[/bold] [green]{totals['total_income']:,.2f}[/green]  |  "
                 f"[bold]Expenses:[/bold] [red]{totals['total_expenses']:,.2f}[/red]  |  "
                 f"[bold]Net:[/bold] [{net_color}]{totals['net']:,.2f}[/{net_color}]  |  "
                 f"[bold]Savings Rate:[/bold] {totals['savings_rate']:.1f}%"
             )
+
+            # Calculate essential/discretionary breakdown
+            line2 = self._build_spending_type_line(df, month=month)
+
+            cash_flow_widget = self.query_one(f"#{widget_id}", Static)
+            if line2:
+                cash_flow_widget.update(f"{line1}\n{line2}")
+            else:
+                cash_flow_widget.update(line1)
         except Exception as e:
             logging.warning(f"Error updating cash flow for {year}/{month}: {e}")
+
+    def _build_spending_type_line(
+        self, df: pd.DataFrame, month: Optional[int] = None
+    ) -> str:
+        """Build the essential/discretionary spending breakdown line."""
+        if df.empty or "Type" not in df.columns:
+            return ""
+
+        expense_df = df[df["Type"] == "expense"]
+        if expense_df.empty:
+            return ""
+
+        essential_total = 0.0
+        discretionary_total = 0.0
+
+        if "Category" in expense_df.columns:
+            for _, row in expense_df.iterrows():
+                cat = row["Category"]
+                stype = get_category_spending_type(cat, self.category_types)
+                if stype == "essential":
+                    essential_total += row["Amount"]
+                else:
+                    discretionary_total += row["Amount"]
+        else:
+            discretionary_total = expense_df["Amount"].sum()
+
+        total_expenses = essential_total + discretionary_total
+        ess_pct = (
+            (essential_total / total_expenses * 100) if total_expenses > 0 else 0
+        )
+        disc_pct = (
+            (discretionary_total / total_expenses * 100) if total_expenses > 0 else 0
+        )
+
+        parts = [
+            f"[bold]Essential:[/bold] [yellow]{essential_total:,.2f} ({ess_pct:.0f}%)[/yellow]",
+            f"[bold]Discretionary:[/bold] [red]{discretionary_total:,.2f} ({disc_pct:.0f}%)[/red]",
+        ]
+
+        # Add budget info if set — prorate to monthly when viewing a single month
+        ess_annual = self.category_types.get(
+            "essential", {}
+        ).get("annual_budget")
+        disc_annual = self.category_types.get(
+            "discretionary", {}
+        ).get("annual_budget")
+
+        divisor = 12 if month else 1
+        period_label = "/mo" if month else "/yr"
+
+        if ess_annual is not None:
+            ess_budget = ess_annual / divisor
+            ess_used_pct = (
+                essential_total / ess_budget * 100 if ess_budget > 0 else 0
+            )
+            color = "green" if essential_total <= ess_budget else "red"
+            parts[0] += (
+                f"  [{color}]\\[Budget: {ess_budget:,.0f}{period_label} "
+                f"— {ess_used_pct:.0f}% used][/{color}]"
+            )
+
+        if disc_annual is not None:
+            disc_budget = disc_annual / divisor
+            disc_used_pct = (
+                discretionary_total / disc_budget * 100
+                if disc_budget > 0
+                else 0
+            )
+            color = "green" if discretionary_total <= disc_budget else "red"
+            parts[1] += (
+                f"  [{color}]\\[Budget: {disc_budget:,.0f}{period_label} "
+                f"— {disc_used_pct:.0f}% used][/{color}]"
+            )
+
+        return "  |  ".join(parts)
 
     def update_all_year_income_view(self, year: int) -> None:
         """Populates the income categories table in the 'All Year' tab."""
@@ -1352,6 +1455,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                     category=category, year=year, month=month, source=self._get_single_source_filter()
                 )
             )
+
+    def populate_table(self) -> None:
+        """Called by DataTableOperationsMixin on header click."""
+        self.update_table()
 
     def update_table(self) -> None:
         """Update the table."""

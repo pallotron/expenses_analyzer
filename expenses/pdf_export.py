@@ -8,6 +8,7 @@ from fpdf import FPDF
 
 from expenses.analysis import get_cash_flow_totals
 from expenses.config import EXPORTS_DIR
+from expenses.data_handler import load_category_types, get_category_spending_type
 
 
 def format_currency(amount: float) -> str:
@@ -154,6 +155,7 @@ def export_summary_pdf(
     # --- Cash Flow Summary ---
     add_section_title(pdf, "CASH FLOW SUMMARY")
     totals = get_cash_flow_totals(df)
+    category_types = load_category_types()
 
     cash_flow_rows = [
         ["Total Income", format_currency(totals["total_income"])],
@@ -161,6 +163,49 @@ def export_summary_pdf(
         ["Net", format_currency(totals["net"])],
         ["Savings Rate", f"{totals['savings_rate']:.1f}%"],
     ]
+
+    # Calculate essential/discretionary breakdown
+    if "Type" in df.columns:
+        exp_df = df[df["Type"] == "expense"]
+    else:
+        exp_df = df
+    if not exp_df.empty and "Category" in exp_df.columns:
+        ess_total = 0.0
+        disc_total = 0.0
+        for _, r in exp_df.iterrows():
+            stype = get_category_spending_type(r["Category"], category_types)
+            if stype == "essential":
+                ess_total += r["Amount"]
+            else:
+                disc_total += r["Amount"]
+        total_exp = ess_total + disc_total
+        ess_pct = (ess_total / total_exp * 100) if total_exp > 0 else 0
+        disc_pct = (disc_total / total_exp * 100) if total_exp > 0 else 0
+        cash_flow_rows.append(
+            ["Essential Expenses", f"{format_currency(ess_total)} ({ess_pct:.0f}%)"]
+        )
+        cash_flow_rows.append(
+            ["Discretionary Expenses", f"{format_currency(disc_total)} ({disc_pct:.0f}%)"]
+        )
+
+        # Budget tracking
+        ess_annual = category_types.get("essential", {}).get("annual_budget")
+        disc_annual = category_types.get("discretionary", {}).get("annual_budget")
+        divisor = 12 if month else 1
+        label = "/mo" if month else "/yr"
+        if ess_annual is not None:
+            ess_budget = ess_annual / divisor
+            ess_used = (ess_total / ess_budget * 100) if ess_budget > 0 else 0
+            cash_flow_rows.append(
+                [f"Essential Budget ({label.strip('/')})", f"{format_currency(ess_budget)} - {ess_used:.0f}% used"]
+            )
+        if disc_annual is not None:
+            disc_budget = disc_annual / divisor
+            disc_used = (disc_total / disc_budget * 100) if disc_budget > 0 else 0
+            cash_flow_rows.append(
+                [f"Discretionary Budget ({label.strip('/')})", f"{format_currency(disc_budget)} - {disc_used:.0f}% used"]
+            )
+
     add_table(pdf, ["Metric", "Value"], cash_flow_rows, [60, 60], [False, True])
     pdf.ln(4)
 
@@ -183,18 +228,20 @@ def export_summary_pdf(
         expense_rows = []
         for _, row in cat_summary.iterrows():
             pct = (row["Amount"] / total_expenses * 100) if total_expenses > 0 else 0
+            stype = get_category_spending_type(row["Category"], category_types)
+            type_label = "Ess." if stype == "essential" else "Discr."
             expense_rows.append(
-                [row["Category"], format_currency(row["Amount"]), f"{pct:.1f}%"]
+                [row["Category"], type_label, format_currency(row["Amount"]), f"{pct:.1f}%"]
             )
         expense_rows.append(
-            ["TOTAL", format_currency(total_expenses), "100.0%"]
+            ["TOTAL", "", format_currency(total_expenses), "100.0%"]
         )
         add_table(
             pdf,
-            ["Category", "Amount", "%"],
+            ["Category", "Type", "Amount", "%"],
             expense_rows,
-            [80, 50, 30],
-            [False, True, True],
+            [70, 20, 45, 25],
+            [False, False, True, True],
         )
         pdf.ln(4)
 
@@ -248,16 +295,19 @@ def export_summary_pdf(
             .sort_values("Amount", ascending=False)
             .head(10)
         )
-        merchant_rows = [
-            [row[merchant_col], row["Category"], format_currency(row["Amount"])]
-            for _, row in merchant_summary.iterrows()
-        ]
+        merchant_rows = []
+        for _, row in merchant_summary.iterrows():
+            stype = get_category_spending_type(row["Category"], category_types)
+            type_label = "Ess." if stype == "essential" else "Discr."
+            merchant_rows.append(
+                [row[merchant_col], row["Category"], type_label, format_currency(row["Amount"])]
+            )
         add_table(
             pdf,
-            ["Merchant", "Category", "Amount"],
+            ["Merchant", "Category", "Type", "Amount"],
             merchant_rows,
-            [90, 50, 50],
-            [False, False, True],
+            [80, 45, 20, 45],
+            [False, False, False, True],
         )
         pdf.ln(4)
 
@@ -319,18 +369,21 @@ def export_summary_pdf(
         monthly["Avg"] = monthly["Total"].divide(non_zero).fillna(0)
         monthly = monthly.sort_values("Total", ascending=False)
 
-        headers = ["Category"] + month_names + ["Total", "Avg"]
+        headers = ["Category", "Type"] + month_names + ["Total", "Avg"]
         # Adjusted widths for landscape: ~277mm usable
-        cat_w = 35
-        month_w = 17
-        total_w = 22
-        avg_w = 22
-        col_widths = [cat_w] + [month_w] * 12 + [total_w, avg_w]
-        right_align = [False] + [True] * 14
+        cat_w = 30
+        type_w = 14
+        month_w = 16
+        total_w = 20
+        avg_w = 20
+        col_widths = [cat_w, type_w] + [month_w] * 12 + [total_w, avg_w]
+        right_align = [False, False] + [True] * 14
 
         monthly_rows = []
         for cat_name, row in monthly.iterrows():
-            cells = [str(cat_name)]
+            stype = get_category_spending_type(str(cat_name), category_types)
+            type_label = "Ess." if stype == "essential" else "Discr."
+            cells = [str(cat_name), type_label]
             for mn in month_names:
                 val = row[mn]
                 cells.append(f"{val:,.0f}" if val > 0 else "-")
@@ -339,7 +392,7 @@ def export_summary_pdf(
             monthly_rows.append(cells)
 
         # Total row
-        total_cells = ["TOTAL"]
+        total_cells = ["TOTAL", ""]
         for mn in month_names:
             val = monthly[mn].sum()
             total_cells.append(f"{val:,.0f}" if val > 0 else "-")

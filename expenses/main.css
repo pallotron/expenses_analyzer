@@ -449,3 +449,19 @@ ConfirmationScreen #help_text {
 #accounts_container:focus-within {
     border: solid $success;
 }
+
+/* --- Budget Types Screen --- */
+#category_types_table {
+    height: 1fr;
+    border: solid $primary;
+    padding: 0 1;
+}
+
+#category_types_table:focus-within {
+    border: solid $success;
+}
+
+.cash-flow-summary {
+    height: auto;
+    padding: 0 1;
+}

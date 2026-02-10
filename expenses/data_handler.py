@@ -15,6 +15,7 @@ from expenses.config import (
     TRANSACTIONS_FILE,
     DEFAULT_CATEGORIES_FILE,
     MERCHANT_ALIASES_FILE,
+    CATEGORY_TYPES_FILE,
 )
 
 # Global flag to track if corruption was detected (for TUI notification)
@@ -161,6 +162,66 @@ def save_categories(categories: Dict[str, str]) -> None:
     with open(CATEGORIES_FILE, "w") as f:
         json.dump(categories, f, indent=4)
     _set_secure_permissions(CATEGORIES_FILE)
+
+
+# --- Category Types (Essential/Discretionary) Management ---
+def load_category_types() -> dict:
+    """Load category type mappings (essential/discretionary) from JSON file.
+
+    Returns:
+        Dictionary with 'essential' and 'discretionary' keys, each containing
+        'categories' (list) and 'annual_budget' (float or None).
+    """
+    category_types = None
+
+    if CATEGORY_TYPES_FILE.exists():
+        try:
+            with open(CATEGORY_TYPES_FILE, "r") as f:
+                category_types = json.load(f)
+        except json.JSONDecodeError:
+            pass  # Fallback to package default
+
+    if category_types is None:
+        try:
+            ref = importlib.resources.files("expenses").joinpath(
+                "default_category_types.json"
+            )
+            with ref.open("r") as f:
+                category_types = json.load(f)
+                # Copy to user's config dir for first run
+                try:
+                    with open(CATEGORY_TYPES_FILE, "w") as user_f:
+                        json.dump(category_types, user_f, indent=4)
+                except IOError:
+                    logging.warning(
+                        "Could not save default category types to config dir."
+                    )
+        except (FileNotFoundError, json.JSONDecodeError):
+            category_types = {
+                "essential": {"categories": [], "annual_budget": None},
+                "discretionary": {"categories": [], "annual_budget": None},
+            }
+
+    return category_types
+
+
+def save_category_types(data: dict) -> None:
+    """Save category type mappings to JSON file."""
+    _ensure_secure_config_dir()
+    with open(CATEGORY_TYPES_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+    _set_secure_permissions(CATEGORY_TYPES_FILE)
+
+
+def get_category_spending_type(category: str, category_types: dict) -> str:
+    """Return 'essential' or 'discretionary' for a given category.
+
+    Categories not listed in either group default to 'discretionary'.
+    """
+    essential_cats = category_types.get("essential", {}).get("categories", [])
+    if category in essential_cats:
+        return "essential"
+    return "discretionary"
 
 
 # --- Merchant Alias Management ---

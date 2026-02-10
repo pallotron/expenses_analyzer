@@ -12,6 +12,8 @@ CATEGORIES_FILE: Path = CONFIG_DIR / "categories.json"
 TRANSACTIONS_FILE: Path = CONFIG_DIR / "transactions.parquet"
 DEFAULT_CATEGORIES_FILE: Path = CONFIG_DIR / "default_categories.json"
 MERCHANT_ALIASES_FILE: Path = CONFIG_DIR / "merchant_aliases.json"
+CATEGORY_TYPES_FILE: Path = CONFIG_DIR / "category_types.json"
+DEFAULT_CATEGORY_TYPES_FILE: Path = CONFIG_DIR / "default_category_types.json"
 LOG_FILE: Path = CONFIG_DIR / "app.log"
 EXPORTS_DIR: Path = CONFIG_DIR / "exports"
 

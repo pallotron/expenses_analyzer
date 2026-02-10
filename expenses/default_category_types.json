@@ -1,0 +1,26 @@
+{
+    "essential": {
+        "categories": [
+            "Groceries", "Utilities", "Rent/Mortgage", "Healthcare",
+            "Insurance", "Transportation", "Education", "Taxes",
+            "Professional Services", "Internet", "Mobile", "Energy",
+            "Water", "Waste Management", "Medical Services", "Pharmacies",
+            "Childcare", "Public Transport", "Fuel", "Car Maintenance"
+        ],
+        "annual_budget": null
+    },
+    "discretionary": {
+        "categories": [
+            "Dining", "Travel", "Subscriptions", "Shopping", "Clothing",
+            "Hobbies", "Entertainment", "Amazon Purchases", "Electronics",
+            "Home Improvement", "Streaming Services", "Gym Memberships",
+            "Dining Out", "Fast Food", "Coffee Shops", "Restaurants",
+            "Bars", "Cafes", "Gym/Fitness", "Books", "Movies", "Music",
+            "Software", "Hardware", "Furniture", "Appliances",
+            "Travel Accommodation", "Airfare", "Car Rentals", "Parking",
+            "Tolls", "Events", "Apple Purchases", "Biking", "Pet Care",
+            "Personal Care", "Gifts/Donations"
+        ],
+        "annual_budget": null
+    }
+}

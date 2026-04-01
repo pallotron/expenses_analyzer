@@ -336,9 +336,10 @@ class ImportScreen(BaseScreen):
             merchant_col = self.query_one("#merchant_select", Select).value
             amount_col = self.query_one("#amount_select", Select).value
             amount_out_val = self.query_one("#amount_out_select", Select).value
+            _select_null = getattr(Select, "NULL", None)
             amount_out_col = (
                 amount_out_val
-                if amount_out_val and amount_out_val != Select.BLANK
+                if amount_out_val and amount_out_val != Select.BLANK and amount_out_val != _select_null
                 else None
             )
             type_mode = self.query_one("#type_select", Select).value

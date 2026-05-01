@@ -69,9 +69,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         if focused is None:
             return
 
-        # Find the parent panel (expense-breakdown, income-breakdown, or monthly-breakdown)
+        # Find the parent panel
         panel_classes = [
             "expense-breakdown",
+            "expense-merchants",
             "income-breakdown",
             "monthly-breakdown",
             "expense-column",
@@ -298,77 +299,71 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                     ):
                         # Add "All Year" tab first
                         with TabPane("All Year", id=f"month_{year}_all"):
-                            yield Vertical(
-                                Static(
-                                    id=f"cash_flow_{year}_all",
-                                    classes="cash-flow-summary",
-                                ),
-                                Horizontal(
-                                    Vertical(
-                                        Static(
-                                            "Expense Categories", classes="table_title"
-                                        ),
-                                        DataTable(
-                                            id=f"category_breakdown_{year}_all",
-                                            cursor_type="row",
-                                            zebra_stripes=True,
-                                        ),
-                                        Static(
-                                            "Top Expense Merchants",
-                                            classes="table_title",
-                                        ),
-                                        DataTable(
-                                            id=f"top_merchants_{year}_all",
-                                            cursor_type="row",
-                                            zebra_stripes=True,
-                                        ),
-                                        classes="category-breakdown expense-breakdown",
-                                    ),
-                                    Vertical(
-                                        Static(
-                                            "Income Categories",
-                                            classes="table_title",
-                                            id=f"income_title_{year}_all",
-                                        ),
-                                        DataTable(
-                                            id=f"income_breakdown_{year}_all",
-                                            cursor_type="row",
-                                            zebra_stripes=True,
-                                        ),
-                                        Static(
-                                            "Top Income Sources", classes="table_title"
-                                        ),
-                                        DataTable(
-                                            id=f"top_income_{year}_all",
-                                            cursor_type="row",
-                                            zebra_stripes=True,
-                                        ),
-                                        classes="category-breakdown income-breakdown",
-                                    ),
-                                    Vertical(
-                                        Static(
+                            yield Static(
+                                id=f"cash_flow_{year}_all",
+                                classes="cash-flow-summary",
+                            )
+                            with TabbedContent(
+                                id=f"all_year_subtabs_{year}",
+                                classes="all-year-container",
+                            ):
+                                with TabPane("General", id=f"all_year_general_{year}"):
+                                    with Horizontal(classes="summary-grid"):
+                                        with Vertical(classes="expense-breakdown"):
+                                            yield Static(
+                                                "Expense Categories", classes="table_title"
+                                            )
+                                            yield DataTable(
+                                                id=f"category_breakdown_{year}_all",
+                                                cursor_type="row",
+                                                zebra_stripes=True,
+                                            )
+                                            yield Static(
+                                                "Top Expense Merchants", classes="table_title"
+                                            )
+                                            yield DataTable(
+                                                id=f"top_merchants_{year}_all",
+                                                cursor_type="row",
+                                                zebra_stripes=True,
+                                            )
+                                        with Vertical(classes="income-breakdown"):
+                                            yield Static(
+                                                "Income Categories",
+                                                classes="table_title",
+                                                id=f"income_title_{year}_all",
+                                            )
+                                            yield DataTable(
+                                                id=f"income_breakdown_{year}_all",
+                                                cursor_type="row",
+                                                zebra_stripes=True,
+                                            )
+                                            yield Static(
+                                                "Top Income Sources",
+                                                classes="table_title",
+                                            )
+                                            yield DataTable(
+                                                id=f"top_income_{year}_all",
+                                                cursor_type="row",
+                                                zebra_stripes=True,
+                                            )
+                                with TabPane("Monthly", id=f"all_year_monthly_{year}"):
+                                    with Vertical(classes="monthly-breakdown"):
+                                        yield Static(
                                             "Monthly Expense Breakdown",
                                             classes="table_title",
-                                        ),
-                                        DataTable(
+                                        )
+                                        yield DataTable(
                                             id=f"monthly_breakdown_{year}_all",
                                             zebra_stripes=True,
-                                        ),
-                                        Static(
+                                        )
+                                        yield Static(
                                             "Monthly Income Breakdown",
                                             classes="table_title",
-                                        ),
-                                        DataTable(
+                                        )
+                                        yield DataTable(
                                             id=f"monthly_income_breakdown_{year}_all",
                                             zebra_stripes=True,
-                                        ),
-                                        classes="monthly-breakdown",
-                                    ),
-                                    classes="summary-grid",
-                                ),
-                                id=f"all_year_container_{year}",
-                                classes="all-year-container",
-                            )
+                                        )
 
                         # Add individual month tabs
                         for month in months_in_year:
@@ -505,7 +500,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         """Handle tab changes to update the data."""
         self.load_and_prepare_data()  # Reload data on every tab change
 
-        if event.tabbed_content.id == "year_tabs":
+        tc_id = event.tabbed_content.id or ""
+
+        if tc_id == "year_tabs":
             year = int(event.pane.id.split("_")[1])
             self.update_cash_flow(year)
             self.update_all_year_category_view(year)
@@ -514,7 +511,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             self.update_all_year_income_view(year)
             self.update_top_income_view(year)
 
-        elif event.tabbed_content.id.startswith("month_tabs_"):
+        elif tc_id.startswith("all_year_subtabs_"):
+            # Switching between General/Monthly sub-tabs — data already loaded
+            return
+
+        elif tc_id.startswith("month_tabs_"):
             year = int(event.tabbed_content.id.split("_")[2])
             pane_id = event.pane.id.split("_")
 
@@ -583,11 +584,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         """Populates the table in the 'All Year' tab."""
         table = self.query_one(f"#category_breakdown_{year}_all", DataTable)
         title_widget = self.query_one(
-            f"#all_year_container_{year} .table_title", Static
+            f"#all_year_subtabs_{year} .table_title", Static
         )
         cursor_row = table.cursor_row
         table.clear(columns=True)
-        table.add_columns("Category", "Type", "Amount", "Percentage")
+        table.add_columns("Category", "Type", "Amount", "Percentage", "Bar")
 
         year_df = self.transactions[self.transactions["Date"].dt.year == year]
         # Filter to expenses only for category breakdown
@@ -601,11 +602,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             )
 
             total = category_summary["Amount"].sum()
+            max_amount = category_summary["Amount"].max()
             selected_style = Style(bgcolor="yellow", color="black")
             for _, row in category_summary.iterrows():
                 category = row["Category"]
                 style = selected_style if category in self.selected_rows else ""
                 percentage = (row["Amount"] / total) * 100 if total > 0 else 0
+                bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=25)
                 stype = get_category_spending_type(
                     category, self.category_types
                 )
@@ -615,6 +618,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                     Text(type_label, style=style),
                     Text(f"{row['Amount']:,.2f}", style=style),
                     Text(f"{percentage:.2f}%", style=style),
+                    bar,
                 ]
                 table.add_row(*styled_row, key=category)
 
@@ -691,32 +695,18 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             table = self.query_one(f"#{table_id}", DataTable)
         except Exception as e:
             logging.warning(f"DataTable for {table_id} not found: {e}")
-            return  # Table might not exist yet
+            return
 
         table.clear(columns=True)
         table.add_columns("Merchant", "Category", "Type", "Amount")
 
         if not df.empty:
-            # Ensure DisplayMerchant column exists (it should from load_and_prepare_data)
             if "DisplayMerchant" not in df.columns:
                 logging.warning(
                     "DisplayMerchant column not found, using Merchant instead"
                 )
                 df["DisplayMerchant"] = df["Merchant"]
 
-            # Debug: Log sample of merchants and their aliases
-            if len(df) > 0:
-                sample_size = min(5, len(df))
-                logging.debug(
-                    f"Top merchants view - Sample of {sample_size} transactions:"
-                )
-                for idx, row in df.head(sample_size).iterrows():
-                    logging.debug(
-                        f"  Original: '{row['Merchant']}' -> Display: '{row['DisplayMerchant']}'"
-                    )
-
-            # Group by DisplayMerchant (alias) to combine transactions with same alias
-            # Also get the most common category for each display merchant
             merchant_summary = (
                 df.groupby("DisplayMerchant", as_index=False)
                 .agg(
@@ -738,9 +728,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 display_merchant = row["DisplayMerchant"]
                 amount = row["Amount"]
                 category = row["Category"]
-                stype = get_category_spending_type(
-                    category, self.category_types
-                )
+                stype = get_category_spending_type(category, self.category_types)
                 type_label = "Ess." if stype == "essential" else "Discr."
                 table.add_row(
                     display_merchant, category, type_label,
@@ -866,7 +854,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
         cursor_row = table.cursor_row
         table.clear(columns=True)
-        table.add_columns("Category", "Amount", "Percentage")
+        table.add_columns("Category", "Amount", "Percentage", "Bar")
 
         year_df = self.transactions[self.transactions["Date"].dt.year == year]
         # Filter to income only
@@ -881,15 +869,18 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             )
 
             total = category_summary["Amount"].sum()
+            max_amount = category_summary["Amount"].max()
             selected_style = Style(bgcolor="yellow", color="black")
             for _, row in category_summary.iterrows():
                 category = row["Category"]
                 style = selected_style if category in self.selected_rows else ""
                 percentage = (row["Amount"] / total) * 100 if total > 0 else 0
+                bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=25)
                 styled_row = [
                     Text(category, style=style),
                     Text(f"{row['Amount']:,.2f}", style=style),
                     Text(f"{percentage:.2f}%", style=style),
+                    bar,
                 ]
                 table.add_row(*styled_row, key=f"income_{category}")
 

@@ -198,29 +198,36 @@ SummaryScreen TabbedContent TabPane {
     height: 1fr; /* Allow the grid to fill the available space */
 }
 
-.category-breakdown, .monthly-breakdown, .single_month_container {
-    height: 1fr; /* Make containers fill their parent's height */
+.category-breakdown,
+.expense-breakdown,
+.expense-merchants,
+.income-breakdown,
+.income-column,
+.expense-column,
+.monthly-breakdown,
+.single_month_container {
+    height: 1fr;
     width: 1fr;
     border: solid $primary;
     padding: 0 1;
 }
 
 .category-breakdown:focus-within,
+.expense-breakdown:focus-within,
+.expense-merchants:focus-within,
+.income-breakdown:focus-within,
+.income-column:focus-within,
+.expense-column:focus-within,
 .monthly-breakdown:focus-within,
 .single_month_container:focus-within {
     border: solid $success;
 }
 
-.expense-column, .income-column {
-    border: solid $primary;
-    padding: 0 1;
-}
-
-.expense-column:focus-within, .income-column:focus-within {
-    border: solid $success;
-}
-
 .category-breakdown > DataTable,
+.expense-breakdown > DataTable,
+.expense-column > DataTable,
+.income-breakdown > DataTable,
+.income-column > DataTable,
 .monthly-breakdown > DataTable,
 .single_month_container > DataTable {
     height: 1fr;
@@ -228,15 +235,34 @@ SummaryScreen TabbedContent TabPane {
 }
 
 .category-breakdown {
-    width: 60;
+    width: 1fr;
 }
 
 .expense-breakdown, .expense-column {
-    width: 80;
+    width: 1fr;
+}
+
+.expense-merchants {
+    width: 1fr;
+}
+
+.all-year-container {
+    height: 1fr;
+    margin-top: 1;
+}
+
+.all-year-container > TabPane {
+    padding: 0;
+    height: 1fr;
+}
+
+.expense-merchants > DataTable {
+    height: 1fr;
+    width: 1fr;
 }
 
 .income-breakdown, .income-column {
-    width: 60;
+    width: 1fr;
 }
 
 .monthly-breakdown {
@@ -253,16 +279,11 @@ SummaryScreen TabbedContent TabPane {
     height: 1;
 }
 
-.all-year-container.compact .expense-breakdown {
-    width: 50;
-}
-
-.all-year-container.compact .income-breakdown {
-    width: 40;
-}
-
+.all-year-container.compact .expense-breakdown,
+.all-year-container.compact .expense-merchants,
+.all-year-container.compact .income-breakdown,
 .all-year-container.compact .category-breakdown {
-    width: 40;
+    width: 1fr;
 }
 
 .all-year-container.compact .cash-flow-summary {

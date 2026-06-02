@@ -22,18 +22,18 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
         self.categories_file = Path(self.test_dir) / "categories.json"
 
         # Create test transactions with all required columns
-        # Use current year to avoid date filtering issues
+        # Use current year+month: TransactionScreen() defaults to current month filter
         from datetime import datetime
 
-        current_year = datetime.now().year
+        now = datetime.now()
         self.test_transactions = pd.DataFrame(
             {
                 "Date": pd.to_datetime(
                     [
-                        f"{current_year}-01-15",
-                        f"{current_year}-02-10",
-                        f"{current_year}-03-05",
-                        f"{current_year}-01-20",
+                        f"{now.year}-{now.month:02d}-01",
+                        f"{now.year}-{now.month:02d}-05",
+                        f"{now.year}-{now.month:02d}-10",
+                        f"{now.year}-{now.month:02d}-15",
                     ]
                 ),
                 "Merchant": ["Starbucks", "Shell Gas", "Walmart", "Amazon"],

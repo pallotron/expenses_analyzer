@@ -14,6 +14,8 @@ from expenses.data_handler import (
     load_categories,
     save_categories,
     load_default_categories,
+    load_merchant_aliases,
+    apply_merchant_aliases_to_series,
 )
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
 from expenses.widgets.clearable_input import ClearableInput
@@ -94,15 +96,18 @@ class CategorizeScreen(BaseScreen, DataTableOperationsMixin):
         """Load data and update the merchant list and categorization view."""
         self.transactions = load_transactions_from_parquet()
         saved_categories = load_categories()
+        merchant_aliases = load_merchant_aliases()
 
         if not self.transactions.empty:
-            unique_merchants = self.transactions["Merchant"].dropna().unique().tolist()
+            raw_merchants = self.transactions["Merchant"].dropna()
+            canonical = apply_merchant_aliases_to_series(raw_merchants, merchant_aliases)
+            unique_canonical = list(dict.fromkeys(canonical.tolist()))
             self.all_merchant_data = [
                 {
                     "Merchant": merchant,
                     "Category": saved_categories.get(merchant, "Uncategorized"),
                 }
-                for merchant in unique_merchants
+                for merchant in unique_canonical
             ]
         else:
             self.all_merchant_data = []

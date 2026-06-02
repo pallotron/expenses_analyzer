@@ -212,7 +212,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         )
 
         display_df["Category"] = (
-            display_df["Merchant"].map(self.categories).fillna("Other")
+            display_df["DisplayMerchant"].map(self.categories).fillna("Other")
         )
 
         # --- Filtering ---
@@ -280,7 +280,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         # Add Category column before filtering so category filters work
         display_df["Category"] = (
-            display_df["Merchant"].map(self.categories).fillna("Other")
+            display_df["DisplayMerchant"].map(self.categories).fillna("Other")
         )
 
         display_df = apply_filters(display_df, filters)

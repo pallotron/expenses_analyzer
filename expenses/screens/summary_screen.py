@@ -162,7 +162,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                         f"  '{row['Merchant']}' -> '{row['DisplayMerchant']}'"
                     )
             self._all_transactions["Category"] = (
-                self._all_transactions["Merchant"].map(self.categories).fillna("Other")
+                self._all_transactions["DisplayMerchant"].map(self.categories).fillna("Other")
             )
 
     @property

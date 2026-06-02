@@ -154,7 +154,7 @@ def get_gemini_category_suggestions_for_merchants(
             f"Requesting category suggestions for {len(merchant_names)} merchants from Gemini."
         )
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt
         )
         categories = _parse_gemini_response(response.text)

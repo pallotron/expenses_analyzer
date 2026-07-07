@@ -433,6 +433,16 @@ class TestDataHandler(unittest.TestCase):
         self.assertEqual(tag_transactions([0], ["  !!  "]), 0)
         mock_save.assert_not_called()
 
+    @patch("expenses.data_handler.create_auto_backup")
+    @patch("expenses.data_handler.load_transactions_from_parquet")
+    @patch("expenses.data_handler.save_transactions_to_parquet")
+    def test_tag_transactions_rejects_invalid_mode(
+        self, mock_save: MagicMock, mock_load: MagicMock, mock_backup: MagicMock
+    ) -> None:
+        with self.assertRaises(ValueError):
+            tag_transactions([0], ["emergency"], mode="ADD")
+        mock_save.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

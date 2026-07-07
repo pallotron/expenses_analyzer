@@ -110,3 +110,17 @@ def test_exclude_tagged_transactions_empty_exclusion_list() -> None:
     filtered, hidden = exclude_tagged_transactions(df, [])
     assert len(filtered) == 1
     assert hidden == 0.0
+
+
+def test_exclude_tagged_transactions_normalizes_excluded_tags() -> None:
+    df = pd.DataFrame(
+        {
+            "Merchant": ["AerLingus", "Tesco"],
+            "Amount": [298.99, 12.00],
+            "Type": ["expense", "expense"],
+            "Tags": ["emergency", ""],
+        }
+    )
+    filtered, hidden = exclude_tagged_transactions(df, ["  Emergency "])
+    assert filtered["Merchant"].tolist() == ["Tesco"]
+    assert hidden == pytest.approx(298.99)

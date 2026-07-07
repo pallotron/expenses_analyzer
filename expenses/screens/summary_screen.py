@@ -511,6 +511,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         # If we don't need a full recompose, just update the views
         if not is_empty:
             try:
+                self.query_one("#tag_exclusion_status", Static).update(
+                    self._tag_exclusion_status()
+                )
                 year_tabs = self.query_one("#year_tabs", TabbedContent)
                 active_year_id = year_tabs.active
                 if active_year_id:

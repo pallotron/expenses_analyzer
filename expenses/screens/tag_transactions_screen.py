@@ -69,6 +69,7 @@ class TagTransactionsScreen(ModalScreen[Optional[Dict]]):
             Select(
                 [("Add tags", "add"), ("Remove tags", "remove")],
                 value="add",
+                allow_blank=False,
                 id="mode_select",
             ),
             Horizontal(

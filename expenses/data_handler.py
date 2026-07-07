@@ -236,7 +236,9 @@ def load_tag_settings() -> dict:
             )
         with open(TAG_SETTINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_TAG_SETTINGS, f, indent=2)
-        return dict(DEFAULT_TAG_SETTINGS)
+        return {
+            "exclude_from_summary": list(DEFAULT_TAG_SETTINGS["exclude_from_summary"])
+        }
 
 
 def get_category_spending_type(category: str, category_types: dict) -> str:
@@ -771,6 +773,9 @@ def tag_transactions(indices: List[int], tags: List[str], mode: str = "add") -> 
     Returns:
         Number of transactions updated (0 if tags normalize to nothing).
     """
+    if mode not in ("add", "remove"):
+        raise ValueError(f"invalid mode: {mode!r}")
+
     clean_tags = [t for t in (normalize_tag(t) for t in tags) if t]
     if not clean_tags or not indices:
         return 0

@@ -12,6 +12,7 @@ from expenses.data_handler import (
     update_single_transaction,
     load_transactions_from_parquet,
     load_tag_settings,
+    tag_transactions,
 )
 
 
@@ -379,6 +380,58 @@ class TestDataHandler(unittest.TestCase):
             with patch("expenses.data_handler.TAG_SETTINGS_FILE", settings_path):
                 settings = load_tag_settings()
             self.assertEqual(settings["exclude_from_summary"], ["emergency", "oneoff"])
+
+    @patch("expenses.data_handler.create_auto_backup")
+    @patch("expenses.data_handler.load_transactions_from_parquet")
+    @patch("expenses.data_handler.save_transactions_to_parquet")
+    def test_tag_transactions_add_and_remove(
+        self, mock_save: MagicMock, mock_load: MagicMock, mock_backup: MagicMock
+    ) -> None:
+        existing_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2026-03-13", "2026-03-14", "2026-03-15"]),
+                "Merchant": ["AerLingus", "Tesco", "Ryanair"],
+                "Amount": [298.99, 12.00, 213.56],
+                "Deleted": [False, False, False],
+                "Type": ["expense", "expense", "expense"],
+                "Tags": ["", "emergency", ""],
+            }
+        )
+        mock_load.return_value = existing_df.copy()
+        count = tag_transactions([0, 2], ["Trip: Paris Mar26"], mode="add")
+        self.assertEqual(count, 2)
+        saved_df = mock_save.call_args[0][0]
+        self.assertEqual(
+            saved_df["Tags"].tolist(),
+            ["trip:-paris-mar26", "emergency", "trip:-paris-mar26"],
+        )
+
+        mock_load.return_value = saved_df.copy()
+        count = tag_transactions([1], ["emergency"], mode="remove")
+        self.assertEqual(count, 1)
+        saved_df2 = mock_save.call_args[0][0]
+        self.assertEqual(saved_df2.loc[1, "Tags"], "")
+
+    @patch("expenses.data_handler.create_auto_backup")
+    @patch("expenses.data_handler.load_transactions_from_parquet")
+    @patch("expenses.data_handler.save_transactions_to_parquet")
+    def test_tag_transactions_skips_unknown_index_and_empty_tags(
+        self, mock_save: MagicMock, mock_load: MagicMock, mock_backup: MagicMock
+    ) -> None:
+        existing_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2026-03-13"]),
+                "Merchant": ["AerLingus"],
+                "Amount": [298.99],
+                "Deleted": [False],
+                "Type": ["expense"],
+                "Tags": [""],
+            }
+        )
+        mock_load.return_value = existing_df.copy()
+        self.assertEqual(tag_transactions([99], ["emergency"]), 0)
+        self.assertEqual(tag_transactions([0], ["  !!  "]), 0)
+        mock_save.assert_not_called()
 
 
 if __name__ == "__main__":

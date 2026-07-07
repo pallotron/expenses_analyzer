@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from expenses.backup import create_auto_backup
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
 from expenses.validation import validate_transaction_dataframe
-from expenses.tags import add_tags_to_cell
+from expenses.tags import add_tags_to_cell, normalize_tag, remove_tags_from_cell
 from expenses.config import (
     CONFIG_DIR,
     CATEGORIES_FILE,
@@ -758,6 +758,40 @@ def update_single_transaction(original_index: int, **fields) -> bool:
     update = {"original_index": original_index, **fields}
     result = update_transactions([update])
     return result == 1
+
+
+def tag_transactions(indices: List[int], tags: List[str], mode: str = "add") -> int:
+    """Add or remove tags on transactions identified by DataFrame index.
+
+    Args:
+        indices: Original DataFrame indices (as shown by load_transactions_from_parquet).
+        tags: Tags to apply; normalized via expenses.tags rules.
+        mode: "add" or "remove".
+
+    Returns:
+        Number of transactions updated (0 if tags normalize to nothing).
+    """
+    clean_tags = [t for t in (normalize_tag(t) for t in tags) if t]
+    if not clean_tags or not indices:
+        return 0
+
+    create_auto_backup()
+    all_transactions = load_transactions_from_parquet(include_deleted=True)
+
+    apply_fn = add_tags_to_cell if mode == "add" else remove_tags_from_cell
+    updated_count = 0
+    for original_index in indices:
+        if original_index not in all_transactions.index:
+            logging.warning(f"Index {original_index} not found for tagging, skipping")
+            continue
+        current = all_transactions.at[original_index, "Tags"]
+        all_transactions.at[original_index, "Tags"] = apply_fn(current, clean_tags)
+        updated_count += 1
+
+    if updated_count:
+        save_transactions_to_parquet(all_transactions)
+        logging.info(f"{mode} tags {clean_tags} on {updated_count} transaction(s)")
+    return updated_count
 
 
 def restore_deleted_transactions(transactions_to_restore: pd.DataFrame) -> None:

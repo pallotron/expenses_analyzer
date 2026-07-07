@@ -67,6 +67,7 @@ def test_populate_table_filtering(
             "#source_filter": "",
             "#category_filter": "",
             "#type_filter": "",
+            "#tags_filter": "",
         }
         for key, value in filters.items():
             filter_values[f"#{key}"] = value
@@ -156,6 +157,7 @@ def test_toggle_selection_keeps_cursor_position(
         "#source_filter": MockInput(value=""),
         "#category_filter": MockInput(value=""),
         "#type_filter": MockInput(value=""),
+        "#tags_filter": MockInput(value=""),
     }[selector]
 
     # Call the action

@@ -182,5 +182,11 @@ class TestTransactionFilter(unittest.TestCase):
         self.assertEqual(result.iloc[0]["merchant"], "Amazon")
 
 
+def test_contains_filter_on_tags_column():
+    df = pd.DataFrame({"Tags": ["emergency", "trip:x", "emergency,trip:y", ""]})
+    filtered = apply_filters(df, {"tags": ("Tags", "contains", "trip:")})
+    assert filtered["Tags"].tolist() == ["trip:x", "emergency,trip:y"]
+
+
 if __name__ == "__main__":
     unittest.main()

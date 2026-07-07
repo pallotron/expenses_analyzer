@@ -19,9 +19,12 @@ from expenses.data_handler import (
     apply_merchant_aliases_to_series,
     update_single_transaction,
     update_transactions,
+    tag_transactions,
 )
 from expenses.screens.base_screen import BaseScreen
 from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
+from expenses.screens.tag_transactions_screen import TagTransactionsScreen
+from expenses.tags import all_tags_in_series
 from textual.binding import Binding
 from typing import Any
 
@@ -36,6 +39,8 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         Binding("e", "edit_merchant", "Edit Merchant"),
         Binding("b", "bulk_edit", "Bulk Edit"),
         Binding("p", "export_pdf", "Export PDF"),
+        Binding("g", "tag_selected", "Tag Selected"),
+        Binding("G", "tag_filtered", "Tag Filtered"),
     ]
 
     def __init__(
@@ -70,6 +75,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             "Type",
             "Source",
             "Category",
+            "Tags",
         ]
         self.sort_column: str = "Date"
         self.sort_order: str = "desc"
@@ -116,6 +122,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 id="type_filter",
                 value=self.filter_type or "",
             ),
+            ClearableInput(placeholder="Filter by Tag...", id="tags_filter"),
             id="filters",
         )
         yield Horizontal(
@@ -270,6 +277,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 "contains",
                 type_filter_value,
             ),
+            "tags": (
+                "Tags",
+                "contains",
+                self.query_one("#tags_filter", ClearableInput).value,
+            ),
         }
         display_df = self.transactions.copy()
 
@@ -327,7 +339,13 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             )
 
         # --- Add Columns with Correct Headers and Widths ---
-        column_widths = {"Date": 12, "Amount": 15, "Source": 25, "Category": 20}
+        column_widths = {
+            "Date": 12,
+            "Amount": 15,
+            "Source": 25,
+            "Category": 20,
+            "Tags": 20,
+        }
         for col_name in self.columns:
             icon = (
                 " ▲"
@@ -365,6 +383,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 row_type.capitalize() if row_type else "Expense",
                 row.get("Source", "Unknown") or "Unknown",
                 row["Category"] or "",
+                row.get("Tags", "") or "",
             ]
 
             styled_row = [Text(str(cell), style=style) for cell in row_data]
@@ -662,6 +681,59 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 existing_sources=existing_sources,
             ),
             handle_bulk_edit_result,
+        )
+
+    def action_tag_selected(self) -> None:
+        """Tag selected rows (g); falls back to the cursor row if none selected."""
+        indices = list(self.selected_rows)
+        if not indices:
+            table = self.query_one("#transaction_table", DataTable)
+            if table.cursor_row is not None and not self.display_df.empty:
+                indices = [self.display_df.index[table.cursor_row]]
+        if not indices:
+            self.app.show_notification("No transactions selected", timeout=3)
+            return
+        self._open_tag_modal(indices)
+
+    def action_tag_filtered(self) -> None:
+        """Tag all rows matching the current filters (G)."""
+        indices = list(self.display_df.index)
+        if not indices:
+            self.app.show_notification("No transactions match the filters", timeout=3)
+            return
+        self._open_tag_modal(indices)
+
+    def _open_tag_modal(self, indices: list[int]) -> None:
+        """Open the tag modal for the given original DataFrame indices."""
+        existing = (
+            all_tags_in_series(self.transactions["Tags"])
+            if "Tags" in self.transactions.columns
+            else []
+        )
+
+        def handle_tag_result(result: dict | None) -> None:
+            if not result:
+                return  # User cancelled
+
+            try:
+                count = tag_transactions(indices, result["tags"], mode=result["mode"])
+                if count > 0:
+                    verb = "Added" if result["mode"] == "add" else "Removed"
+                    self.app.show_notification(
+                        f"{verb} {', '.join(result['tags'])} "
+                        f"on {count} transaction(s)",
+                        timeout=4,
+                    )
+                    self.selected_rows.clear()
+                    self.on_screen_resume(None)
+                else:
+                    self.app.show_notification("No transactions were tagged", timeout=3)
+            except Exception as e:
+                logging.error(f"Error tagging transactions: {e}")
+                self.app.show_notification(f"Error: {e}", timeout=5)
+
+        self.app.push_screen(
+            TagTransactionsScreen(len(indices), existing), handle_tag_result
         )
 
     def action_export_pdf(self) -> None:

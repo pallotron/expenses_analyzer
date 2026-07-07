@@ -1,4 +1,7 @@
-from expenses.analysis import calculate_trends
+import pandas as pd
+import pytest
+
+from expenses.analysis import calculate_trends, exclude_tagged_transactions
 from typing import List, Tuple, cast
 
 
@@ -75,3 +78,35 @@ def test_single_element_list() -> None:
     data: List[int] = [100]
     expected: List[Tuple[float, str]] = [(100.0, "-")]
     assert calculate_trends(cast(List[float], data)) == expected
+
+
+def test_exclude_tagged_transactions() -> None:
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(
+                ["2026-03-13", "2026-03-14", "2026-03-15", "2026-03-16"]
+            ),
+            "Merchant": ["AerLingus", "Tesco", "Ryanair", "Refund Inc"],
+            "Amount": [298.99, 12.00, 213.56, 50.00],
+            "Type": ["expense", "expense", "expense", "income"],
+            "Tags": ["emergency", "", "emergency,trip:x", "emergency"],
+        }
+    )
+    filtered, hidden = exclude_tagged_transactions(df, ["emergency"])
+    assert filtered["Merchant"].tolist() == ["Tesco"]
+    # income row is excluded from view but NOT counted in hidden expense total
+    assert hidden == pytest.approx(512.55)
+
+
+def test_exclude_tagged_transactions_no_tags_column() -> None:
+    df = pd.DataFrame({"Amount": [1.0], "Type": ["expense"]})
+    filtered, hidden = exclude_tagged_transactions(df, ["emergency"])
+    assert len(filtered) == 1
+    assert hidden == 0.0
+
+
+def test_exclude_tagged_transactions_empty_exclusion_list() -> None:
+    df = pd.DataFrame({"Amount": [1.0], "Type": ["expense"], "Tags": ["emergency"]})
+    filtered, hidden = exclude_tagged_transactions(df, [])
+    assert len(filtered) == 1
+    assert hidden == 0.0

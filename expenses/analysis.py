@@ -2,6 +2,8 @@ from typing import List, Tuple
 
 import pandas as pd
 
+from expenses.tags import parse_tags
+
 
 def calculate_trends(data: List[float]) -> List[Tuple[float, str]]:
     """
@@ -226,3 +228,23 @@ def get_cash_flow_totals(transactions: pd.DataFrame) -> dict:
         "net": net,
         "savings_rate": savings_rate,
     }
+
+
+def exclude_tagged_transactions(
+    df: pd.DataFrame, excluded_tags: List[str]
+) -> Tuple[pd.DataFrame, float]:
+    """Split out transactions carrying any excluded tag.
+
+    Returns:
+        (df without excluded rows, total expense Amount of the excluded rows)
+    """
+    if df.empty or not excluded_tags or "Tags" not in df.columns:
+        return df, 0.0
+
+    excluded_set = set(excluded_tags)
+    mask = df["Tags"].apply(lambda cell: bool(excluded_set & set(parse_tags(cell))))
+    excluded_rows = df[mask]
+    hidden_total = float(
+        excluded_rows.loc[excluded_rows["Type"] == "expense", "Amount"].sum()
+    )
+    return df[~mask].copy(), hidden_total

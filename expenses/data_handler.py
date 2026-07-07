@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 from expenses.backup import create_auto_backup
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
 from expenses.validation import validate_transaction_dataframe
+from expenses.tags import add_tags_to_cell
 from expenses.config import (
     CONFIG_DIR,
     CATEGORIES_FILE,
@@ -348,7 +349,7 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
 
     if not TRANSACTIONS_FILE.exists():
         return pd.DataFrame(
-            columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type"]
+            columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type", "Tags"]
         )
 
     try:
@@ -365,6 +366,20 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
         # Add Type column if it doesn't exist (backward compatibility for cash flow support)
         if "Type" not in df.columns:
             df["Type"] = "expense"  # Default existing transactions to expense
+
+        # Add Tags column if it doesn't exist (backward compatibility)
+        if "Tags" not in df.columns:
+            df["Tags"] = ""
+        df["Tags"] = df["Tags"].fillna("").astype(str)
+
+        # One-time migration: fold legacy Emergency boolean into Tags
+        if "Emergency" in df.columns:
+            emergency_mask = df["Emergency"].fillna(False).astype(bool)
+            df.loc[emergency_mask, "Tags"] = df.loc[emergency_mask, "Tags"].apply(
+                lambda cell: add_tags_to_cell(cell, ["emergency"])
+            )
+            df = df.drop(columns=["Emergency"])
+            logging.info("Migrated legacy Emergency column into Tags")
 
         # Filter out soft-deleted transactions unless explicitly requested
         if not include_deleted:
@@ -384,7 +399,7 @@ def load_transactions_from_parquet(include_deleted: bool = False) -> pd.DataFram
         _corruption_detected = error_msg
         # Return empty DataFrame to allow application to continue
         return pd.DataFrame(
-            columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type"]
+            columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type", "Tags"]
         )
 
 
@@ -470,6 +485,10 @@ def append_transactions(
     if "Type" not in new_transactions.columns:
         new_transactions["Type"] = "expense"
 
+    # Add Tags column to new transactions if not present
+    if "Tags" not in new_transactions.columns:
+        new_transactions["Tags"] = ""
+
     # Standardize data types before merging
     existing_transactions["Date"] = pd.to_datetime(existing_transactions["Date"])
     existing_transactions["Amount"] = pd.to_numeric(
@@ -478,6 +497,9 @@ def append_transactions(
     existing_transactions["Amount"] = existing_transactions["Amount"].round(2)
     existing_transactions["Merchant"] = existing_transactions["Merchant"].astype(str)
     existing_transactions["Type"] = existing_transactions["Type"].astype(str)
+    if "Tags" not in existing_transactions.columns:
+        existing_transactions["Tags"] = ""
+    existing_transactions["Tags"] = existing_transactions["Tags"].fillna("").astype(str)
 
     new_transactions["Date"] = pd.to_datetime(new_transactions["Date"])
     new_transactions["Amount"] = pd.to_numeric(
@@ -486,6 +508,7 @@ def append_transactions(
     new_transactions["Amount"] = new_transactions["Amount"].round(2)
     new_transactions["Merchant"] = new_transactions["Merchant"].astype(str)
     new_transactions["Type"] = new_transactions["Type"].astype(str)
+    new_transactions["Tags"] = new_transactions["Tags"].fillna("").astype(str)
 
     # Load merchant aliases for deduplication (used for both soft-delete filtering and dedup)
     merchant_aliases = load_merchant_aliases()

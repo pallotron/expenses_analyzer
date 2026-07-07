@@ -67,7 +67,7 @@ def transaction_dataframes(draw, min_rows=0, max_rows=100):
 
     if num_rows == 0:
         return pd.DataFrame(
-            columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type"]
+            columns=["Date", "Merchant", "Amount", "Source", "Deleted", "Type", "Tags"]
         )
 
     # Generate dates within a reasonable range
@@ -111,6 +111,11 @@ def transaction_dataframes(draw, min_rows=0, max_rows=100):
     # Generate transaction type
     types = [draw(st.sampled_from(["expense", "income"])) for _ in range(num_rows)]
 
+    # Generate tags (empty or some simple tag values)
+    tags = [
+        draw(st.sampled_from(["", "emergency", "business"])) for _ in range(num_rows)
+    ]
+
     return pd.DataFrame(
         {
             "Date": dates,
@@ -119,6 +124,7 @@ def transaction_dataframes(draw, min_rows=0, max_rows=100):
             "Source": sources,
             "Deleted": deleted,
             "Type": types,
+            "Tags": tags,
         }
     )
 

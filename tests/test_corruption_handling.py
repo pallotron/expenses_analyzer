@@ -49,6 +49,7 @@ class TestCorruptionHandling(unittest.TestCase):
                 "Source",
                 "Deleted",
                 "Type",
+                "Tags",
             ]
 
     def test_corrupted_categories_returns_empty_dict(self) -> None:
@@ -143,6 +144,7 @@ class TestCorruptionHandling(unittest.TestCase):
                 "Source",
                 "Deleted",
                 "Type",
+                "Tags",
             ]
 
     def test_categories_ioerror_handling(self) -> None:
@@ -188,6 +190,7 @@ class TestCorruptionHandling(unittest.TestCase):
                 "Source",
                 "Deleted",
                 "Type",
+                "Tags",
             ]
 
     def test_truncated_parquet_file(self) -> None:

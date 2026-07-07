@@ -1,5 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
+import tempfile
+from pathlib import Path
 import pandas as pd
 from expenses.data_handler import (
     clean_amount,
@@ -7,6 +9,7 @@ from expenses.data_handler import (
     delete_transactions,
     update_transactions,
     update_single_transaction,
+    load_transactions_from_parquet,
 )
 
 
@@ -275,6 +278,71 @@ class TestDataHandler(unittest.TestCase):
         """Test updating with no fields returns False."""
         result = update_single_transaction(0)
         self.assertFalse(result)
+
+    def test_load_adds_tags_column_and_migrates_emergency(self) -> None:
+        df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2026-03-13", "2026-03-14"]),
+                "Merchant": ["AerLingus", "Tesco"],
+                "Amount": [298.99, 12.00],
+                "Source": ["Bank B", "Bank B"],
+                "Deleted": [False, False],
+                "Type": ["expense", "expense"],
+                "Emergency": [True, False],
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            parquet_path = Path(tmp) / "transactions.parquet"
+            df.to_parquet(parquet_path, index=False)
+            with patch("expenses.data_handler.TRANSACTIONS_FILE", parquet_path):
+                loaded = load_transactions_from_parquet()
+        self.assertIn("Tags", loaded.columns)
+        self.assertNotIn("Emergency", loaded.columns)
+        self.assertEqual(loaded["Tags"].tolist(), ["emergency", ""])
+
+    def test_load_adds_empty_tags_when_missing(self) -> None:
+        df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2026-01-01"]),
+                "Merchant": ["Tesco"],
+                "Amount": [5.00],
+                "Deleted": [False],
+                "Type": ["expense"],
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            parquet_path = Path(tmp) / "transactions.parquet"
+            df.to_parquet(parquet_path, index=False)
+            with patch("expenses.data_handler.TRANSACTIONS_FILE", parquet_path):
+                loaded = load_transactions_from_parquet()
+        self.assertEqual(loaded["Tags"].tolist(), [""])
+
+    @patch("expenses.data_handler.load_transactions_from_parquet")
+    @patch("expenses.data_handler.save_transactions_to_parquet")
+    def test_append_transactions_defaults_tags(
+        self, mock_save: MagicMock, mock_load: MagicMock
+    ) -> None:
+        existing_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2025-01-01"]),
+                "Merchant": ["Existing Merchant"],
+                "Amount": [10.00],
+                "Deleted": [False],
+                "Type": ["expense"],
+                "Tags": ["emergency"],
+            }
+        )
+        new_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2025-01-02"]),
+                "Merchant": ["New Merchant"],
+                "Amount": [20.00],
+            }
+        )
+        mock_load.return_value = existing_df.copy()
+        append_transactions(new_df)
+        saved_df = mock_save.call_args[0][0]
+        self.assertEqual(saved_df["Tags"].tolist(), ["emergency", ""])
 
 
 if __name__ == "__main__":

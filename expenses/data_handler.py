@@ -17,6 +17,7 @@ from expenses.config import (
     DEFAULT_CATEGORIES_FILE,
     MERCHANT_ALIASES_FILE,
     CATEGORY_TYPES_FILE,
+    TAG_SETTINGS_FILE,
 )
 
 # Global flag to track if corruption was detected (for TUI notification)
@@ -212,6 +213,30 @@ def save_category_types(data: dict) -> None:
     with open(CATEGORY_TYPES_FILE, "w") as f:
         json.dump(data, f, indent=4)
     _set_secure_permissions(CATEGORY_TYPES_FILE)
+
+
+# --- Tag Settings Management ---
+DEFAULT_TAG_SETTINGS = {"exclude_from_summary": ["emergency"]}
+
+
+def load_tag_settings() -> dict:
+    """Load tag settings, creating the file with defaults if missing or corrupt."""
+    try:
+        with open(TAG_SETTINGS_FILE, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+        if not isinstance(settings, dict):
+            raise ValueError("tag settings must be a JSON object")
+        if not isinstance(settings.get("exclude_from_summary"), list):
+            raise ValueError("exclude_from_summary must be a list")
+        return settings
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+        if TAG_SETTINGS_FILE.exists():
+            logging.warning(
+                f"tag_settings.json invalid ({e}); recreating with defaults"
+            )
+        with open(TAG_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_TAG_SETTINGS, f, indent=2)
+        return dict(DEFAULT_TAG_SETTINGS)
 
 
 def get_category_spending_type(category: str, category_types: dict) -> str:

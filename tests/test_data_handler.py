@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import tempfile
 from pathlib import Path
+import json
 import pandas as pd
 from expenses.data_handler import (
     clean_amount,
@@ -10,6 +11,7 @@ from expenses.data_handler import (
     update_transactions,
     update_single_transaction,
     load_transactions_from_parquet,
+    load_tag_settings,
 )
 
 
@@ -343,6 +345,40 @@ class TestDataHandler(unittest.TestCase):
         append_transactions(new_df)
         saved_df = mock_save.call_args[0][0]
         self.assertEqual(saved_df["Tags"].tolist(), ["emergency", ""])
+
+    def test_load_tag_settings_creates_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "tag_settings.json"
+            with patch("expenses.data_handler.TAG_SETTINGS_FILE", settings_path):
+                settings = load_tag_settings()
+            self.assertEqual(settings, {"exclude_from_summary": ["emergency"]})
+            self.assertTrue(settings_path.exists())
+
+    def test_load_tag_settings_recovers_from_corruption(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "tag_settings.json"
+            settings_path.write_text("{not json")
+            with patch("expenses.data_handler.TAG_SETTINGS_FILE", settings_path):
+                settings = load_tag_settings()
+            self.assertEqual(settings, {"exclude_from_summary": ["emergency"]})
+
+    def test_load_tag_settings_recovers_from_non_dict_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "tag_settings.json"
+            settings_path.write_text("[]")
+            with patch("expenses.data_handler.TAG_SETTINGS_FILE", settings_path):
+                settings = load_tag_settings()
+            self.assertEqual(settings, {"exclude_from_summary": ["emergency"]})
+
+    def test_load_tag_settings_reads_existing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "tag_settings.json"
+            settings_path.write_text(
+                json.dumps({"exclude_from_summary": ["emergency", "oneoff"]})
+            )
+            with patch("expenses.data_handler.TAG_SETTINGS_FILE", settings_path):
+                settings = load_tag_settings()
+            self.assertEqual(settings["exclude_from_summary"], ["emergency", "oneoff"])
 
 
 if __name__ == "__main__":

@@ -67,11 +67,14 @@ The application follows a screen-based architecture powered by Textual:
 
 All user data lives in `~/.config/expenses_analyzer/` (configurable via `EXPENSES_ANALYZER_CONFIG_DIR`):
 
-- `transactions.parquet`: Main transaction database (Pandas DataFrame with Date, Merchant, Amount, Category columns)
+- `transactions.parquet`: Main transaction database (Pandas DataFrame with Date, Merchant, Amount, Category, Tags columns; Tags is a comma-separated lowercase string)
+- `tag_settings.json`: Tag behaviour settings, currently `{"exclude_from_summary": ["emergency"]}` — tags hidden from Summary totals by default
 - `categories.json`: Merchant-to-category mappings `{"merchant_name": "category"}`
 - `default_categories.json`: List of available categories (copied from package on first run)
 - `truelayer_connections.json`: TrueLayer linked account metadata (connection_id, access_token, refresh_token, provider_name, last_sync)
 - `app.log`: Application logs
+
+**Important:** Tags in `transactions.parquet` should only be manipulated via the helpers in `expenses/tags.py` to ensure consistent formatting and validation.
 
 **Critical Data Flow**:
 1. CSV Import → `ImportScreen.import_data()` → `append_transactions()` in `data_handler.py`

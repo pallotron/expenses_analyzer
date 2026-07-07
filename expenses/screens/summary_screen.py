@@ -1,6 +1,14 @@
 import logging
 from textual.app import ComposeResult
-from textual.widgets import Static, TabbedContent, TabPane, DataTable, Input, Checkbox, Button
+from textual.widgets import (
+    Static,
+    TabbedContent,
+    TabPane,
+    DataTable,
+    Input,
+    Checkbox,
+    Button,
+)
 from textual.containers import Horizontal, Vertical
 import pandas as pd
 from datetime import datetime
@@ -18,8 +26,13 @@ from expenses.data_handler import (
     apply_merchant_aliases_to_series,
     load_category_types,
     get_category_spending_type,
+    load_tag_settings,
 )
-from expenses.analysis import calculate_trends, get_cash_flow_totals
+from expenses.analysis import (
+    calculate_trends,
+    get_cash_flow_totals,
+    exclude_tagged_transactions,
+)
 from typing import Dict, Set, Optional, Any
 
 
@@ -32,11 +45,15 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         Binding("ctrl+m", "toggle_compact", "Compact Mode"),
         Binding("f", "toggle_focus", "Focus Mode"),
         Binding("e", "export_pdf", "Export PDF"),
+        Binding("x", "toggle_tag_exclusion", "Incl/Excl Tagged"),
     ]
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.source_filter: Set[str] = set()  # Empty set means all sources
+        self.exclude_tags_active: bool = True
+        self.hidden_tag_total: float = 0.0
+        self.excluded_tags: list[str] = load_tag_settings()["exclude_from_summary"]
         self.load_and_prepare_data()
         self.selected_rows: Set[str] = set()
         self.sort_column: str = ""
@@ -148,10 +165,14 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         self.category_types: dict = load_category_types()
         logging.info(f"Loaded {len(self.merchant_aliases)} merchant alias patterns")
         if not self._all_transactions.empty:
-            self._all_transactions["Date"] = pd.to_datetime(self._all_transactions["Date"])
+            self._all_transactions["Date"] = pd.to_datetime(
+                self._all_transactions["Date"]
+            )
             # Apply merchant aliases for display
-            self._all_transactions["DisplayMerchant"] = apply_merchant_aliases_to_series(
-                self._all_transactions["Merchant"], self.merchant_aliases
+            self._all_transactions["DisplayMerchant"] = (
+                apply_merchant_aliases_to_series(
+                    self._all_transactions["Merchant"], self.merchant_aliases
+                )
             )
             # Log some examples
             if len(self.merchant_aliases) > 0:
@@ -162,13 +183,22 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                         f"  '{row['Merchant']}' -> '{row['DisplayMerchant']}'"
                     )
             self._all_transactions["Category"] = (
-                self._all_transactions["DisplayMerchant"].map(self.categories).fillna("Other")
+                self._all_transactions["DisplayMerchant"]
+                .map(self.categories)
+                .fillna("Other")
             )
+
+        if not self._all_transactions.empty and self.exclude_tags_active:
+            self._all_transactions, self.hidden_tag_total = exclude_tagged_transactions(
+                self._all_transactions, self.excluded_tags
+            )
+        else:
+            self.hidden_tag_total = 0.0
 
     @property
     def transactions(self) -> pd.DataFrame:
         """Returns transactions filtered by source if a filter is set."""
-        if not hasattr(self, '_all_transactions') or self._all_transactions.empty:
+        if not hasattr(self, "_all_transactions") or self._all_transactions.empty:
             return pd.DataFrame()
         if self.source_filter:
             # Filter by selected sources
@@ -221,7 +251,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     def _refresh_current_view(self) -> None:
         """Refresh the current view based on active tabs."""
-        if not hasattr(self, '_all_transactions') or self._all_transactions.empty:
+        if not hasattr(self, "_all_transactions") or self._all_transactions.empty:
             return
 
         try:
@@ -253,6 +283,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     def compose_content(self) -> ComposeResult:
         yield Static("Cash Flow Summary", classes="title")
+        yield Static(self._tag_exclusion_status(), id="tag_exclusion_status")
 
         if self.transactions.empty:
             yield Static("No transactions found.")
@@ -311,7 +342,8 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                     with Horizontal(classes="summary-grid"):
                                         with Vertical(classes="expense-breakdown"):
                                             yield Static(
-                                                "Expense Categories", classes="table_title"
+                                                "Expense Categories",
+                                                classes="table_title",
                                             )
                                             yield DataTable(
                                                 id=f"category_breakdown_{year}_all",
@@ -319,7 +351,8 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                                 zebra_stripes=True,
                                             )
                                             yield Static(
-                                                "Top Expense Merchants", classes="table_title"
+                                                "Top Expense Merchants",
+                                                classes="table_title",
                                             )
                                             yield DataTable(
                                                 id=f"top_merchants_{year}_all",
@@ -421,8 +454,31 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                     classes="single_month_container",
                                 )
 
+    def _tag_exclusion_status(self) -> str:
+        """Build the status line describing the current tag-exclusion mode."""
+        if not self.excluded_tags:
+            return ""
+        if self.exclude_tags_active:
+            return (
+                f"excluding: {', '.join(self.excluded_tags)} "
+                f"(€{self.hidden_tag_total:,.0f} hidden) — press x to include"
+            )
+        return "including all tags — press x to exclude"
+
+    def action_toggle_tag_exclusion(self) -> None:
+        """Toggle whether excluded tags (e.g. emergency) are hidden from totals."""
+        self.exclude_tags_active = not self.exclude_tags_active
+        self.load_and_prepare_data()
+        self.query_one("#tag_exclusion_status", Static).update(
+            self._tag_exclusion_status()
+        )
+        self.call_after_refresh(self.update_initial_views)
+
     def on_mount(self) -> None:
         """Populate the initial view."""
+        self.query_one("#tag_exclusion_status", Static).update(
+            self._tag_exclusion_status()
+        )
         if self.transactions.empty:
             return
         self.call_after_refresh(self.update_initial_views)
@@ -583,9 +639,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
     def update_all_year_category_view(self, year: int) -> None:
         """Populates the table in the 'All Year' tab."""
         table = self.query_one(f"#category_breakdown_{year}_all", DataTable)
-        title_widget = self.query_one(
-            f"#all_year_subtabs_{year} .table_title", Static
-        )
+        title_widget = self.query_one(f"#all_year_subtabs_{year} .table_title", Static)
         cursor_row = table.cursor_row
         table.clear(columns=True)
         table.add_columns("Category", "Type", "Amount", "Percentage", "Bar")
@@ -609,9 +663,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 style = selected_style if category in self.selected_rows else ""
                 percentage = (row["Amount"] / total) * 100 if total > 0 else 0
                 bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=25)
-                stype = get_category_spending_type(
-                    category, self.category_types
-                )
+                stype = get_category_spending_type(category, self.category_types)
                 type_label = "Ess." if stype == "essential" else "Discr."
                 styled_row = [
                     Text(category, style=style),
@@ -659,9 +711,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 style = selected_style if category in self.selected_rows else ""
                 percentage = (row["Amount"] / total) * 100 if total > 0 else 0
                 bar = self._get_spending_bar(row["Amount"], max_amount, bar_length=25)
-                stype = get_category_spending_type(
-                    category, self.category_types
-                )
+                stype = get_category_spending_type(category, self.category_types)
                 type_label = "Ess." if stype == "essential" else "Discr."
                 styled_row = [
                     Text(category, style=style),
@@ -731,8 +781,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 stype = get_category_spending_type(category, self.category_types)
                 type_label = "Ess." if stype == "essential" else "Discr."
                 table.add_row(
-                    display_merchant, category, type_label,
-                    f"{amount:,.2f}", key=display_merchant,
+                    display_merchant,
+                    category,
+                    type_label,
+                    f"{amount:,.2f}",
+                    key=display_merchant,
                 )
 
     def update_cash_flow(self, year: int, month: Optional[int] = None) -> None:
@@ -795,9 +848,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             discretionary_total = expense_df["Amount"].sum()
 
         total_expenses = essential_total + discretionary_total
-        ess_pct = (
-            (essential_total / total_expenses * 100) if total_expenses > 0 else 0
-        )
+        ess_pct = (essential_total / total_expenses * 100) if total_expenses > 0 else 0
         disc_pct = (
             (discretionary_total / total_expenses * 100) if total_expenses > 0 else 0
         )
@@ -808,21 +859,15 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         ]
 
         # Add budget info if set — prorate to monthly when viewing a single month
-        ess_annual = self.category_types.get(
-            "essential", {}
-        ).get("annual_budget")
-        disc_annual = self.category_types.get(
-            "discretionary", {}
-        ).get("annual_budget")
+        ess_annual = self.category_types.get("essential", {}).get("annual_budget")
+        disc_annual = self.category_types.get("discretionary", {}).get("annual_budget")
 
         divisor = 12 if month else 1
         period_label = "/mo" if month else "/yr"
 
         if ess_annual is not None:
             ess_budget = ess_annual / divisor
-            ess_used_pct = (
-                essential_total / ess_budget * 100 if ess_budget > 0 else 0
-            )
+            ess_used_pct = essential_total / ess_budget * 100 if ess_budget > 0 else 0
             color = "green" if essential_total <= ess_budget else "red"
             parts[0] += (
                 f"  [{color}]\\[Budget: {ess_budget:,.0f}{period_label} "
@@ -832,9 +877,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         if disc_annual is not None:
             disc_budget = disc_annual / divisor
             disc_used_pct = (
-                discretionary_total / disc_budget * 100
-                if disc_budget > 0
-                else 0
+                discretionary_total / disc_budget * 100 if disc_budget > 0 else 0
             )
             color = "green" if discretionary_total <= disc_budget else "red"
             parts[1] += (
@@ -1284,7 +1327,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
         self.app.push_screen(
             self.app.SCREENS["transactions"](
-                category=category, year=year, month=month, source=self._get_single_source_filter()
+                category=category,
+                year=year,
+                month=month,
+                source=self._get_single_source_filter(),
             )
         )
 
@@ -1333,13 +1379,19 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             # For merchants, show transactions for that merchant
             self.app.push_screen(
                 self.app.SCREENS["transactions"](
-                    merchant=merchant, year=year, month=month, source=self._get_single_source_filter()
+                    merchant=merchant,
+                    year=year,
+                    month=month,
+                    source=self._get_single_source_filter(),
                 )
             )
         elif category:
             self.app.push_screen(
                 self.app.SCREENS["transactions"](
-                    category=category, year=year, month=month, source=self._get_single_source_filter()
+                    category=category,
+                    year=year,
+                    month=month,
+                    source=self._get_single_source_filter(),
                 )
             )
 
@@ -1437,13 +1489,19 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         if merchant:
             self.app.push_screen(
                 self.app.SCREENS["transactions"](
-                    merchant=merchant, year=year, month=month, source=self._get_single_source_filter()
+                    merchant=merchant,
+                    year=year,
+                    month=month,
+                    source=self._get_single_source_filter(),
                 )
             )
         elif category:
             self.app.push_screen(
                 self.app.SCREENS["transactions"](
-                    category=category, year=year, month=month, source=self._get_single_source_filter()
+                    category=category,
+                    year=year,
+                    month=month,
+                    source=self._get_single_source_filter(),
                 )
             )
 

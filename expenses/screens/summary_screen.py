@@ -287,7 +287,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     def compose_content(self) -> ComposeResult:
         yield Static("Cash Flow Summary", classes="title")
-        yield Static(self._tag_exclusion_status(), id="tag_exclusion_status")
+        yield Horizontal(
+            Static("Tags: ", classes="filter-label"),
+            Static(self._tag_exclusion_status(), id="tag_exclusion_status"),
+            classes="tag-filter-bar",
+        )
 
         if self.transactions.empty:
             yield Static("No transactions found.")
@@ -461,13 +465,17 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
     def _tag_exclusion_status(self) -> str:
         """Build the status line describing the current tag-exclusion mode."""
         if not self.excluded_tags:
-            return "no tags excluded — press X to pick"
+            return "[dim]none excluded  ·  X pick[/dim]"
+        patterns = ", ".join(self.excluded_tags)
         if self.exclude_tags_active:
             return (
-                f"excluding: {', '.join(self.excluded_tags)} "
-                f"(€{self.hidden_tag_total:,.0f} hidden) — press x to include, X to pick"
+                f"[bold]excluding[/bold] [yellow]{patterns}[/yellow] "
+                f"[dim](€{self.hidden_tag_total:,.0f} hidden)   x include  ·  X pick[/dim]"
             )
-        return "including all tags — press x to exclude, X to pick"
+        return (
+            f"including all [dim]([yellow]{patterns}[/yellow] not applied)"
+            "   x exclude  ·  X pick[/dim]"
+        )
 
     def action_toggle_tag_exclusion(self) -> None:
         """Toggle whether excluded tags (e.g. emergency) are hidden from totals."""

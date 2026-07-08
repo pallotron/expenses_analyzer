@@ -63,7 +63,10 @@ def all_tags_in_series(s: pd.Series) -> List[str]:
 
 
 def normalize_pattern(raw: str) -> str:
-    """Normalize an exclusion pattern: a tag, optionally with one trailing '*'."""
+    """Normalize an exclusion pattern: a tag, optionally with one trailing '*'.
+
+    Does not validate: misplaced stars are stripped, so check star placement on raw input before normalizing.
+    """
     text = str(raw).strip().lower()
     if text.endswith("*"):
         return normalize_tag(text[:-1]) + "*"

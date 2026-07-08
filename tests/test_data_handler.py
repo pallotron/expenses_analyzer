@@ -12,6 +12,7 @@ from expenses.data_handler import (
     update_single_transaction,
     load_transactions_from_parquet,
     load_tag_settings,
+    save_tag_settings,
     tag_transactions,
 )
 
@@ -442,6 +443,48 @@ class TestDataHandler(unittest.TestCase):
         with self.assertRaises(ValueError):
             tag_transactions([0], ["emergency"], mode="ADD")
         mock_save.assert_not_called()
+
+    def test_save_tag_settings_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "tag_settings.json"
+            with patch("expenses.data_handler.TAG_SETTINGS_FILE", settings_path):
+                save_tag_settings({"exclude_from_summary": ["emergency", "travel:*"]})
+                settings = load_tag_settings()
+            self.assertEqual(
+                settings["exclude_from_summary"], ["emergency", "travel:*"]
+            )
+
+    def test_save_tag_settings_drops_invalid_patterns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "tag_settings.json"
+            with patch("expenses.data_handler.TAG_SETTINGS_FILE", settings_path):
+                save_tag_settings(
+                    {
+                        "exclude_from_summary": [
+                            "emergency",
+                            "*",
+                            "a*b",
+                            "a**",
+                            None,
+                            "  Travel:* ",
+                            "emergency",
+                        ]
+                    }
+                )
+                settings = load_tag_settings()
+            self.assertEqual(
+                settings["exclude_from_summary"], ["emergency", "travel:*"]
+            )
+
+    def test_load_tag_settings_cleans_invalid_patterns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "tag_settings.json"
+            settings_path.write_text(
+                json.dumps({"exclude_from_summary": ["emergency", "*", "bad*bad"]})
+            )
+            with patch("expenses.data_handler.TAG_SETTINGS_FILE", settings_path):
+                settings = load_tag_settings()
+            self.assertEqual(settings["exclude_from_summary"], ["emergency"])
 
 
 if __name__ == "__main__":

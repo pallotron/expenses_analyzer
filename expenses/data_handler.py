@@ -9,7 +9,13 @@ from typing import Dict, List, Optional
 from expenses.backup import create_auto_backup
 from expenses.gemini_utils import get_gemini_category_suggestions_for_merchants
 from expenses.validation import validate_transaction_dataframe
-from expenses.tags import add_tags_to_cell, normalize_tag, remove_tags_from_cell
+from expenses.tags import (
+    add_tags_to_cell,
+    normalize_tag,
+    remove_tags_from_cell,
+    is_valid_pattern,
+    normalize_pattern,
+)
 from expenses.config import (
     CONFIG_DIR,
     CATEGORIES_FILE,
@@ -219,6 +225,43 @@ def save_category_types(data: dict) -> None:
 DEFAULT_TAG_SETTINGS = {"exclude_from_summary": ["emergency"]}
 
 
+def _clean_patterns(patterns: list) -> list:
+    """Normalize exclusion patterns, dropping invalid or duplicate entries.
+
+    Star placement is checked on the RAW string before normalizing:
+    normalize_pattern strips misplaced stars (e.g. "a*b" -> "ab"), so
+    normalize-then-validate would silently accept structurally invalid input.
+    """
+    cleaned = []
+    for raw in patterns:
+        if not isinstance(raw, str):
+            logging.warning(f"Dropping invalid tag exclusion pattern: {raw!r}")
+            continue
+        text = raw.strip()
+        stem = text[:-1] if text.endswith("*") else text
+        if "*" in stem:
+            logging.warning(f"Dropping invalid tag exclusion pattern: {raw!r}")
+            continue
+        pattern = normalize_pattern(text)
+        if is_valid_pattern(pattern):
+            if pattern not in cleaned:
+                cleaned.append(pattern)
+        else:
+            logging.warning(f"Dropping invalid tag exclusion pattern: {raw!r}")
+    return cleaned
+
+
+def save_tag_settings(settings: dict) -> None:
+    """Persist tag settings; invalid exclusion patterns are dropped with a warning."""
+    to_save = {
+        "exclude_from_summary": _clean_patterns(
+            settings.get("exclude_from_summary", [])
+        )
+    }
+    with open(TAG_SETTINGS_FILE, "w", encoding="utf-8") as f:
+        json.dump(to_save, f, indent=2)
+
+
 def load_tag_settings() -> dict:
     """Load tag settings, creating the file with defaults if missing or corrupt."""
     try:
@@ -228,6 +271,9 @@ def load_tag_settings() -> dict:
             raise ValueError("tag settings must be a JSON object")
         if not isinstance(settings.get("exclude_from_summary"), list):
             raise ValueError("exclude_from_summary must be a list")
+        settings["exclude_from_summary"] = _clean_patterns(
+            settings["exclude_from_summary"]
+        )
         return settings
     except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         if TAG_SETTINGS_FILE.exists():

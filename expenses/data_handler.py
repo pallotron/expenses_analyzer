@@ -258,8 +258,10 @@ def save_tag_settings(settings: dict) -> None:
             settings.get("exclude_from_summary", [])
         )
     }
+    _ensure_secure_config_dir()
     with open(TAG_SETTINGS_FILE, "w", encoding="utf-8") as f:
         json.dump(to_save, f, indent=2)
+    _set_secure_permissions(TAG_SETTINGS_FILE)
 
 
 def load_tag_settings() -> dict:

@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 import pandas as pd
 
-from expenses.tags import cell_matches_patterns
+from expenses.tags import cell_matches_patterns, normalize_pattern
 
 
 def calculate_trends(data: List[float]) -> List[Tuple[float, str]]:
@@ -243,7 +243,8 @@ def exclude_tagged_transactions(
     if df.empty or not excluded_patterns or "Tags" not in df.columns:
         return df, 0.0
 
-    mask = df["Tags"].apply(lambda cell: cell_matches_patterns(cell, excluded_patterns))
+    patterns = [normalize_pattern(p) for p in excluded_patterns]
+    mask = df["Tags"].apply(lambda cell: cell_matches_patterns(cell, patterns))
     excluded_rows = df[mask]
     hidden_total = float(
         excluded_rows.loc[excluded_rows["Type"] == "expense", "Amount"].sum()

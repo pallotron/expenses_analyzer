@@ -476,6 +476,18 @@ class TestDataHandler(unittest.TestCase):
                 settings["exclude_from_summary"], ["emergency", "travel:*"]
             )
 
+    @patch("expenses.data_handler._ensure_secure_config_dir")
+    @patch("expenses.data_handler._set_secure_permissions")
+    def test_save_tag_settings_sets_secure_permissions(
+        self, mock_set_perms: MagicMock, mock_ensure_dir: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "tag_settings.json"
+            with patch("expenses.data_handler.TAG_SETTINGS_FILE", settings_path):
+                save_tag_settings({"exclude_from_summary": ["emergency"]})
+            mock_ensure_dir.assert_called_once()
+            mock_set_perms.assert_called_once()
+
     def test_load_tag_settings_cleans_invalid_patterns(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             settings_path = Path(tmp) / "tag_settings.json"

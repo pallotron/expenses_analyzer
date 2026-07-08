@@ -5,7 +5,11 @@ import pandas as pd
 from expenses.tags import (
     add_tags_to_cell,
     all_tags_in_series,
+    cell_matches_patterns,
+    is_valid_pattern,
     join_tags,
+    namespaces_in_series,
+    normalize_pattern,
     normalize_tag,
     parse_tags,
     remove_tags_from_cell,
@@ -63,6 +67,35 @@ class TestTagHelpers(unittest.TestCase):
     def test_all_tags_in_series(self) -> None:
         s = pd.Series(["trip:x,emergency", "emergency", ""])
         self.assertEqual(all_tags_in_series(s), ["emergency", "trip:x"])
+
+    def test_normalize_pattern(self) -> None:
+        self.assertEqual(normalize_pattern("  Travel:* "), "travel:*")
+        self.assertEqual(normalize_pattern("Emergency"), "emergency")
+        self.assertEqual(normalize_pattern("*"), "*")
+
+    def test_is_valid_pattern(self) -> None:
+        self.assertTrue(is_valid_pattern("emergency"))
+        self.assertTrue(is_valid_pattern("travel:*"))
+        self.assertFalse(is_valid_pattern("*"))
+        self.assertFalse(is_valid_pattern("tra*vel"))
+        self.assertFalse(is_valid_pattern(""))
+        self.assertFalse(is_valid_pattern("Travel:*"))  # not normalized
+
+    def test_cell_matches_patterns(self) -> None:
+        self.assertTrue(cell_matches_patterns("emergency", ["emergency"]))
+        self.assertTrue(cell_matches_patterns("travel:x,emergency", ["travel:*"]))
+        self.assertFalse(cell_matches_patterns("travel:x", ["emergency"]))
+        self.assertFalse(cell_matches_patterns("", ["emergency"]))
+        self.assertFalse(cell_matches_patterns(None, ["travel:*"]))
+        self.assertFalse(cell_matches_patterns("travel:x", []))
+        # normalization applied to patterns
+        self.assertTrue(cell_matches_patterns("travel:x", ["  Travel:* "]))
+        # bare "*" must not match everything (invalid prefix is ignored)
+        self.assertFalse(cell_matches_patterns("travel:x", ["*"]))
+
+    def test_namespaces_in_series(self) -> None:
+        s = pd.Series(["travel:x,emergency", "travel:y", "work:conf", ""])
+        self.assertEqual(namespaces_in_series(s), ["travel:", "work:"])
 
 
 if __name__ == "__main__":

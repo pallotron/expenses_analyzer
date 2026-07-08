@@ -27,12 +27,15 @@ from expenses.data_handler import (
     load_category_types,
     get_category_spending_type,
     load_tag_settings,
+    save_tag_settings,
 )
 from expenses.analysis import (
     calculate_trends,
     get_cash_flow_totals,
     exclude_tagged_transactions,
 )
+from expenses.tags import all_tags_in_series, namespaces_in_series
+from expenses.screens.tag_exclusion_screen import TagExclusionScreen
 from typing import Dict, Set, Optional, Any
 
 
@@ -46,6 +49,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         Binding("f", "toggle_focus", "Focus Mode"),
         Binding("e", "export_pdf", "Export PDF"),
         Binding("x", "toggle_tag_exclusion", "Incl/Excl Tagged"),
+        Binding("X", "pick_excluded_tags", "Pick Excluded Tags"),
     ]
 
     def __init__(self, **kwargs: Any) -> None:
@@ -283,7 +287,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     def compose_content(self) -> ComposeResult:
         yield Static("Cash Flow Summary", classes="title")
-        yield Static(self._tag_exclusion_status(), id="tag_exclusion_status")
+        yield Horizontal(
+            Static("Tags: ", classes="filter-label"),
+            Static(self._tag_exclusion_status(), id="tag_exclusion_status"),
+            classes="tag-filter-bar",
+        )
 
         if self.transactions.empty:
             yield Static("No transactions found.")
@@ -457,13 +465,17 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
     def _tag_exclusion_status(self) -> str:
         """Build the status line describing the current tag-exclusion mode."""
         if not self.excluded_tags:
-            return ""
+            return "[dim]none excluded  ·  X pick[/dim]"
+        patterns = ", ".join(self.excluded_tags)
         if self.exclude_tags_active:
             return (
-                f"excluding: {', '.join(self.excluded_tags)} "
-                f"(€{self.hidden_tag_total:,.0f} hidden) — press x to include"
+                f"[bold]excluding[/bold] [yellow]{patterns}[/yellow] "
+                f"[dim](€{self.hidden_tag_total:,.0f} hidden)   x include  ·  X pick[/dim]"
             )
-        return "including all tags — press x to exclude"
+        return (
+            f"including all [dim]([yellow]{patterns}[/yellow] not applied)"
+            "   x exclude  ·  X pick[/dim]"
+        )
 
     def action_toggle_tag_exclusion(self) -> None:
         """Toggle whether excluded tags (e.g. emergency) are hidden from totals."""
@@ -473,6 +485,32 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             self._tag_exclusion_status()
         )
         self.call_after_refresh(self.update_initial_views)
+
+    def action_pick_excluded_tags(self) -> None:
+        """Open the tag-exclusion picker (Shift+X)."""
+        full_df = load_transactions_from_parquet()
+        if not full_df.empty and "Tags" in full_df.columns:
+            tags_in_use = all_tags_in_series(full_df["Tags"])
+            namespaces = namespaces_in_series(full_df["Tags"])
+        else:
+            tags_in_use, namespaces = [], []
+
+        def on_result(result: Optional[list]) -> None:
+            if result is None:
+                return
+            save_tag_settings({"exclude_from_summary": result})
+            self.excluded_tags = load_tag_settings()["exclude_from_summary"]
+            self.exclude_tags_active = True
+            self.load_and_prepare_data()
+            self.query_one("#tag_exclusion_status", Static).update(
+                self._tag_exclusion_status()
+            )
+            self.call_after_refresh(self.update_initial_views)
+
+        self.app.push_screen(
+            TagExclusionScreen(tags_in_use, namespaces, list(self.excluded_tags)),
+            on_result,
+        )
 
     def on_mount(self) -> None:
         """Populate the initial view."""

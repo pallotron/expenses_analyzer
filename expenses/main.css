@@ -150,6 +150,21 @@ Notification.visible {
 }
 
 /* --- Summary Screen --- */
+.tag-filter-bar {
+    height: 1;
+    padding: 0 1;
+    align: left middle;
+}
+
+.tag-filter-bar .filter-label {
+    width: auto;
+    padding: 0 1;
+}
+
+.tag-filter-bar #tag_exclusion_status {
+    width: auto;
+}
+
 .source-filter-bar {
     height: 3;
     padding: 0 1;

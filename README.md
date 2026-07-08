@@ -30,7 +30,7 @@ Please contribute if you can or report bugs/issues!
 - **Category Breakdown**: See a detailed breakdown of your spending by category.
 - **Transaction Viewer**: Browse and review individual transactions.
 - **Data Deletion**: Remove transactions you don't want to track.
-- **Transaction Tags**: Tag transactions (e.g. `emergency`, `trip:paris-jun26`) from the Transactions screen (`g` = tag selected, `G` = tag all filtered). The Summary screen hides tags listed in `tag_settings.json` (default: `emergency`) from totals; press `x` to toggle.
+- **Transaction Tags**: Tag transactions (e.g. `emergency`, `trip:paris-jun26`) from the Transactions screen (`g` = tag selected, `G` = tag all filtered). The Summary screen hides tags listed in `tag_settings.json` (default: `emergency`) from totals; press `x` to toggle, `Shift+X` to pick which tags/patterns are excluded (trailing `*` matches a prefix, e.g. `travel:*`).
 
 ## Installation
 

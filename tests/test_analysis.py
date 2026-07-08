@@ -124,3 +124,26 @@ def test_exclude_tagged_transactions_normalizes_excluded_tags() -> None:
     filtered, hidden = exclude_tagged_transactions(df, ["  Emergency "])
     assert filtered["Merchant"].tolist() == ["Tesco"]
     assert hidden == pytest.approx(298.99)
+
+
+def test_exclude_tagged_transactions_prefix_pattern() -> None:
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(
+                ["2026-06-10", "2026-06-11", "2026-06-12", "2026-06-13"]
+            ),
+            "Merchant": ["AerLingus", "Conad", "Tesco", "Hotel"],
+            "Amount": [312.85, 14.61, 12.00, 200.00],
+            "Type": ["expense", "expense", "expense", "income"],
+            "Tags": [
+                "travel:paris-june-2026",
+                "travel:rome-2026",
+                "",
+                "travel:rome-2026",
+            ],
+        }
+    )
+    filtered, hidden = exclude_tagged_transactions(df, ["emergency", "travel:*"])
+    assert filtered["Merchant"].tolist() == ["Tesco"]
+    # income row removed from view but not counted in hidden expense total
+    assert hidden == pytest.approx(327.46)

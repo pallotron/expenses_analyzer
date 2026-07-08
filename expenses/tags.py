@@ -60,3 +60,45 @@ def all_tags_in_series(s: pd.Series) -> List[str]:
     for cell in s:
         tags.update(parse_tags(cell))
     return sorted(tags)
+
+
+def normalize_pattern(raw: str) -> str:
+    """Normalize an exclusion pattern: a tag, optionally with one trailing '*'."""
+    text = str(raw).strip().lower()
+    if text.endswith("*"):
+        return normalize_tag(text[:-1]) + "*"
+    return normalize_tag(text)
+
+
+def is_valid_pattern(pattern: str) -> bool:
+    """True for a normalized, non-empty tag optionally ending in a single '*'."""
+    text = str(pattern)
+    if text.endswith("*"):
+        text = text[:-1]
+    return bool(text) and "*" not in text and normalize_tag(text) == text
+
+
+def cell_matches_patterns(cell: Optional[str], patterns: List[str]) -> bool:
+    """True if any token of the cell matches any pattern (exact, or prefix for 'x*')."""
+    tokens = parse_tags(cell)
+    if not tokens:
+        return False
+    for raw in patterns:
+        pattern = normalize_pattern(raw)
+        if pattern.endswith("*"):
+            prefix = pattern[:-1]
+            if prefix and any(t.startswith(prefix) for t in tokens):
+                return True
+        elif pattern and pattern in tokens:
+            return True
+    return False
+
+
+def namespaces_in_series(s: pd.Series) -> List[str]:
+    """Sorted distinct 'ns:' prefixes among tags in the series."""
+    namespaces = set()
+    for cell in s:
+        for tag in parse_tags(cell):
+            if ":" in tag:
+                namespaces.add(tag.split(":", 1)[0] + ":")
+    return sorted(namespaces)

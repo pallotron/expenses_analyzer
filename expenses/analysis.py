@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 import pandas as pd
 
-from expenses.tags import normalize_tag, parse_tags
+from expenses.tags import cell_matches_patterns
 
 
 def calculate_trends(data: List[float]) -> List[Tuple[float, str]]:
@@ -231,18 +231,19 @@ def get_cash_flow_totals(transactions: pd.DataFrame) -> dict:
 
 
 def exclude_tagged_transactions(
-    df: pd.DataFrame, excluded_tags: List[str]
+    df: pd.DataFrame, excluded_patterns: List[str]
 ) -> Tuple[pd.DataFrame, float]:
-    """Split out transactions carrying any excluded tag.
+    """Split out transactions whose tags match any excluded pattern.
+
+    Patterns are exact tags ("emergency") or trailing-star prefixes ("travel:*").
 
     Returns:
         (df without excluded rows, total expense Amount of the excluded rows)
     """
-    if df.empty or not excluded_tags or "Tags" not in df.columns:
+    if df.empty or not excluded_patterns or "Tags" not in df.columns:
         return df, 0.0
 
-    excluded_set = {normalize_tag(t) for t in excluded_tags}
-    mask = df["Tags"].apply(lambda cell: bool(excluded_set & set(parse_tags(cell))))
+    mask = df["Tags"].apply(lambda cell: cell_matches_patterns(cell, excluded_patterns))
     excluded_rows = df[mask]
     hidden_total = float(
         excluded_rows.loc[excluded_rows["Type"] == "expense", "Amount"].sum()

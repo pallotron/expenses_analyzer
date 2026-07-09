@@ -12,10 +12,11 @@ class MockInput:
 
 
 class MockButton:
-    """A mock Button widget with a label attribute."""
+    """A mock Button widget with label and variant attributes."""
 
-    def __init__(self, label: str = ""):
+    def __init__(self, label: str = "", variant: str = "default"):
         self.label = label
+        self.variant = variant
 
 
 @pytest.fixture
@@ -165,3 +166,92 @@ def test_toggle_selection_keeps_cursor_position(
 
     # Assert that the cursor position is still the same
     assert mock_table.cursor_row == 1
+
+
+def make_query_one(filter_values: Dict[str, str] | None = None):
+    """Build a query_one mock plus the widget dict it serves."""
+    values: Dict[str, str] = {
+        "#date_min_filter": "",
+        "#date_max_filter": "",
+        "#merchant_filter": "",
+        "#amount_min_filter": "",
+        "#amount_max_filter": "",
+        "#source_filter": "",
+        "#category_filter": "",
+        "#type_filter": "",
+        "#tags_filter": "",
+    }
+    if filter_values:
+        values.update({f"#{key}": value for key, value in filter_values.items()})
+
+    widgets: Dict[str, Any] = {
+        "#transaction_table": MockDataTable(),
+        "#merchant_summary_table": MockDataTable(),
+        "#total_display": MockStatic(),
+        "#select_all_button": MockButton(),
+        "#budget_all_button": MockButton(),
+        "#budget_essential_button": MockButton(),
+        "#budget_discretionary_button": MockButton(),
+    }
+    for key, value in values.items():
+        widgets[key] = MockInput(value=value)
+
+    return (lambda selector, type: widgets[selector]), widgets
+
+
+def _budget_test_data(transaction_screen: TransactionScreen) -> None:
+    """Three transactions: Category 1 is essential, Category 2 discretionary."""
+    transaction_screen.transactions = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
+            "Merchant": ["Merchant A", "Merchant B", "Merchant C"],
+            "Amount": [10.0, 20.0, 30.0],
+            "Source": ["CSV Import", "Plaid", "Manual"],
+            "Deleted": [False, False, False],
+            "Type": ["expense", "expense", "expense"],
+        }
+    )
+    transaction_screen.categories = {
+        "Merchant A": "Category 1",
+        "Merchant B": "Category 2",
+        "Merchant C": "Category 1",
+    }
+    transaction_screen.category_types = {
+        "essential": {"categories": ["Category 1"], "annual_budget": None},
+        "discretionary": {"categories": [], "annual_budget": None},
+    }
+
+
+def test_budget_column_derived_from_category(
+    transaction_screen: TransactionScreen,
+) -> None:
+    """Budget column holds essential/discretionary and renders Ess./Discr."""
+    _budget_test_data(transaction_screen)
+    query_one, widgets = make_query_one()
+    transaction_screen.query_one = query_one
+
+    transaction_screen.populate_table()
+
+    assert "Budget" in transaction_screen.display_df.columns
+    budgets = dict(
+        zip(
+            transaction_screen.display_df["Merchant"],
+            transaction_screen.display_df["Budget"],
+        )
+    )
+    assert budgets == {
+        "Merchant A": "essential",
+        "Merchant B": "discretionary",
+        "Merchant C": "essential",
+    }
+
+    # Rendered cells use the Summary screen abbreviations.
+    table = widgets["#transaction_table"]
+    column_labels = [col["key"] for col in table.columns]
+    budget_idx = column_labels.index("Budget")
+    rendered = {str(row["row"][1]): str(row["row"][budget_idx]) for row in table.rows}
+    assert rendered == {
+        "Merchant A": "Ess.",
+        "Merchant B": "Discr.",
+        "Merchant C": "Ess.",
+    }

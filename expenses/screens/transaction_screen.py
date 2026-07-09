@@ -13,6 +13,8 @@ from rich.text import Text
 from expenses.data_handler import (
     load_transactions_from_parquet,
     load_categories,
+    load_category_types,
+    get_category_spending_type,
     delete_transactions,
     load_merchant_aliases,
     save_merchant_aliases,
@@ -75,6 +77,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             "Type",
             "Source",
             "Category",
+            "Budget",
             "Tags",
         ]
         self.sort_column: str = "Date"
@@ -83,6 +86,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         self.display_df: pd.DataFrame = pd.DataFrame()
         self.transactions: pd.DataFrame = pd.DataFrame()
         self.categories: Dict[str, str] = {}
+        self.category_types: dict = {}
         self.merchant_aliases: Dict[str, str] = {}
 
     def compose_content(self) -> ComposeResult:
@@ -169,6 +173,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
+        self.category_types = load_category_types()
         self.merchant_aliases = load_merchant_aliases()
 
         if not self.transactions.empty:
@@ -183,6 +188,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         """Called when the screen is resumed, e.g., after an import."""
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
+        self.category_types = load_category_types()
         self.merchant_aliases = load_merchant_aliases()
 
         if not self.transactions.empty:
@@ -209,18 +215,6 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             table.add_columns(*self.columns)
             total_display.update("Total: 0.00")
             return
-
-        # --- Prepare Data ---
-        display_df = self.transactions.copy()
-
-        # Apply merchant aliases for display
-        display_df["DisplayMerchant"] = apply_merchant_aliases_to_series(
-            display_df["Merchant"], self.merchant_aliases
-        )
-
-        display_df["Category"] = (
-            display_df["DisplayMerchant"].map(self.categories).fillna("Other")
-        )
 
         # --- Filtering ---
         type_filter_value = self.query_one("#type_filter", ClearableInput).value
@@ -295,6 +289,10 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             display_df["DisplayMerchant"].map(self.categories).fillna("Other")
         )
 
+        display_df["Budget"] = display_df["Category"].map(
+            lambda c: get_category_spending_type(c, self.category_types)
+        )
+
         display_df = apply_filters(display_df, filters)
 
         # Ensure Type column exists (backward compatibility)
@@ -344,6 +342,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             "Amount": 15,
             "Source": 25,
             "Category": 20,
+            "Budget": 8,
             "Tags": 20,
         }
         for col_name in self.columns:
@@ -383,6 +382,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 row_type.capitalize() if row_type else "Expense",
                 row.get("Source", "Unknown") or "Unknown",
                 row["Category"] or "",
+                "Ess." if row.get("Budget") == "essential" else "Discr.",
                 row.get("Tags", "") or "",
             ]
 

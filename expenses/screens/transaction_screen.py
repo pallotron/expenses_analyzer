@@ -176,8 +176,8 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Button("Delete Selected", id="delete_button", variant="error"),
             classes="button-bar",
         )
-        # Split view: Transaction table on left, Merchant summary on right
-        yield Horizontal(
+        # Split view: Transaction table on top, Merchant summary below
+        yield Vertical(
             DataTable(id="transaction_table", cursor_type="row", zebra_stripes=True),
             Vertical(
                 DataTable(

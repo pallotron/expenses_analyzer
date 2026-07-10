@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock, Mock
 import pandas as pd
 import json
 from textual.app import App
+from textual.containers import Vertical
 from textual.widgets import Button, DataTable
 from expenses.screens.transaction_screen import TransactionScreen
 from expenses.widgets.clearable_input import ClearableInput
@@ -408,6 +409,24 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                     "Type",
                     "Tags",
                 }
+
+    async def test_tables_stacked_vertically(self) -> None:
+        """The content split container is a Vertical (tables stacked)."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps(self.test_categories))
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = TransactionScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                split = pilot.app.screen.query_one(".content-split")
+                assert isinstance(split, Vertical)
 
 
 if __name__ == "__main__":

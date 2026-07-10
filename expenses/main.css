@@ -21,9 +21,19 @@ Screen {
     height: auto;
 }
 
-#filters > Input {
+#filters .filter-field {
     width: 1fr;
+    height: auto;
     margin: 0 1;
+}
+
+#filters .filter-label {
+    text-style: bold;
+    color: $text-muted;
+}
+
+#filters .filter-field > Input {
+    width: 1fr;
 }
 
 .total {

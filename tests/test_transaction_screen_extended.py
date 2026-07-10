@@ -380,6 +380,35 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                 await pilot.press("x")
                 assert screen.filter_budget_type is None
 
+    async def test_filter_inputs_have_labels(self) -> None:
+        """Every filter input has a visible label above it."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps(self.test_categories))
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = TransactionScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                labels = pilot.app.screen.query(".filter-label")
+                label_texts = {str(label.render()) for label in labels}
+                assert label_texts == {
+                    "Start date",
+                    "End date",
+                    "Merchant",
+                    "Min amount",
+                    "Max amount",
+                    "Source",
+                    "Category",
+                    "Type",
+                    "Tags",
+                }
+
 
 if __name__ == "__main__":
     unittest.main()

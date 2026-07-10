@@ -104,31 +104,67 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         yield Static(title, classes="title")
         yield Horizontal(
-            ClearableInput(placeholder="Start Date (YYYY-MM-DD)", id="date_min_filter"),
-            ClearableInput(placeholder="End Date (YYYY-MM-DD)", id="date_max_filter"),
-            ClearableInput(
-                placeholder="Filter by Merchant...",
-                id="merchant_filter",
-                value=self.filter_merchant or "",
+            Vertical(
+                Static("Start date", classes="filter-label"),
+                ClearableInput(placeholder="YYYY-MM-DD", id="date_min_filter"),
+                classes="filter-field",
             ),
-            ClearableInput(placeholder="Min Amount...", id="amount_min_filter"),
-            ClearableInput(placeholder="Max Amount...", id="amount_max_filter"),
-            ClearableInput(
-                placeholder="Filter by Source...",
-                id="source_filter",
-                value=self.filter_source or "",
+            Vertical(
+                Static("End date", classes="filter-label"),
+                ClearableInput(placeholder="YYYY-MM-DD", id="date_max_filter"),
+                classes="filter-field",
             ),
-            ClearableInput(
-                placeholder="Filter by Category...",
-                id="category_filter",
-                value=self.filter_category or "",
+            Vertical(
+                Static("Merchant", classes="filter-label"),
+                ClearableInput(
+                    placeholder="contains...",
+                    id="merchant_filter",
+                    value=self.filter_merchant or "",
+                ),
+                classes="filter-field",
             ),
-            ClearableInput(
-                placeholder="Type (income/expense)...",
-                id="type_filter",
-                value=self.filter_type or "",
+            Vertical(
+                Static("Min amount", classes="filter-label"),
+                ClearableInput(placeholder="0.00", id="amount_min_filter"),
+                classes="filter-field",
             ),
-            ClearableInput(placeholder="Filter by Tag...", id="tags_filter"),
+            Vertical(
+                Static("Max amount", classes="filter-label"),
+                ClearableInput(placeholder="0.00", id="amount_max_filter"),
+                classes="filter-field",
+            ),
+            Vertical(
+                Static("Source", classes="filter-label"),
+                ClearableInput(
+                    placeholder="contains...",
+                    id="source_filter",
+                    value=self.filter_source or "",
+                ),
+                classes="filter-field",
+            ),
+            Vertical(
+                Static("Category", classes="filter-label"),
+                ClearableInput(
+                    placeholder="contains...",
+                    id="category_filter",
+                    value=self.filter_category or "",
+                ),
+                classes="filter-field",
+            ),
+            Vertical(
+                Static("Type", classes="filter-label"),
+                ClearableInput(
+                    placeholder="income/expense",
+                    id="type_filter",
+                    value=self.filter_type or "",
+                ),
+                classes="filter-field",
+            ),
+            Vertical(
+                Static("Tags", classes="filter-label"),
+                ClearableInput(placeholder="contains...", id="tags_filter"),
+                classes="filter-field",
+            ),
             id="filters",
         )
         yield Horizontal(

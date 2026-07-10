@@ -352,6 +352,34 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                 # Should have empty display
                 assert len(screen.display_df) == 0
 
+    async def test_budget_buttons_set_filter(self) -> None:
+        """Budget buttons set filter_budget_type and press x cycles it."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps(self.test_categories))
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = TransactionScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                essential_button = pilot.app.screen.query_one(
+                    "#budget_essential_button", Button
+                )
+                essential_button.press()
+                await pilot.pause()
+                assert screen.filter_budget_type == "essential"
+                assert essential_button.variant == "primary"
+
+                await pilot.press("x")
+                assert screen.filter_budget_type == "discretionary"
+                await pilot.press("x")
+                assert screen.filter_budget_type is None
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -43,6 +43,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         Binding("p", "export_pdf", "Export PDF"),
         Binding("g", "tag_selected", "Tag Selected"),
         Binding("G", "tag_filtered", "Tag Filtered"),
+        Binding("x", "cycle_budget_type", "Budget Type"),
     ]
 
     def __init__(
@@ -70,6 +71,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             self.filter_year = year
             self.filter_month = month  # None means "all year"
         self.filter_type: str | None = transaction_type
+        self.filter_budget_type: str | None = None  # None = all
         self.columns: list[str] = [
             "Date",
             "Merchant",
@@ -131,6 +133,9 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         )
         yield Horizontal(
             Static(id="total_display", classes="total"),
+            Button("All", id="budget_all_button", variant="primary"),
+            Button("Essential", id="budget_essential_button"),
+            Button("Discretionary", id="budget_discretionary_button"),
             Button("Select All", id="select_all_button"),
             Button("Delete Selected", id="delete_button", variant="error"),
             classes="button-bar",
@@ -299,6 +304,8 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         if "Type" not in display_df.columns:
             display_df["Type"] = "expense"
 
+        display_df = self._apply_budget_filter(display_df)
+
         self.display_df = display_df
 
         # --- Calculate and Display Cash Flow Summary ---
@@ -448,6 +455,33 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 row["Category"] or "",
             )
 
+    _BUDGET_BUTTON_IDS = {
+        None: "budget_all_button",
+        "essential": "budget_essential_button",
+        "discretionary": "budget_discretionary_button",
+    }
+
+    def _apply_budget_filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Restrict rows to the active budget type, if one is selected."""
+        if self.filter_budget_type is None:
+            return df
+        return df[df["Budget"] == self.filter_budget_type]
+
+    def _set_budget_filter(self, value: str | None) -> None:
+        """Set the budget-type filter, sync button variants, refresh table."""
+        self.filter_budget_type = value
+        active_id = self._BUDGET_BUTTON_IDS[value]
+        for button_id in self._BUDGET_BUTTON_IDS.values():
+            button = self.query_one(f"#{button_id}", Button)
+            button.variant = "primary" if button_id == active_id else "default"
+        self.populate_table()
+
+    def action_cycle_budget_type(self) -> None:
+        """Cycle the budget filter: All -> Essential -> Discretionary (x key)."""
+        order: list[str | None] = [None, "essential", "discretionary"]
+        current = order.index(self.filter_budget_type)
+        self._set_budget_filter(order[(current + 1) % len(order)])
+
     def action_toggle_selection(self) -> None:
         """Toggle selection for the current row."""
         table = self.query_one("#transaction_table", DataTable)
@@ -476,6 +510,12 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             self.delete_selected_transactions()
         elif event.button.id == "select_all_button":
             self.select_all_transactions()
+        elif event.button.id == "budget_all_button":
+            self._set_budget_filter(None)
+        elif event.button.id == "budget_essential_button":
+            self._set_budget_filter("essential")
+        elif event.button.id == "budget_discretionary_button":
+            self._set_budget_filter("discretionary")
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle Enter key on a row - opens the edit dialog."""

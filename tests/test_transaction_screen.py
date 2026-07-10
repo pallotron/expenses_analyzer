@@ -1,4 +1,5 @@
 from typing import Any, Dict
+from unittest.mock import Mock
 import pandas as pd
 import pytest
 from expenses.screens.transaction_screen import TransactionScreen
@@ -255,3 +256,46 @@ def test_budget_column_derived_from_category(
         "Merchant B": "Discr.",
         "Merchant C": "Ess.",
     }
+
+
+def test_budget_type_filter_masks_rows(
+    transaction_screen: TransactionScreen,
+) -> None:
+    """filter_budget_type restricts display_df to matching budget types."""
+    _budget_test_data(transaction_screen)
+    query_one, _ = make_query_one()
+    transaction_screen.query_one = query_one
+
+    transaction_screen.filter_budget_type = "essential"
+    transaction_screen.populate_table()
+    assert len(transaction_screen.display_df) == 2
+    assert set(transaction_screen.display_df["Budget"]) == {"essential"}
+
+    transaction_screen.filter_budget_type = "discretionary"
+    transaction_screen.populate_table()
+    assert list(transaction_screen.display_df["Merchant"]) == ["Merchant B"]
+
+
+def test_cycle_budget_type_cycles_and_updates_buttons(
+    transaction_screen: TransactionScreen,
+) -> None:
+    """x-key action cycles All -> essential -> discretionary -> All."""
+    query_one, widgets = make_query_one()
+    transaction_screen.query_one = query_one
+    transaction_screen.populate_table = Mock()
+
+    assert transaction_screen.filter_budget_type is None
+
+    transaction_screen.action_cycle_budget_type()
+    assert transaction_screen.filter_budget_type == "essential"
+    assert widgets["#budget_essential_button"].variant == "primary"
+    assert widgets["#budget_all_button"].variant == "default"
+
+    transaction_screen.action_cycle_budget_type()
+    assert transaction_screen.filter_budget_type == "discretionary"
+    assert widgets["#budget_discretionary_button"].variant == "primary"
+
+    transaction_screen.action_cycle_budget_type()
+    assert transaction_screen.filter_budget_type is None
+    assert widgets["#budget_all_button"].variant == "primary"
+    assert transaction_screen.populate_table.call_count == 3

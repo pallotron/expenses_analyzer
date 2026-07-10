@@ -169,6 +169,8 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         )
         yield Horizontal(
             Static(id="total_display", classes="total"),
+            Button("Apply Filters", id="apply_filters_button", variant="primary"),
+            Button("Clear Filters", id="clear_filters_button"),
             Button("All", id="budget_all_button", variant="primary"),
             Button("Essential", id="budget_essential_button"),
             Button("Discretionary", id="budget_discretionary_button"),
@@ -235,10 +237,6 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         if not self.transactions.empty:
             self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
 
-        self.populate_table()
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        """Called when any input's value changes to re-filter the table."""
         self.populate_table()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -491,6 +489,18 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 row["Category"] or "",
             )
 
+    _FILTER_INPUT_IDS = (
+        "date_min_filter",
+        "date_max_filter",
+        "merchant_filter",
+        "amount_min_filter",
+        "amount_max_filter",
+        "source_filter",
+        "category_filter",
+        "type_filter",
+        "tags_filter",
+    )
+
     _BUDGET_BUTTON_IDS = {
         None: "budget_all_button",
         "essential": "budget_essential_button",
@@ -546,6 +556,10 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             self.delete_selected_transactions()
         elif event.button.id == "select_all_button":
             self.select_all_transactions()
+        elif event.button.id == "apply_filters_button":
+            self.populate_table()
+        elif event.button.id == "clear_filters_button":
+            self.clear_filters()
         elif event.button.id == "budget_all_button":
             self._set_budget_filter(None)
         elif event.button.id == "budget_essential_button":
@@ -567,6 +581,12 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             else:
                 self.selected_rows = set(self.display_df.index)
             self.populate_table()
+
+    def clear_filters(self) -> None:
+        """Empty all filter inputs and reset the budget toggle, then refresh."""
+        for input_id in self._FILTER_INPUT_IDS:
+            self.query_one(f"#{input_id}", ClearableInput).value = ""
+        self._set_budget_filter(None)  # also repopulates the table
 
     def delete_selected_transactions(self) -> None:
         """Delete the selected transactions after confirmation."""

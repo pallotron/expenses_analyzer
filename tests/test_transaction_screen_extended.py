@@ -178,13 +178,12 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                 # Should have more transactions
                 assert len(screen.transactions) == initial_count + 1
 
-    async def test_input_changed_triggers_repopulate(self) -> None:
-        """Test that changing input triggers table repopulation."""
+    async def test_typing_does_not_filter_until_applied(self) -> None:
+        """Typing in a filter does nothing; Apply Filters triggers filtering."""
         with (
             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
         ):
-
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
 
@@ -196,15 +195,53 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
                 initial_display_count = len(screen.display_df)
 
-                # Change merchant filter
                 merchant_filter = pilot.app.screen.query_one(
                     "#merchant_filter", ClearableInput
                 )
                 merchant_filter.value = "Starbucks"
                 await pilot.pause()
 
-                # Should have fewer displayed transactions
-                assert len(screen.display_df) < initial_display_count
+                # Typing alone must not filter
+                assert len(screen.display_df) == initial_display_count
+
+                pilot.app.screen.query_one("#apply_filters_button", Button).press()
+                await pilot.pause()
+                assert len(screen.display_df) == 1
+
+    async def test_clear_filters_resets_everything(self) -> None:
+        """Clear Filters empties inputs, resets budget toggle, repopulates."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps(self.test_categories))
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = TransactionScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                merchant_filter = pilot.app.screen.query_one(
+                    "#merchant_filter", ClearableInput
+                )
+                merchant_filter.value = "Starbucks"
+                pilot.app.screen.query_one("#apply_filters_button", Button).press()
+                await pilot.pause()
+                assert len(screen.display_df) == 1
+
+                screen.filter_budget_type = "essential"
+                pilot.app.screen.query_one("#clear_filters_button", Button).press()
+                await pilot.pause()
+
+                assert merchant_filter.value == ""
+                date_min = pilot.app.screen.query_one(
+                    "#date_min_filter", ClearableInput
+                )
+                assert date_min.value == ""
+                assert screen.filter_budget_type is None
+                assert len(screen.display_df) == len(self.test_transactions)
 
     async def test_table_displays_transactions(self) -> None:
         """Test that table displays transactions correctly."""

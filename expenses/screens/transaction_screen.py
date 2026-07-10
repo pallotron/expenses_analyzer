@@ -13,6 +13,8 @@ from rich.text import Text
 from expenses.data_handler import (
     load_transactions_from_parquet,
     load_categories,
+    load_category_types,
+    get_category_spending_type,
     delete_transactions,
     load_merchant_aliases,
     save_merchant_aliases,
@@ -41,6 +43,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         Binding("p", "export_pdf", "Export PDF"),
         Binding("g", "tag_selected", "Tag Selected"),
         Binding("G", "tag_filtered", "Tag Filtered"),
+        Binding("x", "cycle_budget_type", "Budget Type"),
     ]
 
     def __init__(
@@ -68,6 +71,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             self.filter_year = year
             self.filter_month = month  # None means "all year"
         self.filter_type: str | None = transaction_type
+        self.filter_budget_type: str | None = None  # None = all
         self.columns: list[str] = [
             "Date",
             "Merchant",
@@ -75,6 +79,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             "Type",
             "Source",
             "Category",
+            "Budget",
             "Tags",
         ]
         self.sort_column: str = "Date"
@@ -83,6 +88,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         self.display_df: pd.DataFrame = pd.DataFrame()
         self.transactions: pd.DataFrame = pd.DataFrame()
         self.categories: Dict[str, str] = {}
+        self.category_types: dict = {}
         self.merchant_aliases: Dict[str, str] = {}
 
     def compose_content(self) -> ComposeResult:
@@ -98,41 +104,82 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         yield Static(title, classes="title")
         yield Horizontal(
-            ClearableInput(placeholder="Start Date (YYYY-MM-DD)", id="date_min_filter"),
-            ClearableInput(placeholder="End Date (YYYY-MM-DD)", id="date_max_filter"),
-            ClearableInput(
-                placeholder="Filter by Merchant...",
-                id="merchant_filter",
-                value=self.filter_merchant or "",
+            Vertical(
+                Static("Start date", classes="filter-label"),
+                ClearableInput(placeholder="YYYY-MM-DD", id="date_min_filter"),
+                classes="filter-field",
             ),
-            ClearableInput(placeholder="Min Amount...", id="amount_min_filter"),
-            ClearableInput(placeholder="Max Amount...", id="amount_max_filter"),
-            ClearableInput(
-                placeholder="Filter by Source...",
-                id="source_filter",
-                value=self.filter_source or "",
+            Vertical(
+                Static("End date", classes="filter-label"),
+                ClearableInput(placeholder="YYYY-MM-DD", id="date_max_filter"),
+                classes="filter-field",
             ),
-            ClearableInput(
-                placeholder="Filter by Category...",
-                id="category_filter",
-                value=self.filter_category or "",
+            Vertical(
+                Static("Merchant", classes="filter-label"),
+                ClearableInput(
+                    placeholder="contains...",
+                    id="merchant_filter",
+                    value=self.filter_merchant or "",
+                ),
+                classes="filter-field",
             ),
-            ClearableInput(
-                placeholder="Type (income/expense)...",
-                id="type_filter",
-                value=self.filter_type or "",
+            Vertical(
+                Static("Min amount", classes="filter-label"),
+                ClearableInput(placeholder="0.00", id="amount_min_filter"),
+                classes="filter-field",
             ),
-            ClearableInput(placeholder="Filter by Tag...", id="tags_filter"),
+            Vertical(
+                Static("Max amount", classes="filter-label"),
+                ClearableInput(placeholder="0.00", id="amount_max_filter"),
+                classes="filter-field",
+            ),
+            Vertical(
+                Static("Source", classes="filter-label"),
+                ClearableInput(
+                    placeholder="contains...",
+                    id="source_filter",
+                    value=self.filter_source or "",
+                ),
+                classes="filter-field",
+            ),
+            Vertical(
+                Static("Category", classes="filter-label"),
+                ClearableInput(
+                    placeholder="contains...",
+                    id="category_filter",
+                    value=self.filter_category or "",
+                ),
+                classes="filter-field",
+            ),
+            Vertical(
+                Static("Type", classes="filter-label"),
+                ClearableInput(
+                    placeholder="income/expense",
+                    id="type_filter",
+                    value=self.filter_type or "",
+                ),
+                classes="filter-field",
+            ),
+            Vertical(
+                Static("Tags", classes="filter-label"),
+                ClearableInput(placeholder="contains...", id="tags_filter"),
+                classes="filter-field",
+            ),
             id="filters",
         )
         yield Horizontal(
             Static(id="total_display", classes="total"),
+            Button("Apply Filters", id="apply_filters_button", variant="primary"),
+            Button("Clear Filters", id="clear_filters_button"),
+            Button("All", id="budget_all_button", variant="primary"),
+            Button("Essential", id="budget_essential_button"),
+            Button("Discretionary", id="budget_discretionary_button"),
             Button("Select All", id="select_all_button"),
             Button("Delete Selected", id="delete_button", variant="error"),
             classes="button-bar",
         )
-        # Split view: Transaction table on left, Merchant summary on right
-        yield Horizontal(
+        # Split view: Transaction table on top, Merchant summary below
+        yield Vertical(
             DataTable(id="transaction_table", cursor_type="row", zebra_stripes=True),
             Vertical(
                 DataTable(
@@ -169,6 +216,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
+        self.category_types = load_category_types()
         self.merchant_aliases = load_merchant_aliases()
 
         if not self.transactions.empty:
@@ -183,15 +231,12 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         """Called when the screen is resumed, e.g., after an import."""
         self.transactions = load_transactions_from_parquet()
         self.categories = load_categories()
+        self.category_types = load_category_types()
         self.merchant_aliases = load_merchant_aliases()
 
         if not self.transactions.empty:
             self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
 
-        self.populate_table()
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        """Called when any input's value changes to re-filter the table."""
         self.populate_table()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -209,18 +254,6 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             table.add_columns(*self.columns)
             total_display.update("Total: 0.00")
             return
-
-        # --- Prepare Data ---
-        display_df = self.transactions.copy()
-
-        # Apply merchant aliases for display
-        display_df["DisplayMerchant"] = apply_merchant_aliases_to_series(
-            display_df["Merchant"], self.merchant_aliases
-        )
-
-        display_df["Category"] = (
-            display_df["DisplayMerchant"].map(self.categories).fillna("Other")
-        )
 
         # --- Filtering ---
         type_filter_value = self.query_one("#type_filter", ClearableInput).value
@@ -295,11 +328,17 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             display_df["DisplayMerchant"].map(self.categories).fillna("Other")
         )
 
+        display_df["Budget"] = display_df["Category"].map(
+            lambda c: get_category_spending_type(c, self.category_types)
+        )
+
         display_df = apply_filters(display_df, filters)
 
         # Ensure Type column exists (backward compatibility)
         if "Type" not in display_df.columns:
             display_df["Type"] = "expense"
+
+        display_df = self._apply_budget_filter(display_df)
 
         self.display_df = display_df
 
@@ -344,6 +383,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             "Amount": 15,
             "Source": 25,
             "Category": 20,
+            "Budget": 8,
             "Tags": 20,
         }
         for col_name in self.columns:
@@ -383,6 +423,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 row_type.capitalize() if row_type else "Expense",
                 row.get("Source", "Unknown") or "Unknown",
                 row["Category"] or "",
+                "Ess." if row.get("Budget") == "essential" else "Discr.",
                 row.get("Tags", "") or "",
             ]
 
@@ -448,6 +489,45 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 row["Category"] or "",
             )
 
+    _FILTER_INPUT_IDS = (
+        "date_min_filter",
+        "date_max_filter",
+        "merchant_filter",
+        "amount_min_filter",
+        "amount_max_filter",
+        "source_filter",
+        "category_filter",
+        "type_filter",
+        "tags_filter",
+    )
+
+    _BUDGET_BUTTON_IDS = {
+        None: "budget_all_button",
+        "essential": "budget_essential_button",
+        "discretionary": "budget_discretionary_button",
+    }
+
+    def _apply_budget_filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Restrict rows to the active budget type, if one is selected."""
+        if self.filter_budget_type is None:
+            return df
+        return df[df["Budget"] == self.filter_budget_type]
+
+    def _set_budget_filter(self, value: str | None) -> None:
+        """Set the budget-type filter, sync button variants, refresh table."""
+        self.filter_budget_type = value
+        active_id = self._BUDGET_BUTTON_IDS[value]
+        for button_id in self._BUDGET_BUTTON_IDS.values():
+            button = self.query_one(f"#{button_id}", Button)
+            button.variant = "primary" if button_id == active_id else "default"
+        self.populate_table()
+
+    def action_cycle_budget_type(self) -> None:
+        """Cycle the budget filter: All -> Essential -> Discretionary (x key)."""
+        order: list[str | None] = [None, "essential", "discretionary"]
+        current = order.index(self.filter_budget_type)
+        self._set_budget_filter(order[(current + 1) % len(order)])
+
     def action_toggle_selection(self) -> None:
         """Toggle selection for the current row."""
         table = self.query_one("#transaction_table", DataTable)
@@ -476,6 +556,16 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             self.delete_selected_transactions()
         elif event.button.id == "select_all_button":
             self.select_all_transactions()
+        elif event.button.id == "apply_filters_button":
+            self.populate_table()
+        elif event.button.id == "clear_filters_button":
+            self.clear_filters()
+        elif event.button.id == "budget_all_button":
+            self._set_budget_filter(None)
+        elif event.button.id == "budget_essential_button":
+            self._set_budget_filter("essential")
+        elif event.button.id == "budget_discretionary_button":
+            self._set_budget_filter("discretionary")
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle Enter key on a row - opens the edit dialog."""
@@ -491,6 +581,12 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             else:
                 self.selected_rows = set(self.display_df.index)
             self.populate_table()
+
+    def clear_filters(self) -> None:
+        """Empty all filter inputs and reset the budget toggle, then refresh."""
+        for input_id in self._FILTER_INPUT_IDS:
+            self.query_one(f"#{input_id}", ClearableInput).value = ""
+        self._set_budget_filter(None)  # also repopulates the table
 
     def delete_selected_transactions(self) -> None:
         """Delete the selected transactions after confirmation."""

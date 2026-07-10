@@ -21,9 +21,19 @@ Screen {
     height: auto;
 }
 
-#filters > Input {
+#filters .filter-field {
     width: 1fr;
+    height: auto;
     margin: 0 1;
+}
+
+#filters .filter-label {
+    text-style: bold;
+    color: $text-muted;
+}
+
+#filters .filter-field > Input {
+    width: 1fr;
 }
 
 .total {
@@ -327,9 +337,9 @@ TransactionScreen .content-split {
 }
 
 #transaction_table {
-    width: 3fr;
-    height: 1fr;
-    margin-right: 1;
+    width: 1fr;
+    height: 2fr;
+    margin-bottom: 1;
     border: solid $primary;
     padding: 0 1;
 }
@@ -339,9 +349,8 @@ TransactionScreen .content-split {
 }
 
 TransactionScreen .merchant-summary {
-    width: 2fr;
+    width: 1fr;
     height: 1fr;
-    margin-left: 1;
     border: solid $primary;
     padding: 0 1;
 }

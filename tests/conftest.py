@@ -19,3 +19,11 @@ def isolate_backup_directory(tmp_path):
 
     with patch("expenses.backup.AUTO_BACKUP_DIR", auto_backup_dir):
         yield auto_backup_dir
+
+
+@pytest.fixture(autouse=True)
+def isolate_category_types(tmp_path):
+    """Prevent tests from touching the real category_types.json."""
+    category_types_file = tmp_path / "category_types.json"
+    with patch("expenses.data_handler.CATEGORY_TYPES_FILE", category_types_file):
+        yield category_types_file

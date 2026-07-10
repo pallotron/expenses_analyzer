@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock, Mock
 import pandas as pd
 import json
 from textual.app import App
+from textual.containers import Vertical
 from textual.widgets import Button, DataTable
 from expenses.screens.transaction_screen import TransactionScreen
 from expenses.widgets.clearable_input import ClearableInput
@@ -177,13 +178,12 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                 # Should have more transactions
                 assert len(screen.transactions) == initial_count + 1
 
-    async def test_input_changed_triggers_repopulate(self) -> None:
-        """Test that changing input triggers table repopulation."""
+    async def test_typing_does_not_filter_until_applied(self) -> None:
+        """Typing in a filter does nothing; Apply Filters triggers filtering."""
         with (
             patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
             patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
         ):
-
             self.test_transactions.to_parquet(self.transactions_file, index=False)
             self.categories_file.write_text(json.dumps(self.test_categories))
 
@@ -195,15 +195,53 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
                 initial_display_count = len(screen.display_df)
 
-                # Change merchant filter
                 merchant_filter = pilot.app.screen.query_one(
                     "#merchant_filter", ClearableInput
                 )
                 merchant_filter.value = "Starbucks"
                 await pilot.pause()
 
-                # Should have fewer displayed transactions
-                assert len(screen.display_df) < initial_display_count
+                # Typing alone must not filter
+                assert len(screen.display_df) == initial_display_count
+
+                pilot.app.screen.query_one("#apply_filters_button", Button).press()
+                await pilot.pause()
+                assert len(screen.display_df) == 1
+
+    async def test_clear_filters_resets_everything(self) -> None:
+        """Clear Filters empties inputs, resets budget toggle, repopulates."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps(self.test_categories))
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = TransactionScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                merchant_filter = pilot.app.screen.query_one(
+                    "#merchant_filter", ClearableInput
+                )
+                merchant_filter.value = "Starbucks"
+                pilot.app.screen.query_one("#apply_filters_button", Button).press()
+                await pilot.pause()
+                assert len(screen.display_df) == 1
+
+                screen.filter_budget_type = "essential"
+                pilot.app.screen.query_one("#clear_filters_button", Button).press()
+                await pilot.pause()
+
+                assert merchant_filter.value == ""
+                date_min = pilot.app.screen.query_one(
+                    "#date_min_filter", ClearableInput
+                )
+                assert date_min.value == ""
+                assert screen.filter_budget_type is None
+                assert len(screen.display_df) == len(self.test_transactions)
 
     async def test_table_displays_transactions(self) -> None:
         """Test that table displays transactions correctly."""
@@ -351,6 +389,81 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
 
                 # Should have empty display
                 assert len(screen.display_df) == 0
+
+    async def test_budget_buttons_set_filter(self) -> None:
+        """Budget buttons set filter_budget_type and press x cycles it."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps(self.test_categories))
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = TransactionScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                essential_button = pilot.app.screen.query_one(
+                    "#budget_essential_button", Button
+                )
+                essential_button.press()
+                await pilot.pause()
+                assert screen.filter_budget_type == "essential"
+                assert essential_button.variant == "primary"
+
+                await pilot.press("x")
+                assert screen.filter_budget_type == "discretionary"
+                await pilot.press("x")
+                assert screen.filter_budget_type is None
+
+    async def test_filter_inputs_have_labels(self) -> None:
+        """Every filter input has a visible label above it."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps(self.test_categories))
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = TransactionScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                labels = pilot.app.screen.query(".filter-label")
+                label_texts = {str(label.render()) for label in labels}
+                assert label_texts == {
+                    "Start date",
+                    "End date",
+                    "Merchant",
+                    "Min amount",
+                    "Max amount",
+                    "Source",
+                    "Category",
+                    "Type",
+                    "Tags",
+                }
+
+    async def test_tables_stacked_vertically(self) -> None:
+        """The content split container is a Vertical (tables stacked)."""
+        with (
+            patch("expenses.data_handler.TRANSACTIONS_FILE", self.transactions_file),
+            patch("expenses.data_handler.CATEGORIES_FILE", self.categories_file),
+        ):
+            self.test_transactions.to_parquet(self.transactions_file, index=False)
+            self.categories_file.write_text(json.dumps(self.test_categories))
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = TransactionScreen()
+                await pilot.app.push_screen(screen)
+                await pilot.pause()
+
+                split = pilot.app.screen.query_one(".content-split")
+                assert isinstance(split, Vertical)
 
 
 if __name__ == "__main__":

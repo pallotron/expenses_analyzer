@@ -68,7 +68,6 @@ def test_populate_table_filtering(
             "#amount_max_filter": "",
             "#source_filter": "",
             "#category_filter": "",
-            "#type_filter": "",
             "#tags_filter": "",
         }
         for key, value in filters.items():
@@ -158,7 +157,6 @@ def test_toggle_selection_keeps_cursor_position(
         "#amount_max_filter": MockInput(value=""),
         "#source_filter": MockInput(value=""),
         "#category_filter": MockInput(value=""),
-        "#type_filter": MockInput(value=""),
         "#tags_filter": MockInput(value=""),
     }[selector]
 
@@ -179,7 +177,6 @@ def make_query_one(filter_values: Dict[str, str] | None = None):
         "#amount_max_filter": "",
         "#source_filter": "",
         "#category_filter": "",
-        "#type_filter": "",
         "#tags_filter": "",
     }
     if filter_values:
@@ -193,6 +190,9 @@ def make_query_one(filter_values: Dict[str, str] | None = None):
         "#budget_all_button": MockButton(),
         "#budget_essential_button": MockButton(),
         "#budget_discretionary_button": MockButton(),
+        "#type_all_button": MockButton(),
+        "#type_income_button": MockButton(),
+        "#type_expense_button": MockButton(),
     }
     for key, value in values.items():
         widgets[key] = MockInput(value=value)
@@ -298,4 +298,59 @@ def test_cycle_budget_type_cycles_and_updates_buttons(
     transaction_screen.action_cycle_budget_type()
     assert transaction_screen.filter_budget_type is None
     assert widgets["#budget_all_button"].variant == "primary"
+
+
+def test_type_filter_masks_rows(
+    transaction_screen: TransactionScreen,
+) -> None:
+    """filter_type restricts display_df to matching transaction types."""
+    transaction_screen.transactions = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
+            "Merchant": ["Merchant A", "Merchant B", "Merchant C"],
+            "Amount": [10.0, 20.0, 30.0],
+            "Source": ["CSV Import", "Plaid", "Manual"],
+            "Deleted": [False, False, False],
+            "Type": ["income", "expense", "expense"],
+        }
+    )
+    transaction_screen.categories = {}
+    query_one, _ = make_query_one()
+    transaction_screen.query_one = query_one
+
+    transaction_screen.filter_type = "income"
+    transaction_screen.populate_table()
+    assert list(transaction_screen.display_df["Merchant"]) == ["Merchant A"]
+
+    transaction_screen.filter_type = "expense"
+    transaction_screen.populate_table()
+    assert set(transaction_screen.display_df["Merchant"]) == {
+        "Merchant B",
+        "Merchant C",
+    }
+
+
+def test_type_buttons_set_filter(
+    transaction_screen: TransactionScreen,
+) -> None:
+    """Type buttons set filter_type and sync button variants."""
+    query_one, widgets = make_query_one()
+    transaction_screen.query_one = query_one
+    transaction_screen.populate_table = Mock()
+
+    assert transaction_screen.filter_type is None
+
+    transaction_screen._set_type_filter("income")
+    assert transaction_screen.filter_type == "income"
+    assert widgets["#type_income_button"].variant == "primary"
+    assert widgets["#type_all_button"].variant == "default"
+
+    transaction_screen._set_type_filter("expense")
+    assert transaction_screen.filter_type == "expense"
+    assert widgets["#type_expense_button"].variant == "primary"
+    assert widgets["#type_income_button"].variant == "default"
+
+    transaction_screen._set_type_filter(None)
+    assert transaction_screen.filter_type is None
+    assert widgets["#type_all_button"].variant == "primary"
     assert transaction_screen.populate_table.call_count == 3

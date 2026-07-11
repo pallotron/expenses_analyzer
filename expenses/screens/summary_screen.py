@@ -32,7 +32,7 @@ from expenses.data_handler import (
 from expenses.analysis import (
     calculate_trends,
     get_cash_flow_totals,
-    exclude_tagged_transactions,
+    split_tagged_transactions,
 )
 from expenses.tags import all_tags_in_series, namespaces_in_series
 from expenses.screens.tag_exclusion_screen import TagExclusionScreen
@@ -193,11 +193,14 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             )
 
         if not self._all_transactions.empty and self.exclude_tags_active:
-            self._all_transactions, self.hidden_tag_total = exclude_tagged_transactions(
-                self._all_transactions, self.excluded_tags
+            self._all_transactions, self._excluded_transactions = (
+                split_tagged_transactions(self._all_transactions, self.excluded_tags)
             )
         else:
-            self.hidden_tag_total = 0.0
+            self._excluded_transactions = pd.DataFrame()
+        self.hidden_tag_total = self._compute_hidden_tag_total(
+            *self._get_active_year_month()
+        )
 
     @property
     def transactions(self) -> pd.DataFrame:
@@ -257,6 +260,8 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         """Refresh the current view based on active tabs."""
         if not hasattr(self, "_all_transactions") or self._all_transactions.empty:
             return
+
+        self._refresh_tag_exclusion_status()
 
         try:
             year_tabs = self.query_one("#year_tabs", TabbedContent)
@@ -462,6 +467,53 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                                     classes="single_month_container",
                                 )
 
+    def _get_active_year_month(self) -> tuple[Optional[int], Optional[int]]:
+        """Return the (year, month) implied by the currently active tabs."""
+        try:
+            year_tabs = self.query_one("#year_tabs", TabbedContent)
+        except Exception:
+            return None, None
+        active_year_id = year_tabs.active
+        if not active_year_id:
+            return None, None
+        year = int(active_year_id.split("_")[1])
+        try:
+            month_tabs = self.query_one(f"#month_tabs_{year}", TabbedContent)
+        except Exception:
+            return year, None
+        active_month_id = month_tabs.active
+        if active_month_id and not active_month_id.endswith("_all"):
+            return year, int(active_month_id.split("_")[2])
+        return year, None
+
+    def _compute_hidden_tag_total(
+        self, year: Optional[int], month: Optional[int]
+    ) -> float:
+        """Sum hidden expense Amount matching the given year/month/source scope."""
+        df = getattr(self, "_excluded_transactions", None)
+        if df is None or df.empty:
+            return 0.0
+        if year is not None:
+            df = df[df["Date"].dt.year == year]
+        if month is not None:
+            df = df[df["Date"].dt.month == month]
+        if self.source_filter:
+            df = df[df["Source"].isin(self.source_filter)]
+        if df.empty or "Type" not in df.columns:
+            return 0.0
+        return float(df.loc[df["Type"] == "expense", "Amount"].sum())
+
+    def _refresh_tag_exclusion_status(self) -> None:
+        """Recompute the hidden total for the active tab scope and update the label."""
+        year, month = self._get_active_year_month()
+        self.hidden_tag_total = self._compute_hidden_tag_total(year, month)
+        try:
+            self.query_one("#tag_exclusion_status", Static).update(
+                self._tag_exclusion_status()
+            )
+        except Exception:
+            pass
+
     def _tag_exclusion_status(self) -> str:
         """Build the status line describing the current tag-exclusion mode."""
         if not self.excluded_tags:
@@ -481,9 +533,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         """Toggle whether excluded tags (e.g. emergency) are hidden from totals."""
         self.exclude_tags_active = not self.exclude_tags_active
         self.load_and_prepare_data()
-        self.query_one("#tag_exclusion_status", Static).update(
-            self._tag_exclusion_status()
-        )
+        self._refresh_tag_exclusion_status()
         self.call_after_refresh(self.update_initial_views)
 
     def action_pick_excluded_tags(self) -> None:
@@ -502,9 +552,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             self.excluded_tags = load_tag_settings()["exclude_from_summary"]
             self.exclude_tags_active = True
             self.load_and_prepare_data()
-            self.query_one("#tag_exclusion_status", Static).update(
-                self._tag_exclusion_status()
-            )
+            self._refresh_tag_exclusion_status()
             self.call_after_refresh(self.update_initial_views)
 
         self.app.push_screen(
@@ -514,9 +562,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     def on_mount(self) -> None:
         """Populate the initial view."""
-        self.query_one("#tag_exclusion_status", Static).update(
-            self._tag_exclusion_status()
-        )
+        self._refresh_tag_exclusion_status()
         if self.transactions.empty:
             return
         self.call_after_refresh(self.update_initial_views)
@@ -549,9 +595,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         # If we don't need a full recompose, just update the views
         if not is_empty:
             try:
-                self.query_one("#tag_exclusion_status", Static).update(
-                    self._tag_exclusion_status()
-                )
+                self._refresh_tag_exclusion_status()
                 year_tabs = self.query_one("#year_tabs", TabbedContent)
                 active_year_id = year_tabs.active
                 if active_year_id:
@@ -579,6 +623,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     def update_initial_views(self) -> None:
         """Helper to populate the views after the initial layout is ready."""
+        self._refresh_tag_exclusion_status()
         year_tabs = self.query_one("#year_tabs", TabbedContent)
         active_year_id = year_tabs.active
         if active_year_id:
@@ -596,6 +641,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
     ) -> None:
         """Handle tab changes to update the data."""
         self.load_and_prepare_data()  # Reload data on every tab change
+        self._refresh_tag_exclusion_status()
 
         tc_id = event.tabbed_content.id or ""
 

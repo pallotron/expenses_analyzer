@@ -37,6 +37,7 @@ Screen {
 }
 
 .total {
+    height: auto;
     padding: 0 2;
     text-align: right;
     text-style: bold;
@@ -373,6 +374,19 @@ TransactionScreen .button-bar > Static {
 }
 
 TransactionScreen .button-bar > Button {
+    width: auto;
+    margin: 0 1;
+}
+
+TransactionScreen .button-bar > .button-group {
+    width: auto;
+    height: auto;
+    border: round $primary;
+    padding: 0 1;
+    margin: 0 1;
+}
+
+TransactionScreen .button-bar > .button-group > Button {
     width: auto;
     margin: 0 1;
 }

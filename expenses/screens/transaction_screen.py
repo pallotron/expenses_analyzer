@@ -63,13 +63,15 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         # Only default to current year/month when opening screen directly (no year specified)
         # When drilling down from summary with year but no month, show full year
         if year is None:
-            # Direct open - default to current month
+            # Direct open - default start date to Jan 1 of the current year, open-ended
             self.filter_year: int = datetime.now().year
-            self.filter_month: int | None = datetime.now().month
+            self.filter_month: int | None = None
+            self._direct_open: bool = True
         else:
             # Drill-down from summary - use provided values
             self.filter_year = year
             self.filter_month = month  # None means "all year"
+            self._direct_open = False
         self.filter_type: str | None = transaction_type
         self.filter_budget_type: str | None = None  # None = all
         self.columns: list[str] = [
@@ -152,15 +154,6 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 classes="filter-field",
             ),
             Vertical(
-                Static("Type", classes="filter-label"),
-                ClearableInput(
-                    placeholder="income/expense",
-                    id="type_filter",
-                    value=self.filter_type or "",
-                ),
-                classes="filter-field",
-            ),
-            Vertical(
                 Static("Tags", classes="filter-label"),
                 ClearableInput(placeholder="contains...", id="tags_filter"),
                 classes="filter-field",
@@ -171,9 +164,18 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Static(id="total_display", classes="total"),
             Button("Apply Filters", id="apply_filters_button", variant="primary"),
             Button("Clear Filters", id="clear_filters_button"),
-            Button("All", id="budget_all_button", variant="primary"),
-            Button("Essential", id="budget_essential_button"),
-            Button("Discretionary", id="budget_discretionary_button"),
+            Horizontal(
+                Button("All", id="budget_all_button", variant="primary"),
+                Button("Essential", id="budget_essential_button"),
+                Button("Discretionary", id="budget_discretionary_button"),
+                classes="button-group",
+            ),
+            Horizontal(
+                Button("All", id="type_all_button", variant="primary"),
+                Button("Income", id="type_income_button"),
+                Button("Expense", id="type_expense_button"),
+                classes="button-group",
+            ),
             Button("Select All", id="select_all_button"),
             Button("Delete Selected", id="delete_button", variant="error"),
             classes="button-bar",
@@ -204,14 +206,20 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             if self.filter_month:
                 start_date = pd.Timestamp(f"{self.filter_year}-{self.filter_month}-01")
                 end_date = start_date + pd.offsets.MonthEnd(1)
-            else:  # Year-to-date view
+                self.query_one("#date_max_filter", ClearableInput).value = (
+                    end_date.strftime("%Y-%m-%d")
+                )
+            elif self._direct_open:
+                # Direct open - only default the start date, leave end date open-ended
+                start_date = pd.Timestamp(f"{self.filter_year}-01-01")
+            else:  # Drill-down with year but no month - show the full year
                 start_date = pd.Timestamp(f"{self.filter_year}-01-01")
                 end_date = pd.Timestamp(f"{self.filter_year}-12-31")
+                self.query_one("#date_max_filter", ClearableInput).value = (
+                    end_date.strftime("%Y-%m-%d")
+                )
             self.query_one("#date_min_filter", ClearableInput).value = (
                 start_date.strftime("%Y-%m-%d")
-            )
-            self.query_one("#date_max_filter", ClearableInput).value = (
-                end_date.strftime("%Y-%m-%d")
             )
 
         self.transactions = load_transactions_from_parquet()
@@ -256,7 +264,6 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             return
 
         # --- Filtering ---
-        type_filter_value = self.query_one("#type_filter", ClearableInput).value
         filters = {
             "date_min": (
                 "Date",
@@ -307,8 +314,8 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             ),
             "type": (
                 "Type",
-                "contains",
-                type_filter_value,
+                "==",
+                self.filter_type,
             ),
             "tags": (
                 "Tags",
@@ -353,8 +360,8 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             net = income_total - expense_total
             net_color = "green" if net >= 0 else "red"
             total_display.update(
-                f"[green]Income: {income_total:,.2f}[/green] | "
-                f"[red]Expenses: {expense_total:,.2f}[/red] | "
+                f"[green]Income: {income_total:,.2f}[/green]\n"
+                f"[red]Expenses: {expense_total:,.2f}[/red]\n"
                 f"[{net_color}]Net: {net:,.2f}[/{net_color}]"
             )
         else:
@@ -497,7 +504,6 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         "amount_max_filter",
         "source_filter",
         "category_filter",
-        "type_filter",
         "tags_filter",
     )
 
@@ -505,6 +511,12 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         None: "budget_all_button",
         "essential": "budget_essential_button",
         "discretionary": "budget_discretionary_button",
+    }
+
+    _TYPE_BUTTON_IDS = {
+        None: "type_all_button",
+        "income": "type_income_button",
+        "expense": "type_expense_button",
     }
 
     def _apply_budget_filter(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -527,6 +539,15 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         order: list[str | None] = [None, "essential", "discretionary"]
         current = order.index(self.filter_budget_type)
         self._set_budget_filter(order[(current + 1) % len(order)])
+
+    def _set_type_filter(self, value: str | None) -> None:
+        """Set the transaction-type filter, sync button variants, refresh table."""
+        self.filter_type = value
+        active_id = self._TYPE_BUTTON_IDS[value]
+        for button_id in self._TYPE_BUTTON_IDS.values():
+            button = self.query_one(f"#{button_id}", Button)
+            button.variant = "primary" if button_id == active_id else "default"
+        self.populate_table()
 
     def action_toggle_selection(self) -> None:
         """Toggle selection for the current row."""
@@ -552,6 +573,9 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
+        budget_by_id = {v: k for k, v in self._BUDGET_BUTTON_IDS.items()}
+        type_by_id = {v: k for k, v in self._TYPE_BUTTON_IDS.items()}
+
         if event.button.id == "delete_button":
             self.delete_selected_transactions()
         elif event.button.id == "select_all_button":
@@ -560,12 +584,10 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             self.populate_table()
         elif event.button.id == "clear_filters_button":
             self.clear_filters()
-        elif event.button.id == "budget_all_button":
-            self._set_budget_filter(None)
-        elif event.button.id == "budget_essential_button":
-            self._set_budget_filter("essential")
-        elif event.button.id == "budget_discretionary_button":
-            self._set_budget_filter("discretionary")
+        elif event.button.id in budget_by_id:
+            self._set_budget_filter(budget_by_id[event.button.id])
+        elif event.button.id in type_by_id:
+            self._set_type_filter(type_by_id[event.button.id])
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle Enter key on a row - opens the edit dialog."""
@@ -583,9 +605,10 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             self.populate_table()
 
     def clear_filters(self) -> None:
-        """Empty all filter inputs and reset the budget toggle, then refresh."""
+        """Empty all filter inputs and reset the budget/type toggles, then refresh."""
         for input_id in self._FILTER_INPUT_IDS:
             self.query_one(f"#{input_id}", ClearableInput).value = ""
+        self._set_type_filter(None)
         self._set_budget_filter(None)  # also repopulates the table
 
     def delete_selected_transactions(self) -> None:
@@ -616,6 +639,9 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         """Edit merchant alias for the current row."""
         table = self.query_one("#transaction_table", DataTable)
         if table.cursor_row is None:
+            return
+
+        if self.display_df.empty:
             return
 
         # Get the original index from the display DataFrame
@@ -848,7 +874,6 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             merchant = self.query_one("#merchant_filter", ClearableInput).value
             source = self.query_one("#source_filter", ClearableInput).value
             category = self.query_one("#category_filter", ClearableInput).value
-            type_filter = self.query_one("#type_filter", ClearableInput).value
             if date_min:
                 filter_parts.append(f"From: {date_min}")
             if date_max:
@@ -859,8 +884,8 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 filter_parts.append(f"Source: {source}")
             if category:
                 filter_parts.append(f"Category: {category}")
-            if type_filter:
-                filter_parts.append(f"Type: {type_filter}")
+            if self.filter_type:
+                filter_parts.append(f"Type: {self.filter_type}")
         except Exception:
             pass
 

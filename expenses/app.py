@@ -147,7 +147,7 @@ class ExpensesApp(App):
         """Push a confirmation screen."""
         self.push_screen(ConfirmationScreen(prompt), callback)
 
-    def show_notification(self, message: str, timeout: int = 3) -> None:
+    def show_notification(self, message: str, timeout: int | None = 3) -> None:
         """Show a notification."""
         notification = Notification(message, timeout)
         self.screen.mount(notification)

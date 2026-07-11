@@ -443,7 +443,6 @@ class TestTransactionScreenExtended(unittest.IsolatedAsyncioTestCase):
                     "Max amount",
                     "Source",
                     "Category",
-                    "Type",
                     "Tags",
                 }
 

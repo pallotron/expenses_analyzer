@@ -230,6 +230,21 @@ def get_cash_flow_totals(transactions: pd.DataFrame) -> dict:
     }
 
 
+def split_tagged_transactions(
+    df: pd.DataFrame, excluded_patterns: List[str]
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Split transactions into (kept, excluded) based on tag patterns.
+
+    Patterns are exact tags ("emergency") or trailing-star prefixes ("travel:*").
+    """
+    if df.empty or not excluded_patterns or "Tags" not in df.columns:
+        return df, df.iloc[0:0]
+
+    patterns = [normalize_pattern(p) for p in excluded_patterns]
+    mask = df["Tags"].apply(lambda cell: cell_matches_patterns(cell, patterns))
+    return df[~mask].copy(), df[mask].copy()
+
+
 def exclude_tagged_transactions(
     df: pd.DataFrame, excluded_patterns: List[str]
 ) -> Tuple[pd.DataFrame, float]:
@@ -240,13 +255,10 @@ def exclude_tagged_transactions(
     Returns:
         (df without excluded rows, total expense Amount of the excluded rows)
     """
-    if df.empty or not excluded_patterns or "Tags" not in df.columns:
-        return df, 0.0
-
-    patterns = [normalize_pattern(p) for p in excluded_patterns]
-    mask = df["Tags"].apply(lambda cell: cell_matches_patterns(cell, patterns))
-    excluded_rows = df[mask]
+    kept, excluded_rows = split_tagged_transactions(df, excluded_patterns)
+    if excluded_rows.empty:
+        return kept, 0.0
     hidden_total = float(
         excluded_rows.loc[excluded_rows["Type"] == "expense", "Amount"].sum()
     )
-    return df[~mask].copy(), hidden_total
+    return kept, hidden_total

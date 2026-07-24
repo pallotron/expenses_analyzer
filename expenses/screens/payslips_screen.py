@@ -44,7 +44,8 @@ class PayslipsScreen(BaseScreen):
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "choose_folder_button":
             self.app.push_screen(
-                FileBrowserScreen(select_dirs=True), self._handle_folder_chosen
+                FileBrowserScreen(select_dirs=True, file_suffix=".pdf"),
+                self._handle_folder_chosen,
             )
         elif event.button.id == "scan_button":
             self._scan()
@@ -52,11 +53,12 @@ class PayslipsScreen(BaseScreen):
             self._import()
 
     def _handle_folder_chosen(self, path) -> None:
+        # FileBrowserScreen only invokes this callback when a folder is actually
+        # selected (via dismiss); cancelling with Escape/Back pops without calling
+        # back, so there is no cancel branch to handle here.
         if path:
             set_payslip_folder(str(path))
             self._refresh_folder_label()
-        else:
-            self.app.show_notification("Folder selection cancelled.", timeout=3)
 
     def _scan(self) -> None:
         folder = get_payslip_folder()

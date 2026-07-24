@@ -1,4 +1,13 @@
-from expenses.payslip_parser import parse_lines, extract_amounts, PayslipRun
+from unittest.mock import patch
+
+from expenses.payslip_parser import (
+    parse_lines,
+    extract_amounts,
+    PayslipRun,
+    month_from_filename,
+    resolve_password,
+    parse_payslip,
+)
 
 # Synthetic lines mirroring the verified Irish payslip layout (no real data).
 JULY_LINES = [
@@ -55,3 +64,33 @@ def test_parse_lines_derives_gross_and_net():
 def test_parse_lines_returns_none_for_unrecognized_format():
     assert parse_lines(["Total Pay 1000.00", "Deductions 200.00"],
                        month="2026-07", source_file="x.pdf") is None
+
+
+def test_month_from_filename():
+    assert month_from_filename("2026-07.pdf") == "2026-07"
+    assert month_from_filename("2026-01-oncall.pdf") == "2026-01"
+    assert month_from_filename("notes.pdf") is None
+
+
+def test_resolve_password_prefers_explicit(tmp_path):
+    (tmp_path / "pin.txt").write_text("1234")
+    assert resolve_password(str(tmp_path), explicit="9999") == "9999"
+
+
+def test_resolve_password_reads_pin_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("PAYSLIP_PDF_PASSWORD", raising=False)
+    (tmp_path / "pin.txt").write_text("1234\n")
+    assert resolve_password(str(tmp_path), explicit=None) == "1234"
+
+
+def test_resolve_password_falls_back_to_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("PAYSLIP_PDF_PASSWORD", "envpw")
+    assert resolve_password(str(tmp_path), explicit=None) == "envpw"
+
+
+def test_parse_payslip_uses_extracted_lines():
+    with patch("expenses.payslip_parser.extract_text_lines", return_value=JULY_LINES):
+        run = parse_payslip("/fake/2026-07.pdf")
+    assert run is not None
+    assert run.month == "2026-07"
+    assert run.pension_ee == 1076.67

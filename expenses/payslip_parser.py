@@ -4,6 +4,7 @@ PDF I/O lives in extract functions further down; the ``parse_lines`` logic is
 kept pure (operates on text) so it is unit-testable without PDF fixtures.
 """
 import logging
+import os
 import re
 from dataclasses import dataclass
 from typing import List, Optional
@@ -162,3 +163,54 @@ def parse_lines(lines: List[str], month: str, source_file: str) -> Optional[Pays
         logger.warning("Unrecognized payslip format for %s; skipping", source_file)
         return None
     return run
+
+
+_MONTH_RE = re.compile(r"(\d{4}-\d{2})")
+
+
+class PayslipDecryptError(Exception):
+    """Raised when an encrypted payslip cannot be opened with the given password."""
+
+
+def month_from_filename(name: str) -> Optional[str]:
+    """Extract a YYYY-MM prefix from a payslip filename, or None."""
+    base = os.path.basename(name)
+    m = _MONTH_RE.match(base)
+    return m.group(1) if m else None
+
+
+def resolve_password(folder: str, explicit: Optional[str]) -> Optional[str]:
+    """Resolve a PDF password: explicit arg -> pin.txt in folder -> env var."""
+    if explicit:
+        return explicit
+    pin_file = os.path.join(folder, "pin.txt")
+    if os.path.isfile(pin_file):
+        with open(pin_file, "r", encoding="utf-8") as fh:
+            pin = fh.read().strip()
+        if pin:
+            return pin
+    return os.getenv("PAYSLIP_PDF_PASSWORD")
+
+
+def extract_text_lines(pdf_path: str, password: Optional[str]) -> List[str]:
+    """Extract text lines from a (possibly encrypted) PDF using pypdf."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(pdf_path)
+    if reader.is_encrypted:
+        if not password:
+            raise PayslipDecryptError(f"{pdf_path} is encrypted but no password was provided")
+        if reader.decrypt(password) == 0:
+            raise PayslipDecryptError(f"Wrong password for {pdf_path}")
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    return [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+
+def parse_payslip(pdf_path: str, password: Optional[str] = None) -> Optional[PayslipRun]:
+    """Parse a single payslip PDF into a PayslipRun, or None if unrecognized."""
+    month = month_from_filename(pdf_path)
+    if month is None:
+        logger.warning("Cannot derive month from %s; skipping", pdf_path)
+        return None
+    lines = extract_text_lines(pdf_path, password)
+    return parse_lines(lines, month=month, source_file=os.path.basename(pdf_path))

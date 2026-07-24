@@ -14,6 +14,7 @@ from expenses.screens.delete_screen import BuildDeleteScreen
 from expenses.screens.truelayer_screen import TrueLayerScreen
 from expenses.screens.backup_screen import BackupScreen
 from expenses.screens.budget_types_screen import BudgetTypesScreen
+from expenses.screens.payslips_screen import PayslipsScreen
 from expenses.screens.confirmation_screen import ConfirmationScreen
 from expenses.widgets.notification import Notification
 from expenses.data_handler import check_and_clear_corruption_flag
@@ -62,6 +63,7 @@ class ExpensesApp(App):
         "truelayer": TrueLayerScreen,
         "backup": BackupScreen,
         "budget_types": BudgetTypesScreen,
+        "payslips": PayslipsScreen,
     }
 
     BINDINGS = [
@@ -73,6 +75,7 @@ class ExpensesApp(App):
         Binding("l", "push_screen('truelayer')", "Link Banks", show=True),
         Binding("b", "push_screen('backup')", "Backups", show=True),
         Binding("u", "push_screen('budget_types')", "Budget Types", show=True),
+        Binding("y", "push_screen('payslips')", "Payslips", show=True),
         Binding("escape", "pop_screen", "Back", show=False),
         Binding("ctrl+q", "quit", "Quit", show=True),
     ]

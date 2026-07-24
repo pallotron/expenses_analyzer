@@ -7,6 +7,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Static
 
 from expenses.screens.base_screen import BaseScreen
+from expenses.screens.file_browser_screen import FileBrowserScreen
 from expenses.payslip_handler import (
     get_payslip_folder,
     set_payslip_folder,
@@ -42,7 +43,9 @@ class PayslipsScreen(BaseScreen):
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "choose_folder_button":
-            self.app.push_screen("file_browser", self._handle_folder_chosen)
+            self.app.push_screen(
+                FileBrowserScreen(select_dirs=True), self._handle_folder_chosen
+            )
         elif event.button.id == "scan_button":
             self._scan()
         elif event.button.id == "import_payslips_button":
@@ -52,6 +55,8 @@ class PayslipsScreen(BaseScreen):
         if path:
             set_payslip_folder(str(path))
             self._refresh_folder_label()
+        else:
+            self.app.show_notification("Folder selection cancelled.", timeout=3)
 
     def _scan(self) -> None:
         folder = get_payslip_folder()

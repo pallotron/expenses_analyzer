@@ -138,6 +138,65 @@ class TestFileBrowserScreen(unittest.IsolatedAsyncioTestCase):
                 # Should not have moved outside safe roots
                 assert screen._current_path == initial_path
 
+    async def test_file_suffix_filters_shown_files(self) -> None:
+        """Test that file_suffix controls which file type is shown."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "payslip.pdf").write_bytes(b"%PDF-1.4")
+            (Path(tmpdir) / "data.csv").write_text("a,b\n1,2")
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = FileBrowserScreen(safe_roots=[Path(tmpdir)], file_suffix=".pdf")
+                await pilot.app.push_screen(screen)
+
+                screen._current_path = Path(tmpdir)
+                screen._load_directory()
+                await pilot.pause()
+
+                file_entries = [
+                    path for path, is_dir in screen._row_map.values() if not is_dir
+                ]
+                assert len(file_entries) == 1
+                assert file_entries[0].suffix.lower() == ".pdf"
+
+    async def test_select_dirs_button_dismisses_with_current_folder(self) -> None:
+        """Test that the Select This Folder button dismisses with current path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            subdir = Path(tmpdir) / "subdir"
+            subdir.mkdir()
+
+            app = App()
+            async with app.run_test() as pilot:
+                screen = FileBrowserScreen(safe_roots=[Path(tmpdir)], select_dirs=True)
+                result = None
+
+                def callback(path):
+                    nonlocal result
+                    result = path
+
+                await pilot.app.push_screen(screen, callback)
+
+                screen._current_path = subdir
+                screen._load_directory()
+                await pilot.pause()
+
+                select_button = pilot.app.screen.query_one("#select_folder_button", Button)
+                select_button.press()
+                await pilot.pause()
+
+                assert result == str(subdir)
+
+    async def test_no_select_folder_button_by_default(self) -> None:
+        """Test that the Select This Folder button is absent by default."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app = App()
+            async with app.run_test() as pilot:
+                screen = FileBrowserScreen(safe_roots=[Path(tmpdir)])
+                await pilot.app.push_screen(screen)
+
+                with self.assertRaises(Exception):
+                    pilot.app.screen.query_one("#select_folder_button", Button)
+
 
 if __name__ == "__main__":
     unittest.main()

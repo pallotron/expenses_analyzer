@@ -10,14 +10,29 @@ from expenses.screens.base_screen import BaseScreen
 
 
 class FileBrowserScreen(BaseScreen):
-    """A screen for browsing files, showing only CSV files."""
+    """A screen for browsing files, showing only files matching ``file_suffix``.
 
-    def __init__(self, *args, safe_roots: list[Path] | None = None, **kwargs):
+    By default only ``.csv`` files are shown and selecting a directory just
+    navigates into it. Pass ``select_dirs=True`` to also render a "Select
+    This Folder" button, letting the caller pick a directory instead of a
+    file.
+    """
+
+    def __init__(
+        self,
+        *args,
+        safe_roots: list[Path] | None = None,
+        file_suffix: str = ".csv",
+        select_dirs: bool = False,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self._current_path = Path.home()
         self._sort_key = "modified"
         self._sort_reverse = True  # newest first by default
         self._row_map: dict[str, tuple[Path, bool]] = {}
+        self._file_suffix = file_suffix.lower()
+        self._select_dirs = select_dirs
         if safe_roots is not None:
             self._safe_roots = [root.resolve() for root in safe_roots]
         else:
@@ -50,11 +65,14 @@ class FileBrowserScreen(BaseScreen):
             return False
 
     def compose_content(self) -> ComposeResult:
-        yield Vertical(
+        children = [
             Static("", id="current_path_label"),
             Button("Up a directory", id="up_button"),
             DataTable(id="file_table", cursor_type="row"),
-        )
+        ]
+        if self._select_dirs:
+            children.append(Button("Select This Folder", id="select_folder_button"))
+        yield Vertical(*children)
 
     def on_mount(self) -> None:
         self._load_directory()
@@ -89,7 +107,7 @@ class FileBrowserScreen(BaseScreen):
 
                 if entry.is_dir() and not entry.name.startswith("."):
                     dirs.append((entry, mod_str, mtime))
-                elif entry.suffix.lower() == ".csv":
+                elif entry.suffix.lower() == self._file_suffix:
                     files.append((entry, mod_str, mtime))
 
             sort_fn = (
@@ -118,6 +136,9 @@ class FileBrowserScreen(BaseScreen):
             if parent_path != self._current_path and self._is_safe_path(parent_path):
                 self._current_path = parent_path
                 self._load_directory()
+        elif event.button.id == "select_folder_button":
+            if self._is_safe_path(self._current_path):
+                self.dismiss(str(self._current_path))
 
     def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
         label = event.label.plain.replace(" \u25bc", "").replace(" \u25b2", "")

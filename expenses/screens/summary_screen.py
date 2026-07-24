@@ -32,8 +32,10 @@ from expenses.data_handler import (
 from expenses.analysis import (
     calculate_trends,
     get_cash_flow_totals,
+    get_enhanced_savings_totals,
     split_tagged_transactions,
 )
+from expenses.payslip_handler import load_payslips
 from expenses.tags import all_tags_in_series, namespaces_in_series
 from expenses.screens.tag_exclusion_screen import TagExclusionScreen
 from typing import Dict, Set, Optional, Any
@@ -901,11 +903,30 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             # Calculate essential/discretionary breakdown
             line2 = self._build_spending_type_line(df, month=month)
 
+            enhanced_line = ""
+            try:
+                enhanced = get_enhanced_savings_totals(
+                    totals, load_payslips(), year, month
+                )
+            except Exception as exc:
+                logging.warning("Enhanced savings unavailable: %s", exc)
+                enhanced = None
+            if enhanced:
+                flag = "" if enhanced["reconciled"] else "  [yellow]⚠ YTD[/yellow]"
+                enhanced_line = (
+                    f"[bold]With pension:[/bold] "
+                    f"saved [green]{enhanced['enhanced_saved']:,.2f}[/green]  |  "
+                    f"[bold]Rate (total comp):[/bold] {enhanced['rate_totalcomp']:.1f}%  |  "
+                    f"[bold]Rate (post-tax):[/bold] {enhanced['rate_posttax']:.1f}%{flag}"
+                )
+
             cash_flow_widget = self.query_one(f"#{widget_id}", Static)
+            parts = [line1]
             if line2:
-                cash_flow_widget.update(f"{line1}\n{line2}")
-            else:
-                cash_flow_widget.update(line1)
+                parts.append(line2)
+            if enhanced_line:
+                parts.append(enhanced_line)
+            cash_flow_widget.update("\n".join(parts))
         except Exception as e:
             logging.warning(f"Error updating cash flow for {year}/{month}: {e}")
 

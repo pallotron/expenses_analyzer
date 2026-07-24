@@ -18,6 +18,14 @@ TAG_SETTINGS_FILE: Path = CONFIG_DIR / "tag_settings.json"
 LOG_FILE: Path = CONFIG_DIR / "app.log"
 EXPORTS_DIR: Path = CONFIG_DIR / "exports"
 
+# Payslip / pension tracking
+PAYSLIPS_FILE: Path = CONFIG_DIR / "payslips.parquet"
+PAYSLIP_SETTINGS_FILE: Path = CONFIG_DIR / "payslip_settings.json"
+
+# Optional runtime overrides (never hardcode a personal folder path)
+PAYSLIP_DIR = os.getenv("PAYSLIP_DIR")  # folder containing payslip PDFs
+PAYSLIP_PDF_PASSWORD = os.getenv("PAYSLIP_PDF_PASSWORD")  # optional PDF password
+
 # TrueLayer API Configuration
 TRUELAYER_CLIENT_ID = os.getenv("TRUELAYER_CLIENT_ID")
 TRUELAYER_CLIENT_SECRET = os.getenv("TRUELAYER_CLIENT_SECRET")

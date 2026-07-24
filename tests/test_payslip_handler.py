@@ -1,5 +1,12 @@
+import pandas as pd
+
+import expenses.config as config
 from expenses.payslip_parser import PayslipRun
-from expenses.payslip_handler import is_ignored, aggregate_runs, DEFAULT_IGNORE
+from expenses.payslip_handler import (
+    is_ignored, aggregate_runs, DEFAULT_IGNORE, PAYSLIP_COLUMNS,
+    load_payslip_settings, save_payslip_settings, get_payslip_folder,
+    load_payslips, save_payslips, upsert_payslips,
+)
 
 
 def _run(month, source, **kw):
@@ -53,3 +60,33 @@ def test_aggregate_reconciles_across_months():
     df = aggregate_runs(runs).set_index("Month")
     assert bool(df.loc["2026-01", "YTDReconciled"]) is True
     assert bool(df.loc["2026-02", "YTDReconciled"]) is True  # 200 - 100 == 100 period
+
+
+def test_settings_roundtrip(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "PAYSLIP_SETTINGS_FILE", tmp_path / "s.json")
+    save_payslip_settings({"folder": "/x"})
+    assert load_payslip_settings() == {"folder": "/x"}
+
+
+def test_env_overrides_saved_folder(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "PAYSLIP_SETTINGS_FILE", tmp_path / "s.json")
+    save_payslip_settings({"folder": "/saved"})
+    monkeypatch.setattr(config, "PAYSLIP_DIR", "/env")
+    assert get_payslip_folder() == "/env"
+
+
+def test_upsert_replaces_month(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "PAYSLIPS_FILE", tmp_path / "p.parquet")
+    base = pd.DataFrame([
+        {c: v for c, v in zip(PAYSLIP_COLUMNS,
+         ["2026-01", 100.0, 80.0, 10.0, 5.0, 0.0, 5.0, 0.0, 0.0, "a.pdf", True])},
+    ])
+    save_payslips(base)
+    newer = pd.DataFrame([
+        {c: v for c, v in zip(PAYSLIP_COLUMNS,
+         ["2026-01", 200.0, 160.0, 20.0, 10.0, 0.0, 10.0, 0.0, 0.0, "b.pdf", True])},
+    ])
+    result = upsert_payslips(newer)
+    assert len(result) == 1
+    assert result.iloc[0]["Gross"] == 200.0
+    assert load_payslips().iloc[0]["Gross"] == 200.0

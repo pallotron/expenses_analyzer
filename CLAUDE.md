@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Privacy Conventions
+
+- **Never** write the maintainer's employer/company name into any code, configuration,
+  default value, committed doc, or test fixture.
+- **Never** hardcode personal absolute paths (e.g. a specific payslip folder). Locations
+  like this must be user-configured at runtime (file picker + persisted setting) with an
+  optional env-var override; do not bake a default that reveals a real path.
+- Test fixtures must be synthetic — never commit real personal financial documents.
+- Before committing, grep the repo for the company name and personal paths to confirm they
+  are absent.
+
 ## Project Overview
 
 Expense Analyzer is a Textual TUI (Text User Interface) application for analyzing personal financial transactions. Built with Python 3.12+, it uses Pandas for data processing, Parquet for efficient storage, and Google's Gemini AI for automatic expense categorization.

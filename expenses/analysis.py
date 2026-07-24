@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import pandas as pd
 
@@ -262,3 +262,55 @@ def exclude_tagged_transactions(
         excluded_rows.loc[excluded_rows["Type"] == "expense", "Amount"].sum()
     )
     return kept, hidden_total
+
+
+def get_enhanced_savings_totals(
+    bank_totals: dict,
+    payslips: pd.DataFrame,
+    year: int,
+    month: Optional[int] = None,
+) -> Optional[dict]:
+    """Combine bank net cashflow with pension contributions from payslips.
+
+    Args:
+        bank_totals: output of get_cash_flow_totals for the same period.
+        payslips: DataFrame with PAYSLIP_COLUMNS.
+        year: calendar year to match.
+        month: optional 1-12; None means the whole year.
+
+    Returns dict with pension_saved, enhanced_saved, rate_totalcomp,
+    rate_posttax, reconciled. None if no payslip rows match the period.
+    """
+    if payslips is None or payslips.empty:
+        return None
+
+    prefix = f"{year:04d}-"
+    matched = payslips[payslips["Month"].astype(str).str.startswith(prefix)]
+    if month is not None:
+        key = f"{year:04d}-{month:02d}"
+        matched = payslips[payslips["Month"].astype(str) == key]
+    if matched.empty:
+        return None
+
+    pension_ee = float(matched["PensionEE"].sum())
+    avc = float(matched["AVC"].sum())
+    pension_er = float(matched["PensionER"].sum())
+    gross = float(matched["Gross"].sum())
+    net = float(matched["Net"].sum())
+
+    pension_saved = round(pension_ee + avc + pension_er, 2)
+    enhanced_saved = round(bank_totals["net"] + pension_saved, 2)
+
+    denom_totalcomp = gross + pension_er
+    denom_posttax = net + pension_ee + avc + pension_er
+
+    rate_totalcomp = (enhanced_saved / denom_totalcomp * 100) if denom_totalcomp > 0 else 0.0
+    rate_posttax = (enhanced_saved / denom_posttax * 100) if denom_posttax > 0 else 0.0
+
+    return {
+        "pension_saved": pension_saved,
+        "enhanced_saved": enhanced_saved,
+        "rate_totalcomp": rate_totalcomp,
+        "rate_posttax": rate_posttax,
+        "reconciled": bool(matched["YTDReconciled"].all()),
+    }

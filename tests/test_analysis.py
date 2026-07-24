@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from expenses.analysis import calculate_trends, exclude_tagged_transactions
+from expenses.analysis import calculate_trends, exclude_tagged_transactions, get_enhanced_savings_totals
 from typing import List, Tuple, cast
 
 
@@ -147,3 +147,41 @@ def test_exclude_tagged_transactions_prefix_pattern() -> None:
     assert filtered["Merchant"].tolist() == ["Tesco"]
     # income row removed from view but not counted in hidden expense total
     assert hidden == pytest.approx(327.46)
+
+
+def _payslips():
+    return pd.DataFrame([
+        {"Month": "2026-01", "Gross": 13681.25, "Net": 8200.0, "TaxTotal": 5000.0,
+         "PensionEE": 1040.0, "AVC": 260.0, "PensionER": 1040.0,
+         "Bonus": 0.0, "OnCall": 681.25, "SourceFiles": "a.pdf", "YTDReconciled": True},
+        {"Month": "2026-02", "Gross": 14000.0, "Net": 8400.0, "TaxTotal": 5100.0,
+         "PensionEE": 1040.0, "AVC": 260.0, "PensionER": 1040.0,
+         "Bonus": 0.0, "OnCall": 0.0, "SourceFiles": "b.pdf", "YTDReconciled": True},
+    ])
+
+
+def test_enhanced_savings_single_month():
+    bank = {"total_income": 8200.0, "total_expenses": 6200.0, "net": 2000.0,
+            "savings_rate": 24.39}
+    result = get_enhanced_savings_totals(bank, _payslips(), year=2026, month=1)
+    assert result is not None
+    assert result["pension_saved"] == 1040.0 + 260.0 + 1040.0        # 2340
+    assert result["enhanced_saved"] == 2000.0 + 2340.0               # 4340
+    # total-comp basis: 4340 / (Gross 13681.25 + PensionER 1040) = 29.48%
+    assert round(result["rate_totalcomp"], 2) == 29.48
+    # post-tax basis: 4340 / (Net 8200 + 2340) = 41.18%
+    assert round(result["rate_posttax"], 2) == 41.18
+    assert result["reconciled"] is True
+
+
+def test_enhanced_savings_year_sums_months():
+    bank = {"total_income": 16600.0, "total_expenses": 12000.0, "net": 4600.0,
+            "savings_rate": 27.71}
+    result = get_enhanced_savings_totals(bank, _payslips(), year=2026)
+    assert result["pension_saved"] == 2 * 2340.0
+
+
+def test_enhanced_savings_none_when_no_payslip():
+    bank = {"total_income": 100.0, "total_expenses": 50.0, "net": 50.0,
+            "savings_rate": 50.0}
+    assert get_enhanced_savings_totals(bank, _payslips(), year=2099, month=5) is None

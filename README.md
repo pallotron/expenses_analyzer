@@ -31,6 +31,7 @@ Please contribute if you can or report bugs/issues!
 - **Transaction Viewer**: Browse and review individual transactions.
 - **Data Deletion**: Remove transactions you don't want to track.
 - **Transaction Tags**: Tag transactions (e.g. `emergency`, `trip:paris-jun26`) from the Transactions screen (`g` = tag selected, `G` = tag all filtered). The Summary screen hides tags listed in `tag_settings.json` (default: `emergency`) from totals; press `x` to toggle, `Shift+X` to pick which tags/patterns are excluded (trailing `*` matches a prefix, e.g. `travel:*`).
+- **Payslip & Pension Tracking**: Import monthly payslip PDFs to capture pension contributions and see a pension-aware savings rate alongside the bank-only rate. See the [Payslip & Pension Tracking Guide](docs/PAYSLIPS.md). Currently supports the Irish PAYE payslip layout.
 
 ## Installation
 
@@ -130,6 +131,18 @@ For detailed instructions on how to import your financial data, please see the [
 - Optional direct bank integration with TrueLayer (for UK/Europe).
 - An overview of how your data is processed and stored.
 
+## Payslip & Pension Tracking
+
+Your savings rate from bank data alone misses pension contributions deducted
+before salary reaches your account. Press `y` to open the Payslips screen, point
+it at a folder of payslip PDFs, and import them to see an enhanced savings rate.
+Full details, configuration, and the savings-rate formulas are in the
+[Payslip & Pension Tracking Guide](docs/PAYSLIPS.md).
+
+Environment variables:
+- `PAYSLIP_DIR`: folder containing payslip PDFs (otherwise chosen in the UI and remembered).
+- `PAYSLIP_PDF_PASSWORD`: password for encrypted payslip PDFs (optional).
+
 ## Automatic Categorization with Gemini
 
 The application can use the Google Gemini API to automatically suggest categories for new merchants it hasn't seen before. This is an optional feature.
@@ -160,4 +173,6 @@ The following files are stored in this directory:
 
 - `categories.json`: Stores the mapping of merchants to categories.
 - `transactions.parquet`: Stores your financial transactions.
+- `payslips.parquet`: Stores parsed payslip data (gross, net, pension) per month.
+- `payslip_settings.json`: Remembers your chosen payslip folder.
 - `app.log`: The application log file.

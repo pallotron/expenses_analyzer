@@ -58,7 +58,7 @@ PYTHONPATH=. pytest tests/test_data_handler.py::test_function_name -v
 
 The application follows a screen-based architecture powered by Textual:
 
-- **App Core** (`app.py`): Main `ExpensesApp` class manages screen navigation via keybindings (s=Summary, t=Transactions, i=Import, c=Categorize, d=Bulk Delete, l=Link Banks)
+- **App Core** (`app.py`): Main `ExpensesApp` class manages screen navigation via keybindings (s=Summary, t=Transactions, i=Import, c=Categorize, d=Bulk Delete, l=Link Banks, y=Payslips)
 - **Screens** (`screens/`): Each major feature is a screen that inherits from `BaseScreen`
   - `SummaryScreen`: Aggregated expense views with yearly/monthly breakdowns
   - `TransactionScreen`: Detailed transaction browsing with filtering
@@ -67,6 +67,7 @@ The application follows a screen-based architecture powered by Textual:
   - `DeleteScreen`: Transaction deletion interface
   - `FileBrowserScreen`: File system navigation for imports
   - `TrueLayerScreen`: Bank account linking and transaction sync (displayed as "Link Banks")
+  - `PayslipsScreen`: Import payslip PDFs and compute pension-aware savings
   - `ConfirmationScreen`: Reusable confirmation dialogs
 - **Data Layer** (`data_handler.py`): All Parquet I/O and category management
 - **Analysis** (`analysis.py`): Trend calculations and data aggregation
@@ -83,6 +84,8 @@ All user data lives in `~/.config/expenses_analyzer/` (configurable via `EXPENSE
 - `categories.json`: Merchant-to-category mappings `{"merchant_name": "category"}`
 - `default_categories.json`: List of available categories (copied from package on first run)
 - `truelayer_connections.json`: TrueLayer linked account metadata (connection_id, access_token, refresh_token, provider_name, last_sync)
+- `payslips.parquet`: Stores parsed payslip data (gross, net, pension) per month
+- `payslip_settings.json`: Remembers your chosen payslip folder
 - `app.log`: Application logs
 
 **Important:** Tags in `transactions.parquet` should only be manipulated via the helpers in `expenses/tags.py` to ensure consistent formatting and validation.
@@ -156,6 +159,8 @@ The working copy (`@`) is always a commit in jj. There's no staging area - chang
 - `TRUELAYER_CLIENT_ID`: TrueLayer API client ID (required for TrueLayer integration)
 - `TRUELAYER_CLIENT_SECRET`: TrueLayer API client secret (required for TrueLayer integration)
 - `TRUELAYER_ENV`: TrueLayer environment - "sandbox" or "production" (default: "sandbox")
+- `PAYSLIP_DIR`: Folder containing payslip PDFs (optional; if not set, chosen in UI and remembered)
+- `PAYSLIP_PDF_PASSWORD`: Password for encrypted payslip PDFs (optional)
 
 ### Python Version
 Requires Python 3.12+ (specified in `pyproject.toml`)

@@ -160,10 +160,27 @@ def _payslips():
     ])
 
 
+def _bank_transactions(rows):
+    """Build a minimal Date/Amount/Type transactions frame for enhanced-savings tests."""
+    dates, amounts, types = zip(*rows)
+    return pd.DataFrame(
+        {
+            "Date": pd.to_datetime(list(dates)),
+            "Amount": list(amounts),
+            "Type": list(types),
+        }
+    )
+
+
 def test_enhanced_savings_single_month():
-    bank = {"total_income": 8200.0, "total_expenses": 6200.0, "net": 2000.0,
-            "savings_rate": 24.39}
-    result = get_enhanced_savings_totals(bank, _payslips(), year=2026, month=1)
+    # Jan 2026: income 8200, expenses 6200 -> bank net 2000
+    txns = _bank_transactions(
+        [
+            ("2026-01-05", 8200.0, "income"),
+            ("2026-01-10", 6200.0, "expense"),
+        ]
+    )
+    result = get_enhanced_savings_totals(txns, _payslips(), year=2026, month=1)
     assert result is not None
     assert result["pension_saved"] == 1040.0 + 260.0 + 1040.0        # 2340
     assert result["enhanced_saved"] == 2000.0 + 2340.0               # 4340
@@ -172,16 +189,66 @@ def test_enhanced_savings_single_month():
     # post-tax basis: 4340 / (Net 8200 + 2340) = 41.18%
     assert round(result["rate_posttax"], 2) == 41.18
     assert result["reconciled"] is True
+    assert result["months_covered"] == [1]
+    assert result["coverage_label"] == "Jan"
 
 
 def test_enhanced_savings_year_sums_months():
-    bank = {"total_income": 16600.0, "total_expenses": 12000.0, "net": 4600.0,
-            "savings_rate": 27.71}
-    result = get_enhanced_savings_totals(bank, _payslips(), year=2026)
+    # Jan 2026: income 8200, expenses 6200 -> net 2000
+    # Feb 2026: income 8400, expenses 5800 -> net 2600
+    # Combined bank net 4600, matching both payslip months (Jan+Feb).
+    txns = _bank_transactions(
+        [
+            ("2026-01-05", 8200.0, "income"),
+            ("2026-01-10", 6200.0, "expense"),
+            ("2026-02-05", 8400.0, "income"),
+            ("2026-02-10", 5800.0, "expense"),
+        ]
+    )
+    result = get_enhanced_savings_totals(txns, _payslips(), year=2026)
     assert result["pension_saved"] == 2 * 2340.0
+    assert result["enhanced_saved"] == 4600.0 + 2 * 2340.0
+    assert result["months_covered"] == [1, 2]
+    assert result["coverage_label"] == "Jan–Feb"
 
 
 def test_enhanced_savings_none_when_no_payslip():
-    bank = {"total_income": 100.0, "total_expenses": 50.0, "net": 50.0,
-            "savings_rate": 50.0}
-    assert get_enhanced_savings_totals(bank, _payslips(), year=2099, month=5) is None
+    txns = _bank_transactions([("2099-05-01", 100.0, "income")])
+    assert get_enhanced_savings_totals(txns, _payslips(), year=2099, month=5) is None
+
+
+def test_enhanced_savings_aligns_bank_to_covered_months():
+    """Regression guard: bank cash outside payslip-covered months must not
+    leak into the enhanced savings figure.
+
+    Jan 2026 has bank activity but NO payslip. Feb 2026 has both. Only Feb's
+    bank net should be counted -- if the bug regresses (using the whole
+    period's bank total instead of the covered-months subset), Jan's much
+    larger net would inflate enhanced_saved.
+    """
+    txns = _bank_transactions(
+        [
+            # Jan: net 4000 -- must be excluded (no payslip for Jan).
+            ("2026-01-05", 5000.0, "income"),
+            ("2026-01-10", 1000.0, "expense"),
+            # Feb: net 2600 -- the only month with a matching payslip.
+            ("2026-02-05", 8400.0, "income"),
+            ("2026-02-10", 5800.0, "expense"),
+        ]
+    )
+    feb_only_payslip = pd.DataFrame(
+        [
+            {
+                "Month": "2026-02", "Gross": 14000.0, "Net": 8400.0, "TaxTotal": 5100.0,
+                "PensionEE": 1040.0, "AVC": 260.0, "PensionER": 1040.0,
+                "Bonus": 0.0, "OnCall": 0.0, "SourceFiles": "b.pdf", "YTDReconciled": True,
+            }
+        ]
+    )
+    result = get_enhanced_savings_totals(txns, feb_only_payslip, year=2026)
+    assert result is not None
+    assert result["months_covered"] == [2]
+    assert result["coverage_label"] == "Feb"
+    # Only Feb's bank net (2600) should be counted, not Jan+Feb (6600).
+    assert result["enhanced_saved"] == 2600.0 + 2340.0
+    assert result["enhanced_saved"] != 6600.0 + 2340.0

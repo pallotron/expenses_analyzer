@@ -906,16 +906,21 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             enhanced_line = ""
             try:
                 enhanced = get_enhanced_savings_totals(
-                    totals, load_payslips(), year, month
+                    self.transactions, load_payslips(), year, month
                 )
             except Exception as exc:
                 logging.warning("Enhanced savings unavailable: %s", exc)
                 enhanced = None
             if enhanced:
                 flag = "" if enhanced["reconciled"] else "  [yellow]⚠ YTD[/yellow]"
+                coverage = (
+                    f" ({enhanced['coverage_label']})"
+                    if enhanced.get("coverage_label")
+                    else ""
+                )
                 enhanced_line = (
                     f"[bold]With pension:[/bold] "
-                    f"saved [green]{enhanced['enhanced_saved']:,.2f}[/green]  |  "
+                    f"saved [green]{enhanced['enhanced_saved']:,.2f}[/green]{coverage}  |  "
                     f"[bold]Rate (total comp):[/bold] {enhanced['rate_totalcomp']:.1f}%  |  "
                     f"[bold]Rate (post-tax):[/bold] {enhanced['rate_posttax']:.1f}%{flag}"
                 )

@@ -1,3 +1,4 @@
+import calendar
 from typing import List, Optional, Tuple
 
 import pandas as pd
@@ -264,22 +265,60 @@ def exclude_tagged_transactions(
     return kept, hidden_total
 
 
+def _coverage_label(months_covered: List[int]) -> str:
+    """Human label for a set of covered months, e.g. 'Sep–Dec', 'Jan', or '3 mo'.
+
+    Contiguous runs are shown as a month-abbreviation range (or a single
+    abbreviation when there's only one month). Non-contiguous coverage falls
+    back to a count, since a range would misleadingly imply full coverage.
+    """
+    if not months_covered:
+        return ""
+    contiguous = all(
+        b - a == 1 for a, b in zip(months_covered, months_covered[1:])
+    )
+    if not contiguous:
+        return f"{len(months_covered)} mo"
+    start = calendar.month_abbr[months_covered[0]]
+    end = calendar.month_abbr[months_covered[-1]]
+    return start if start == end else f"{start}–{end}"
+
+
+def _align_bank_totals(
+    transactions: pd.DataFrame, year: int, months_covered: List[int]
+) -> dict:
+    """Compute cash-flow totals restricted to (year, months_covered)."""
+    if transactions is None or transactions.empty or "Date" not in transactions.columns:
+        return {"total_income": 0.0, "total_expenses": 0.0, "net": 0.0, "savings_rate": 0.0}
+
+    aligned = transactions[
+        (transactions["Date"].dt.year == year)
+        & (transactions["Date"].dt.month.isin(months_covered))
+    ]
+    return get_cash_flow_totals(aligned)
+
+
 def get_enhanced_savings_totals(
-    bank_totals: dict,
+    transactions: pd.DataFrame,
     payslips: pd.DataFrame,
     year: int,
     month: Optional[int] = None,
 ) -> Optional[dict]:
     """Combine bank net cashflow with pension contributions from payslips.
 
+    The bank side is restricted to only the months that also have a matching
+    payslip, so a partial-year payslip coverage is never compared against a
+    full-year bank total (which would inflate/distort the savings rate).
+
     Args:
-        bank_totals: output of get_cash_flow_totals for the same period.
+        transactions: DataFrame with Date, Amount, Type columns.
         payslips: DataFrame with PAYSLIP_COLUMNS.
         year: calendar year to match.
         month: optional 1-12; None means the whole year.
 
     Returns dict with pension_saved, enhanced_saved, rate_totalcomp,
-    rate_posttax, reconciled. None if no payslip rows match the period.
+    rate_posttax, reconciled, months_covered, coverage_label. None if no
+    payslip rows match the period.
     """
     if payslips is None or payslips.empty:
         return None
@@ -292,6 +331,9 @@ def get_enhanced_savings_totals(
     if matched.empty:
         return None
 
+    months_covered = sorted({int(str(m).split("-")[1]) for m in matched["Month"]})
+    bank = _align_bank_totals(transactions, year, months_covered)
+
     pension_ee = float(matched["PensionEE"].sum())
     avc = float(matched["AVC"].sum())
     pension_er = float(matched["PensionER"].sum())
@@ -299,7 +341,7 @@ def get_enhanced_savings_totals(
     net = float(matched["Net"].sum())
 
     pension_saved = round(pension_ee + avc + pension_er, 2)
-    enhanced_saved = round(bank_totals["net"] + pension_saved, 2)
+    enhanced_saved = round(bank["net"] + pension_saved, 2)
 
     denom_totalcomp = gross + pension_er
     denom_posttax = net + pension_ee + avc + pension_er
@@ -313,4 +355,6 @@ def get_enhanced_savings_totals(
         "rate_totalcomp": rate_totalcomp,
         "rate_posttax": rate_posttax,
         "reconciled": bool(matched["YTDReconciled"].all()),
+        "months_covered": months_covered,
+        "coverage_label": _coverage_label(months_covered),
     }

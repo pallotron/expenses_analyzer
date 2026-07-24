@@ -14,7 +14,8 @@ an enhanced savings rate on the Summary screen alongside the bank-only rate.
    net, employee pension, and employer pension per month.
 4. **Import Payslips** — saves the parsed data to `payslips.parquet`.
 5. Open the **Summary** screen (`s`): months/years with payslip data show a
-   "With pension" line with two savings rates (total-comp and post-tax basis).
+   "With pension" line showing a pension-aware savings rate on the same base as
+   the bank-only rate (directly comparable).
 
 Re-scanning is idempotent — each month is upserted, so running it monthly just
 adds the newest payslip.
@@ -41,13 +42,22 @@ adds the newest payslip.
 
 ## Savings-rate formulas
 
-```
-pension_saved  = employee pension + AVC + employer pension
-enhanced_saved = bank_net (income − expenses) + pension_saved
+The pension-aware rate is shown on the **same base as the plain bank savings
+rate** (your bank income), with pension added to both sides, so it's directly
+comparable — e.g. "Savings Rate 31.4% → 44.9% with pension".
 
-Rate (total comp) = enhanced_saved / (Gross + employer pension)
-Rate (post-tax)   = enhanced_saved / (Net + employee pension + AVC + employer pension)
 ```
+pension_saved       = employee pension + AVC + employer pension
+enhanced_saved      = bank_net (income − expenses) + pension_saved
+income_with_pension = bank_income + pension_saved
+
+Savings rate (bank only)   = bank_net / bank_income
+Savings rate (with pension) = enhanced_saved / income_with_pension
+```
+
+Both the bank net and bank income are restricted to the months that have a
+payslip (see reconciliation above), so a partial year isn't compared against a
+full-year bank total.
 
 ## Supported formats
 

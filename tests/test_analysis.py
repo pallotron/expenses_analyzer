@@ -173,21 +173,23 @@ def _bank_transactions(rows):
 
 
 def test_enhanced_savings_single_month():
-    # Jan 2026: income 8200, expenses 6200 -> bank net 2000
+    # Jan 2026: bank income 7000, expenses 5000 -> bank net 2000.
+    # Bank income (7000) deliberately differs from the payslip Net (8200) so the
+    # connected rate provably uses BANK income as its base, not payslip net.
     txns = _bank_transactions(
         [
-            ("2026-01-05", 8200.0, "income"),
-            ("2026-01-10", 6200.0, "expense"),
+            ("2026-01-05", 7000.0, "income"),
+            ("2026-01-10", 5000.0, "expense"),
         ]
     )
     result = get_enhanced_savings_totals(txns, _payslips(), year=2026, month=1)
     assert result is not None
     assert result["pension_saved"] == 1040.0 + 260.0 + 1040.0        # 2340
     assert result["enhanced_saved"] == 2000.0 + 2340.0               # 4340
-    # total-comp basis: 4340 / (Gross 13681.25 + PensionER 1040) = 29.48%
-    assert round(result["rate_totalcomp"], 2) == 29.48
-    # post-tax basis: 4340 / (Net 8200 + 2340) = 41.18%
-    assert round(result["rate_posttax"], 2) == 41.18
+    # Same base as the bank rate: bank income (7000) + pension (2340) = 9340.
+    assert result["income_with_pension"] == 9340.0
+    # 4340 / 9340 = 46.47% (would be 41.18% if it wrongly used payslip Net 8200).
+    assert round(result["rate_with_pension"], 2) == 46.47
     assert result["reconciled"] is True
     assert result["months_covered"] == [1]
     assert result["coverage_label"] == "Jan"

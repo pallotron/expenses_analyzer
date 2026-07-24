@@ -919,10 +919,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                     else ""
                 )
                 enhanced_line = (
-                    f"[bold]With pension:[/bold] "
-                    f"saved [green]{enhanced['enhanced_saved']:,.2f}[/green]{coverage}  |  "
-                    f"[bold]Rate (total comp):[/bold] {enhanced['rate_totalcomp']:.1f}%  |  "
-                    f"[bold]Rate (post-tax):[/bold] {enhanced['rate_posttax']:.1f}%{flag}"
+                    f"[bold]With pension:[/bold] Savings Rate "
+                    f"{totals['savings_rate']:.1f}% → "
+                    f"[green]{enhanced['rate_with_pension']:.1f}%[/green]{coverage}  |  "
+                    f"saved [green]{enhanced['enhanced_saved']:,.2f}[/green] of "
+                    f"{enhanced['income_with_pension']:,.2f} (bank income + pension){flag}"
                 )
 
             cash_flow_widget = self.query_one(f"#{widget_id}", Static)

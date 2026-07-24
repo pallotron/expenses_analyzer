@@ -316,8 +316,13 @@ def get_enhanced_savings_totals(
         year: calendar year to match.
         month: optional 1-12; None means the whole year.
 
-    Returns dict with pension_saved, enhanced_saved, rate_totalcomp,
-    rate_posttax, reconciled, months_covered, coverage_label. None if no
+    The pension-aware rate is expressed on the SAME base as the plain bank
+    savings rate (bank income), with pension added to both the amount saved and
+    the income. This keeps it directly comparable to the bank-only rate rather
+    than switching to a gross- or take-home-plus-pension base.
+
+    Returns dict with pension_saved, enhanced_saved, income_with_pension,
+    rate_with_pension, reconciled, months_covered, coverage_label. None if no
     payslip rows match the period.
     """
     if payslips is None or payslips.empty:
@@ -337,23 +342,20 @@ def get_enhanced_savings_totals(
     pension_ee = float(matched["PensionEE"].sum())
     avc = float(matched["AVC"].sum())
     pension_er = float(matched["PensionER"].sum())
-    gross = float(matched["Gross"].sum())
-    net = float(matched["Net"].sum())
 
     pension_saved = round(pension_ee + avc + pension_er, 2)
     enhanced_saved = round(bank["net"] + pension_saved, 2)
-
-    denom_totalcomp = gross + pension_er
-    denom_posttax = net + pension_ee + avc + pension_er
-
-    rate_totalcomp = (enhanced_saved / denom_totalcomp * 100) if denom_totalcomp > 0 else 0.0
-    rate_posttax = (enhanced_saved / denom_posttax * 100) if denom_posttax > 0 else 0.0
+    # Same base as the bank savings rate: bank income with pension added.
+    income_with_pension = round(bank["total_income"] + pension_saved, 2)
+    rate_with_pension = (
+        (enhanced_saved / income_with_pension * 100) if income_with_pension > 0 else 0.0
+    )
 
     return {
         "pension_saved": pension_saved,
         "enhanced_saved": enhanced_saved,
-        "rate_totalcomp": rate_totalcomp,
-        "rate_posttax": rate_posttax,
+        "income_with_pension": income_with_pension,
+        "rate_with_pension": rate_with_pension,
         "reconciled": bool(matched["YTDReconciled"].all()),
         "months_covered": months_covered,
         "coverage_label": _coverage_label(months_covered),

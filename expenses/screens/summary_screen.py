@@ -893,17 +893,6 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             totals = get_cash_flow_totals(df)
             net_color = "green" if totals["net"] >= 0 else "red"
 
-            line1 = (
-                f"[bold]Income:[/bold] [green]{totals['total_income']:,.2f}[/green]  |  "
-                f"[bold]Expenses:[/bold] [red]{totals['total_expenses']:,.2f}[/red]  |  "
-                f"[bold]Net:[/bold] [{net_color}]{totals['net']:,.2f}[/{net_color}]  |  "
-                f"[bold]Savings Rate:[/bold] {totals['savings_rate']:.1f}%"
-            )
-
-            # Calculate essential/discretionary breakdown
-            line2 = self._build_spending_type_line(df, month=month)
-
-            enhanced_line = ""
             try:
                 enhanced = get_enhanced_savings_totals(
                     self.transactions, load_payslips(), year, month
@@ -911,6 +900,11 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             except Exception as exc:
                 logging.warning("Enhanced savings unavailable: %s", exc)
                 enhanced = None
+
+            # Inline the pension-aware rate right after the bank savings rate,
+            # with the amounts on their own line below.
+            savings_segment = f"[bold]Savings Rate:[/bold] {totals['savings_rate']:.1f}%"
+            enhanced_line = ""
             if enhanced:
                 flag = "" if enhanced["reconciled"] else "  [yellow]⚠ YTD[/yellow]"
                 coverage = (
@@ -918,13 +912,25 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                     if enhanced.get("coverage_label")
                     else ""
                 )
-                enhanced_line = (
-                    f"[bold]With pension:[/bold] Savings Rate "
-                    f"{totals['savings_rate']:.1f}% → "
-                    f"[green]{enhanced['rate_with_pension']:.1f}%[/green]{coverage}  |  "
-                    f"saved [green]{enhanced['enhanced_saved']:,.2f}[/green] of "
-                    f"{enhanced['income_with_pension']:,.2f} (bank income + pension){flag}"
+                savings_segment += (
+                    f" → [green]{enhanced['rate_with_pension']:.1f}%[/green]"
+                    f" with pension{coverage}{flag}"
                 )
+                enhanced_line = (
+                    f"[bold]With pension:[/bold] saved "
+                    f"[green]{enhanced['enhanced_saved']:,.2f}[/green] of "
+                    f"{enhanced['income_with_pension']:,.2f} (bank income + pension)"
+                )
+
+            line1 = (
+                f"[bold]Income:[/bold] [green]{totals['total_income']:,.2f}[/green]  |  "
+                f"[bold]Expenses:[/bold] [red]{totals['total_expenses']:,.2f}[/red]  |  "
+                f"[bold]Net:[/bold] [{net_color}]{totals['net']:,.2f}[/{net_color}]  |  "
+                f"{savings_segment}"
+            )
+
+            # Calculate essential/discretionary breakdown
+            line2 = self._build_spending_type_line(df, month=month)
 
             cash_flow_widget = self.query_one(f"#{widget_id}", Static)
             parts = [line1]

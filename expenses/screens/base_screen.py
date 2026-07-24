@@ -12,7 +12,7 @@ class BaseScreen(Screen):
         # yield Header(name="Expenses Analyzer")
         with Vertical(classes="main_content"):
             yield from self.compose_content()
-        yield Footer()
+        yield Footer(compact=True)
 
     def compose_content(self) -> ComposeResult:
         """

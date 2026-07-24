@@ -1,7 +1,9 @@
 import logging
 import os
+from functools import partial
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.command import Hit, Hits, Provider
 from textual.widgets import Footer, Header
 
 from expenses.config import CONFIG_DIR, LOG_FILE
@@ -48,10 +50,44 @@ logging.info("Application starting...")
 # ---
 
 
+# Every screen, for the command palette. Keys not shown in the footer are still
+# reachable here, so the "More…" hint is truthful.
+_SCREEN_COMMANDS = [
+    ("Summary", "summary"),
+    ("Transactions", "transactions"),
+    ("Import", "import"),
+    ("Categorize", "categorize"),
+    ("Payslips", "payslips"),
+    ("Bulk Delete", "delete"),
+    ("Link Banks", "truelayer"),
+    ("Backups", "backup"),
+    ("Budget Types", "budget_types"),
+]
+
+
+class ScreenCommands(Provider):
+    """Command-palette entries to jump to any screen (including footer-hidden ones)."""
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for label, screen in _SCREEN_COMMANDS:
+            score = matcher.match(label)
+            if score > 0:
+                yield Hit(
+                    score,
+                    matcher.highlight(label),
+                    partial(self.app.push_screen, screen),
+                    text=label,
+                    help=f"Open the {label} screen",
+                )
+
+
 class ExpensesApp(App):
     """A textual app to manage expenses."""
 
     CSS_PATH = "main.css"
+
+    COMMANDS = App.COMMANDS | {ScreenCommands}
 
     SCREENS = {
         "summary": SummaryScreen,
@@ -68,22 +104,24 @@ class ExpensesApp(App):
 
     BINDINGS = [
         Binding("s", "push_screen('summary')", "Summary", show=True),
-        Binding("t", "push_screen('transactions')", "Transactions", show=True),
+        Binding("t", "push_screen('transactions')", "Txns", show=True),
         Binding("i", "push_screen('import')", "Import", show=True),
-        Binding("c", "push_screen('categorize')", "Categorize", show=True),
-        Binding("d", "push_screen('delete')", "Bulk Delete", show=True),
-        Binding("l", "push_screen('truelayer')", "Link Banks", show=True),
-        Binding("b", "push_screen('backup')", "Backups", show=True),
-        Binding("u", "push_screen('budget_types')", "Budget Types", show=True),
+        Binding("c", "push_screen('categorize')", "Cats", show=True),
         Binding("y", "push_screen('payslips')", "Payslips", show=True),
+        # Less-used screens: still work, and are listed in the command palette.
+        Binding("d", "push_screen('delete')", "Bulk Delete", show=False),
+        Binding("l", "push_screen('truelayer')", "Link Banks", show=False),
+        Binding("b", "push_screen('backup')", "Backups", show=False),
+        Binding("u", "push_screen('budget_types')", "Budget Types", show=False),
         Binding("escape", "pop_screen", "Back", show=False),
+        Binding("question_mark", "command_palette", "More…", show=True),
         Binding("ctrl+q", "quit", "Quit", show=True),
     ]
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield Header()
-        yield Footer()
+        yield Footer(compact=True)
 
     def on_mount(self) -> None:
         """Called when the app is first mounted."""

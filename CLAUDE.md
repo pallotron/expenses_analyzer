@@ -84,8 +84,13 @@ All user data lives in `~/.config/expenses_analyzer/` (configurable via `EXPENSE
 - `categories.json`: Merchant-to-category mappings `{"merchant_name": "category"}`
 - `default_categories.json`: List of available categories (copied from package on first run)
 - `truelayer_connections.json`: TrueLayer linked account metadata (connection_id, access_token, refresh_token, provider_name, last_sync)
-- `payslips.parquet`: Stores parsed payslip data (gross, net, pension) per month
-- `payslip_settings.json`: Remembers your chosen payslip folder
+- `payslips.parquet`: Stores parsed payslip data (gross, net, pension) keyed on
+  `(Owner, Month)`, so more than one person's pension counts toward the household
+  savings rate. Rows written before owners existed load as owner `"self"`.
+- `payslip_settings.json`: Remembers payslip folders as `{"owners": {name:
+  {"folders": [...]}}}`. An owner has a list because changing employer mid-year
+  splits that year across directories. The older single-`folder` form is read as
+  the default owner's sole folder.
 - `app.log`: Application logs
 
 **Important:** Tags in `transactions.parquet` should only be manipulated via the helpers in `expenses/tags.py` to ensure consistent formatting and validation.

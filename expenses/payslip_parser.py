@@ -299,7 +299,9 @@ def parse_lines(lines: List[str], month: str, source_file: str) -> Optional[Pays
     return run
 
 
-_MONTH_RE = re.compile(r"(\d{4}-\d{2})")
+# Constrained to a real year and month so that an unrelated digit run in a
+# filename cannot be mistaken for a date.
+_MONTH_RE = re.compile(r"((?:19|20)\d{2}-(?:0[1-9]|1[0-2]))")
 
 
 class PayslipDecryptError(Exception):
@@ -307,10 +309,13 @@ class PayslipDecryptError(Exception):
 
 
 def month_from_filename(name: str) -> Optional[str]:
-    """Extract a YYYY-MM prefix from a payslip filename, or None."""
-    base = os.path.basename(name)
-    m = _MONTH_RE.match(base)
-    return m.group(1) if m else None
+    """Extract a YYYY-MM from anywhere in a payslip filename, or None.
+
+    Not anchored to the start: a folder from a different employer may prefix
+    its payslips with a word, and those files still carry a usable month.
+    """
+    match = _MONTH_RE.search(os.path.basename(name))
+    return match.group(1) if match else None
 
 
 def resolve_password(folder: str, explicit: Optional[str]) -> Optional[str]:

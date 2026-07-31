@@ -6,6 +6,7 @@ from expenses.payslip_handler import (
     is_ignored, aggregate_runs, DEFAULT_IGNORE, PAYSLIP_COLUMNS,
     load_payslip_settings, save_payslip_settings, get_payslip_folder,
     load_payslips, save_payslips, upsert_payslips,
+    add_payslip_folder, remove_payslip_folder, get_payslip_folders, list_owners,
 )
 
 
@@ -75,18 +76,101 @@ def test_env_overrides_saved_folder(monkeypatch, tmp_path):
     assert get_payslip_folder() == "/env"
 
 
+def test_single_folder_settings_become_the_default_owner(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "PAYSLIP_SETTINGS_FILE", tmp_path / "s.json")
+    monkeypatch.setattr(config, "PAYSLIP_DIR", None)
+    save_payslip_settings({"folder": "/legacy"})
+    assert list_owners() == ["self"]
+    assert get_payslip_folders("self") == ["/legacy"]
+
+
+def test_an_owner_can_hold_several_folders(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "PAYSLIP_SETTINGS_FILE", tmp_path / "s.json")
+    monkeypatch.setattr(config, "PAYSLIP_DIR", None)
+    # One person, two employers in the same year.
+    add_payslip_folder("/old-employer", owner="self")
+    add_payslip_folder("/new-employer", owner="self")
+    add_payslip_folder("/theirs", owner="other")
+    assert get_payslip_folders("self") == ["/old-employer", "/new-employer"]
+    assert get_payslip_folders("other") == ["/theirs"]
+    # The default owner sorts first so it stays the landing selection.
+    assert list_owners() == ["self", "other"]
+
+    remove_payslip_folder("/old-employer", owner="self")
+    assert get_payslip_folders("self") == ["/new-employer"]
+    remove_payslip_folder("/theirs", owner="other")
+    assert list_owners() == ["self"]
+
+
+def test_adding_a_folder_twice_does_not_duplicate_it(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "PAYSLIP_SETTINGS_FILE", tmp_path / "s.json")
+    monkeypatch.setattr(config, "PAYSLIP_DIR", None)
+    add_payslip_folder("/x", owner="self")
+    add_payslip_folder("/x", owner="self")
+    assert get_payslip_folders("self") == ["/x"]
+
+
+def test_env_override_applies_only_to_the_default_owner(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "PAYSLIP_SETTINGS_FILE", tmp_path / "s.json")
+    add_payslip_folder("/theirs", owner="other")
+    monkeypatch.setattr(config, "PAYSLIP_DIR", "/env")
+    assert get_payslip_folders("self") == ["/env"]
+    assert get_payslip_folders("other") == ["/theirs"]
+
+
+def test_aggregate_tags_rows_with_their_owner():
+    runs = [_run("2026-01", "a.pdf", salary=1000.0, pension_ee=100.0,
+                 pension_ee_ytd=100.0, pension_er=0.0, pension_er_ytd=0.0)]
+    assert list(aggregate_runs(runs, owner="other")["Owner"]) == ["other"]
+
+
+def test_aggregate_treats_a_ytd_drop_as_a_change_of_employer():
+    # Leaving one employer part-way through a year restarts year-to-date at the
+    # next; that is not a mismatch and must not be flagged as one.
+    runs = [
+        _run("2025-08", "old-aug.pdf", salary=1000.0, pension_ee=100.0,
+             pension_ee_ytd=800.0, pension_er=0.0, pension_er_ytd=0.0),
+        _run("2025-09", "new-sep.pdf", salary=1000.0, pension_ee=120.0,
+             pension_ee_ytd=120.0, pension_er=0.0, pension_er_ytd=0.0),
+    ]
+    df = aggregate_runs(runs).set_index("Month")
+    assert bool(df.loc["2025-09", "YTDReconciled"]) is True
+
+
+def _row(owner, month, gross, source="a.pdf"):
+    values = {
+        "Owner": owner, "Month": month, "Gross": gross, "Net": gross * 0.8,
+        "TaxTotal": 10.0, "PensionEE": 5.0, "AVC": 0.0, "PensionER": 5.0,
+        "Bonus": 0.0, "OnCall": 0.0, "SourceFiles": source,
+        "YTDReconciled": True, "NetReconciled": True,
+    }
+    return pd.DataFrame([{c: values[c] for c in PAYSLIP_COLUMNS}])
+
+
 def test_upsert_replaces_month(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "PAYSLIPS_FILE", tmp_path / "p.parquet")
-    base = pd.DataFrame([
-        {c: v for c, v in zip(PAYSLIP_COLUMNS,
-         ["2026-01", 100.0, 80.0, 10.0, 5.0, 0.0, 5.0, 0.0, 0.0, "a.pdf", True])},
-    ])
-    save_payslips(base)
-    newer = pd.DataFrame([
-        {c: v for c, v in zip(PAYSLIP_COLUMNS,
-         ["2026-01", 200.0, 160.0, 20.0, 10.0, 0.0, 10.0, 0.0, 0.0, "b.pdf", True])},
-    ])
-    result = upsert_payslips(newer)
+    save_payslips(_row("self", "2026-01", 100.0))
+    result = upsert_payslips(_row("self", "2026-01", 200.0, source="b.pdf"))
     assert len(result) == 1
     assert result.iloc[0]["Gross"] == 200.0
     assert load_payslips().iloc[0]["Gross"] == 200.0
+
+
+def test_upsert_keeps_other_owners_for_the_same_month(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "PAYSLIPS_FILE", tmp_path / "p.parquet")
+    save_payslips(_row("self", "2026-01", 100.0))
+    upsert_payslips(_row("other", "2026-01", 300.0))
+    # Rescanning one owner must not disturb the other's row for that month.
+    result = upsert_payslips(_row("self", "2026-01", 200.0))
+    assert len(result) == 2
+    by_owner = result.set_index("Owner")["Gross"].to_dict()
+    assert by_owner == {"self": 200.0, "other": 300.0}
+
+
+def test_load_payslips_stamps_rows_written_before_owners_existed(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "PAYSLIPS_FILE", tmp_path / "p.parquet")
+    legacy = _row("self", "2026-01", 100.0).drop(columns=["Owner", "NetReconciled"])
+    legacy.to_parquet(tmp_path / "p.parquet", index=False)
+    loaded = load_payslips()
+    assert list(loaded["Owner"]) == ["self"]
+    assert bool(loaded.iloc[0]["NetReconciled"]) is False

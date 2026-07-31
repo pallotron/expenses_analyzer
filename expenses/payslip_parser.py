@@ -29,6 +29,8 @@ class PayslipRun:
     bonus: float = 0.0
     oncall: float = 0.0
     reimbursements: float = 0.0
+    non_taxable_adj: float = 0.0
+    misc_deductions: float = 0.0
     pension_ee: float = 0.0
     avc: float = 0.0
     pension_er: float = 0.0
@@ -38,10 +40,11 @@ class PayslipRun:
     pension_ee_ytd: float = 0.0
     avc_ytd: float = 0.0
     pension_er_ytd: float = 0.0
+    stated_net: Optional[float] = None
 
     @property
     def gross(self) -> float:
-        """Cash earnings (excludes notional BIK)."""
+        """Cash earnings (excludes notional BIK and non-taxable adjustments)."""
         return round(self.salary + self.bonus + self.oncall + self.reimbursements, 2)
 
     @property
@@ -54,7 +57,28 @@ class PayslipRun:
 
     @property
     def net(self) -> float:
-        return round(self.gross - self.deds_from_gross - self.tax_total, 2)
+        """Take-home pay, mirroring the payslip's own NETT PAY arithmetic."""
+        return round(
+            self.gross
+            - self.deds_from_gross
+            - self.tax_total
+            - self.misc_deductions
+            + self.non_taxable_adj,
+            2,
+        )
+
+    @property
+    def net_reconciled(self) -> bool:
+        """True if the derived net matches the net the payslip itself states.
+
+        An earnings or deduction label this parser does not know is otherwise
+        invisible: it silently understates gross and net rather than failing.
+        Comparing against the payslip's own figure turns that into a flag.
+        True when the payslip states no net, since there is nothing to check.
+        """
+        if self.stated_net is None:
+            return True
+        return abs(self.net - self.stated_net) < 0.01
 
 
 def _handle_salary(run: PayslipRun, nums: List[float]) -> bool:
@@ -65,10 +89,21 @@ def _handle_salary(run: PayslipRun, nums: List[float]) -> bool:
     return False
 
 
+def _handle_salary_adjustment(run: PayslipRun, nums: List[float]) -> bool:
+    """Handle an adjustment to salary itself, rather than a separate award.
+
+    Covers both directions: back pay adds salary earned earlier, unpaid leave
+    subtracts salary not earned, and the payslip signs the amount accordingly.
+    """
+    if nums:
+        run.salary += nums[0]
+    return False
+
+
 def _handle_bonus(run: PayslipRun, nums: List[float]) -> bool:
     """Handle Bonus line."""
     if nums:
-        run.bonus = nums[0]
+        run.bonus += nums[0]
     return False
 
 
@@ -80,9 +115,24 @@ def _handle_oncall(run: PayslipRun, nums: List[float]) -> bool:
 
 
 def _handle_device_reimbursement(run: PayslipRun, nums: List[float]) -> bool:
-    """Handle Device Reimbursement line."""
+    """Handle a taxable reimbursement or subsidy, which counts toward gross."""
     if nums:
         run.reimbursements += nums[0]
+    return False
+
+
+def _handle_non_taxable(run: PayslipRun, nums: List[float]) -> bool:
+    """Handle a non-taxable adjustment, added after tax rather than to gross."""
+    if nums:
+        run.non_taxable_adj += nums[0]
+    return False
+
+
+def _handle_notional(run: PayslipRun, nums: List[float]) -> bool:
+    """Handle notional pay / BIK, which is taxed but never paid in cash.
+
+    Matched explicitly so it is visibly excluded rather than silently ignored.
+    """
     return False
 
 
@@ -123,49 +173,135 @@ def _handle_usc(run: PayslipRun, nums: List[float]) -> bool:
     return False
 
 
+# Labels are matched case-insensitively and on word boundaries, so payroll
+# providers that differ only in vocabulary and casing share this one parser.
+# A label may appear anywhere on a line, not just at the start: some providers
+# run two items together on a single extracted line.
+_HANDLERS = {
+    "salary": _handle_salary,
+    "backpay": _handle_salary_adjustment,
+    "retro pay": _handle_salary_adjustment,
+    "unpaid leave": _handle_salary_adjustment,
+    "bonus": _handle_bonus,
+    "sign on bonus": _handle_bonus,
+    "bonus - prior year": _handle_bonus,
+    "on-call": _handle_oncall,
+    "device reimbursement": _handle_device_reimbursement,
+    "device reimbur grossup": _handle_device_reimbursement,
+    "health insurance sub": _handle_device_reimbursement,
+    "device reimb(tax free)": _handle_non_taxable,
+    "working from home sub": _handle_non_taxable,
+    "subsistence vouched": _handle_non_taxable,
+    "travel vouched": _handle_non_taxable,
+    "small ben exemption": _handle_notional,
+    "avc": _handle_avc,
+    "pension": _handle_pension,
+    "pension er": _handle_pension,
+    "paye": _handle_paye,
+    "prsi": _handle_prsi,
+    "usc": _handle_usc,
+}
+
+# Longest first so that at a shared start position the more specific label wins
+# ("Pension ER" over "Pension"). Trailing \b is omitted because some labels end
+# in a bracket, where a word boundary would not hold.
+_LABEL_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(k) for k in sorted(_HANDLERS, key=len, reverse=True)) + r")",
+    re.IGNORECASE,
+)
+
+_WS = re.compile(r"\s+")
+
+
+_TAX_KEYS = ("paye", "prsi", "usc")
+
+
+def _dispatch_line(run: PayslipRun, line: str) -> tuple:
+    """Apply every label found on ``line``. Returns (saw_pension, saw_tax).
+
+    Each label owns the text up to the next label, so a line carrying two items
+    assigns each its own amounts rather than the first swallowing both.
+    """
+    matches = list(_LABEL_RE.finditer(line))
+    if not matches:
+        _record_misc_deduction(run, line)
+        return False, False
+
+    saw_pension = saw_tax = False
+    for i, match in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(line)
+        nums = extract_amounts(line[match.end():end])
+        key = _WS.sub(" ", match.group(0).strip().lower())
+        if _HANDLERS[key](run, nums) and key.startswith("pension"):
+            saw_pension = True
+        if nums and key in _TAX_KEYS:
+            saw_tax = True
+    return saw_pension, saw_tax
+
+
+def _record_misc_deduction(run: PayslipRun, line: str) -> None:
+    """Treat an unrecognized labelled line carrying 4 amounts as a misc deduction.
+
+    Deductions such as a social club or health insurance premium are keyed by
+    provider-specific names that cannot be enumerated, but they share a fixed
+    shape with the statutory lines: period, period-YTD, employer, employer-YTD.
+    Matching on that shape keeps net accurate without hardcoding vendor names.
+    """
+    nums = extract_amounts(line)
+    if len(nums) != 4:
+        return
+    label = _AMOUNT.sub("", line).strip()
+    if not any(char.isalpha() for char in label):
+        return
+    run.misc_deductions = round(run.misc_deductions + nums[0], 2)
+
+
+def _find_stated_net(lines: List[str]) -> Optional[float]:
+    """Return the NETT PAY the payslip states, or None if it cannot be located.
+
+    This layout emits its summary as a block of bare amounts followed by the
+    matching block of labels, so the figures cannot be read by their label.
+    What holds is the ordering: the summary is the last thing before the label
+    block, and net is its final entry.
+    """
+    for index, line in enumerate(lines):
+        if line.strip().upper() != "NOTE":
+            continue
+        amounts = extract_amounts("\n".join(lines[:index]))
+        return amounts[-1] if amounts else None
+    return None
+
+
 def parse_lines(lines: List[str], month: str, source_file: str) -> Optional[PayslipRun]:
     """Parse stripped payslip text lines into a PayslipRun.
 
-    Returns None if the Irish-format signature is absent (a Salary line and a
-    Pension line carrying >= 4 amounts). This is the "fail loudly" guard: an
-    unrecognized layout is never guessed at.
+    Returns None if the Irish-format signature is absent (a Pension line
+    carrying >= 4 amounts, plus at least one statutory tax line). This is the
+    "fail loudly" guard: an unrecognized layout is never guessed at.
+
+    Salary is deliberately not part of the signature. A month can have a
+    supplementary run -- an off-cycle bonus or on-call payment -- which carries
+    no salary line but must still be aggregated into that month's totals.
     """
     run = PayslipRun(month=month, source_file=source_file)
-    saw_salary = False
+    run.stated_net = _find_stated_net(lines)
     saw_pension = False
-
-    handlers = [
-        ("Salary", _handle_salary),
-        ("Bonus", _handle_bonus),
-        ("On-Call", _handle_oncall),
-        ("Device Reimbursement", _handle_device_reimbursement),
-        ("AVC", _handle_avc),
-        ("Pension", _handle_pension),
-        ("PAYE", _handle_paye),
-        ("PRSI", _handle_prsi),
-        ("USC", _handle_usc),
-    ]
+    saw_tax = False
 
     for raw in lines:
-        line = raw.strip()
-        nums = extract_amounts(line)
+        line_pension, line_tax = _dispatch_line(run, raw.strip())
+        saw_pension = saw_pension or line_pension
+        saw_tax = saw_tax or line_tax
 
-        for prefix, handler in handlers:
-            if line.startswith(prefix):
-                result = handler(run, nums)
-                if prefix == "Salary" and result:
-                    saw_salary = True
-                elif prefix == "Pension" and result:
-                    saw_pension = True
-                break
-
-    if not (saw_salary and saw_pension):
+    if not (saw_pension and saw_tax):
         logger.warning("Unrecognized payslip format for %s; skipping", source_file)
         return None
     return run
 
 
-_MONTH_RE = re.compile(r"(\d{4}-\d{2})")
+# Constrained to a real year and month so that an unrelated digit run in a
+# filename cannot be mistaken for a date.
+_MONTH_RE = re.compile(r"((?:19|20)\d{2}-(?:0[1-9]|1[0-2]))")
 
 
 class PayslipDecryptError(Exception):
@@ -173,10 +309,13 @@ class PayslipDecryptError(Exception):
 
 
 def month_from_filename(name: str) -> Optional[str]:
-    """Extract a YYYY-MM prefix from a payslip filename, or None."""
-    base = os.path.basename(name)
-    m = _MONTH_RE.match(base)
-    return m.group(1) if m else None
+    """Extract a YYYY-MM from anywhere in a payslip filename, or None.
+
+    Not anchored to the start: a folder from a different employer may prefix
+    its payslips with a word, and those files still carry a usable month.
+    """
+    match = _MONTH_RE.search(os.path.basename(name))
+    return match.group(1) if match else None
 
 
 def resolve_password(folder: str, explicit: Optional[str]) -> Optional[str]:

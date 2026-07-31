@@ -310,9 +310,15 @@ def get_enhanced_savings_totals(
     payslip, so a partial-year payslip coverage is never compared against a
     full-year bank total (which would inflate/distort the savings rate).
 
+    Pension is summed across every owner, since a household's savings rate
+    should count both people's contributions. Only pension is added: both
+    people's net pay already lands in the tracked bank accounts, so adding
+    either net salary would double-count it. A month counts as covered when at
+    least one owner has a payslip for it.
+
     Args:
         transactions: DataFrame with Date, Amount, Type columns.
-        payslips: DataFrame with PAYSLIP_COLUMNS.
+        payslips: DataFrame with PAYSLIP_COLUMNS, possibly several owners.
         year: calendar year to match.
         month: optional 1-12; None means the whole year.
 

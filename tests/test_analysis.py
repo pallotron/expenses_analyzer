@@ -172,6 +172,54 @@ def _bank_transactions(rows):
     )
 
 
+def test_enhanced_savings_sums_pension_across_owners():
+    # Both people's net pay already lands in the tracked bank accounts, so the
+    # second owner adds only pension -- never a second net salary.
+    payslips = pd.concat([
+        _payslips(),
+        pd.DataFrame([
+            {"Owner": "other", "Month": "2026-01", "Gross": 3500.0, "Net": 2860.0,
+             "TaxTotal": 720.0, "PensionEE": 0.0, "AVC": 0.0, "PensionER": 220.0,
+             "Bonus": 0.0, "OnCall": 0.0, "SourceFiles": "x.pdf",
+             "YTDReconciled": True},
+        ]),
+    ], ignore_index=True)
+    txns = _bank_transactions(
+        [
+            ("2026-01-05", 7000.0, "income"),
+            ("2026-01-10", 5000.0, "expense"),
+        ]
+    )
+    result = get_enhanced_savings_totals(txns, payslips, year=2026, month=1)
+    assert result["pension_saved"] == 2340.0 + 220.0
+    assert result["enhanced_saved"] == 2000.0 + 2560.0
+    assert result["income_with_pension"] == 7000.0 + 2560.0
+
+
+def test_enhanced_savings_covers_months_any_owner_has():
+    # Only the second owner has February, so February still counts as covered.
+    payslips = pd.DataFrame([
+        {"Owner": "self", "Month": "2026-01", "Gross": 100.0, "Net": 80.0,
+         "TaxTotal": 0.0, "PensionEE": 100.0, "AVC": 0.0, "PensionER": 0.0,
+         "Bonus": 0.0, "OnCall": 0.0, "SourceFiles": "a.pdf", "YTDReconciled": True},
+        {"Owner": "other", "Month": "2026-02", "Gross": 100.0, "Net": 80.0,
+         "TaxTotal": 0.0, "PensionEE": 50.0, "AVC": 0.0, "PensionER": 0.0,
+         "Bonus": 0.0, "OnCall": 0.0, "SourceFiles": "b.pdf", "YTDReconciled": True},
+    ])
+    txns = _bank_transactions(
+        [
+            ("2026-01-05", 1000.0, "income"),
+            ("2026-02-05", 1000.0, "income"),
+            ("2026-03-05", 9999.0, "income"),
+        ]
+    )
+    result = get_enhanced_savings_totals(txns, payslips, year=2026)
+    assert result["months_covered"] == [1, 2]
+    assert result["pension_saved"] == 150.0
+    # March has no payslip from anyone, so its bank income stays out.
+    assert result["income_with_pension"] == 2000.0 + 150.0
+
+
 def test_enhanced_savings_single_month():
     # Jan 2026: bank income 7000, expenses 5000 -> bank net 2000.
     # Bank income (7000) deliberately differs from the payslip Net (8200) so the

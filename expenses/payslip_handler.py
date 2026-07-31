@@ -15,7 +15,7 @@ DEFAULT_IGNORE = ["fuckedup", "wrong", "old", "draft"]
 
 PAYSLIP_COLUMNS = [
     "Month", "Gross", "Net", "TaxTotal", "PensionEE", "AVC", "PensionER",
-    "Bonus", "OnCall", "SourceFiles", "YTDReconciled",
+    "Bonus", "OnCall", "SourceFiles", "YTDReconciled", "NetReconciled",
 ]
 
 
@@ -61,6 +61,7 @@ def aggregate_runs(runs: List[PayslipRun]) -> pd.DataFrame:
             "Bonus": round(sum(r.bonus for r in group), 2),
             "OnCall": round(sum(r.oncall for r in group), 2),
             "SourceFiles": ", ".join(r.source_file for r in group),
+            "NetReconciled": all(r.net_reconciled for r in group),
         }
 
     # Second pass: YTD reconciliation against the previous month in the same year.
@@ -145,7 +146,15 @@ def scan_folder(
 def load_payslips() -> pd.DataFrame:
     if not os.path.isfile(config.PAYSLIPS_FILE):
         return pd.DataFrame(columns=PAYSLIP_COLUMNS)
-    return pd.read_parquet(config.PAYSLIPS_FILE)
+    df = pd.read_parquet(config.PAYSLIPS_FILE)
+    if "NetReconciled" not in df.columns:
+        # Written before net was reconciled against the payslip's own figure;
+        # unknown rather than verified, so surface it as unreconciled.
+        df["NetReconciled"] = False
+    if "Owner" not in df.columns:
+        # Written before multi-owner support, so every row is the one person.
+        df.insert(0, "Owner", DEFAULT_OWNER)
+    return df
 
 
 def save_payslips(df: pd.DataFrame) -> None:

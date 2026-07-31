@@ -79,7 +79,9 @@ class PayslipsScreen(BaseScreen):
         table.clear(columns=True)
         table.add_columns("Month", "Gross", "Net", "EE Pens", "ER Pens", "Flag")
         for _, row in df.iterrows():
-            flag = "" if row["YTDReconciled"] else "⚠ YTD"
+            flags = [] if row["YTDReconciled"] else ["⚠ YTD"]
+            if not row.get("NetReconciled", True):
+                flags.append("⚠ NET")
             table.add_row(
                 row["Month"], f"{row['Gross']:,.2f}", f"{row['Net']:,.2f}",
                 f"{row['PensionEE'] + row['AVC']:,.2f}", f"{row['PensionER']:,.2f}", flag,

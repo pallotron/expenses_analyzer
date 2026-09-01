@@ -569,29 +569,37 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             return
         self.call_after_refresh(self.update_initial_views)
 
-    def on_screen_resume(self, event: Any) -> None:
+    def _structure_signature(self) -> tuple:
+        """The data that compose_content turns into widgets.
+
+        The year/month tab panes and the source checkboxes are built once while
+        composing, so any change here means the layout has to be rebuilt rather
+        than just repainted.
+        """
+        df = getattr(self, "_all_transactions", None)
+        if df is None or df.empty:
+            return ((), ())
+        dates = df["Date"]
+        periods = tuple(sorted(set(zip(dates.dt.year, dates.dt.month))))
+        sources = tuple(sorted(df["Source"].dropna().unique().tolist()))
+        return (periods, sources)
+
+    async def on_screen_resume(self, event: Any) -> None:
         """Called when the screen is resumed after being suspended."""
-        # Save current state
-        was_empty = self.transactions.empty
-        old_years = (
-            set(self.transactions["Date"].dt.year.unique()) if not was_empty else set()
-        )
+        old_signature = self._structure_signature()
 
         # Reload data
         self.load_and_prepare_data()
         is_empty = self.transactions.empty
-        new_years = (
-            set(self.transactions["Date"].dt.year.unique()) if not is_empty else set()
-        )
 
-        # Check if we need to recompose
-        # Recompose if we went from empty to not-empty, or if the years changed.
-        needs_recompose = (was_empty and not is_empty) or (old_years != new_years)
-
-        if needs_recompose:
-            # Recompose the entire screen if the structure changed significantly
-            self.app.pop_screen()
-            self.app.push_screen("summary")
+        if self._structure_signature() != old_signature:
+            # A new month, year or source appeared (or everything went away), so
+            # rebuild the widget tree in place. Popping and re-pushing "summary"
+            # would not work: the app caches the screen instance by name and would
+            # hand back this very screen with its stale layout.
+            await self.recompose()
+            if not is_empty:
+                self.call_after_refresh(self.update_initial_views)
             return
 
         # If we don't need a full recompose, just update the views
@@ -903,7 +911,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
             # Inline the pension-aware rate right after the bank savings rate,
             # with the amounts on their own line below.
-            savings_segment = f"[bold]Savings Rate:[/bold] {totals['savings_rate']:.1f}%"
+            savings_segment = (
+                f"[bold]Savings Rate:[/bold] {totals['savings_rate']:.1f}%"
+            )
             enhanced_line = ""
             if enhanced:
                 flag = "" if enhanced["reconciled"] else "  [yellow]⚠ YTD[/yellow]"

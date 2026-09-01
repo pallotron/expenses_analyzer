@@ -5,6 +5,7 @@ from textual.containers import Vertical, Horizontal
 from textual.binding import Binding
 from typing import Dict, List, Optional
 
+from expenses.tag_suggester import TagSuggester
 from expenses.tags import normalize_tag
 
 
@@ -64,7 +65,12 @@ class TagTransactionsScreen(ModalScreen[Optional[Dict]]):
                 f"Applying to {self.selected_count} transaction(s)", id="count_display"
             ),
             Label("Tags (comma-separated, e.g. emergency, trip:paris-jun26):"),
-            Input(value="", placeholder=hint or "tag1, tag2", id="tags_input"),
+            Input(
+                value="",
+                placeholder=hint or "tag1, tag2",
+                id="tags_input",
+                suggester=TagSuggester(self.existing_tags, last_segment=True),
+            ),
             Label("Mode:"),
             Select(
                 [("Add tags", "add"), ("Remove tags", "remove")],

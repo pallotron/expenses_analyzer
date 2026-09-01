@@ -26,6 +26,7 @@ from expenses.data_handler import (
 from expenses.screens.base_screen import BaseScreen
 from expenses.screens.data_table_operations_mixin import DataTableOperationsMixin
 from expenses.screens.tag_transactions_screen import TagTransactionsScreen
+from expenses.tag_suggester import TagSuggester
 from expenses.tags import all_tags_in_series
 from textual.binding import Binding
 from typing import Any
@@ -245,7 +246,26 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         if not self.transactions.empty:
             self.transactions["Date"] = pd.to_datetime(self.transactions["Date"])
 
+        self._refresh_tag_suggestions()
         self.populate_table()
+
+    def _known_tags(self) -> list[str]:
+        """Every tag in use, the vocabulary both tag fields complete against."""
+        if "Tags" not in self.transactions.columns:
+            return []
+        return all_tags_in_series(self.transactions["Tags"])
+
+    def _refresh_tag_suggestions(self) -> None:
+        """Point the tag filter at the tags that exist right now.
+
+        Data is loaded on resume, after compose_content has already built the
+        field, so the suggester is attached here rather than at compose time.
+        """
+        try:
+            tag_filter = self.query_one("#tags_filter", ClearableInput)
+        except Exception:
+            return  # Not composed yet; resume will run again once it is.
+        tag_filter.suggester = TagSuggester(self._known_tags())
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key press in filter inputs."""
@@ -827,11 +847,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
 
     def _open_tag_modal(self, indices: list[int]) -> None:
         """Open the tag modal for the given original DataFrame indices."""
-        existing = (
-            all_tags_in_series(self.transactions["Tags"])
-            if "Tags" in self.transactions.columns
-            else []
-        )
+        existing = self._known_tags()
 
         def handle_tag_result(result: dict | None) -> None:
             if not result:

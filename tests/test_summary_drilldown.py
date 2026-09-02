@@ -11,7 +11,11 @@ from expenses.app import ExpensesApp
 from expenses.screens.summary_screen import SummaryScreen
 from expenses.screens.transaction_screen import TransactionScreen
 
-CATEGORIES = {"Electric Ireland": "Utilities", "Booking.com": "Travel"}
+CATEGORIES = {
+    "Electric Ireland": "Utilities",
+    "Booking.com": "Travel",
+    "Acme Payroll": "Salary",
+}
 CATEGORY_TYPES = {
     "essential": {"categories": ["Utilities"], "annual_budget": 100.0},
     "discretionary": {"categories": ["Travel"], "annual_budget": 100.0},
@@ -43,6 +47,18 @@ def _make_df() -> pd.DataFrame:
             "Tags": "",
         }
     )
+    for month in range(1, 4):
+        rows.append(
+            {
+                "Date": pd.Timestamp(year=2026, month=month, day=25),
+                "Merchant": "Acme Payroll",
+                "Amount": 3000.0,
+                "Source": "CSV Import",
+                "Type": "income",
+                "Deleted": False,
+                "Tags": "",
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -148,3 +164,40 @@ async def test_discretionary_category_drilldown_carries_budget_type(
 
         assert screen.filter_budget_type == "discretionary"
         assert screen.filter_type == "expense"
+
+
+@pytest.mark.asyncio
+async def test_income_category_drilldown_filters_to_income(patched_data) -> None:
+    """Income Categories was inert; a click must open the income transactions."""
+    async with ExpensesApp().run_test() as pilot:
+        await pilot.pause()
+        screen = await _click_row(pilot, "income_breakdown_2026_all", 0)
+
+        assert isinstance(screen, TransactionScreen)
+        assert screen.filter_type == "income"
+        assert screen.filter_category == "Salary"
+
+
+@pytest.mark.asyncio
+async def test_top_income_source_drilldown_filters_to_that_source(
+    patched_data,
+) -> None:
+    """Top Income Sources must filter by merchant, not by category."""
+    async with ExpensesApp().run_test() as pilot:
+        await pilot.pause()
+        screen = await _click_row(pilot, "top_income_2026_all", 0)
+
+        assert screen.filter_type == "income"
+        assert screen.filter_merchant == "Acme Payroll"
+
+
+@pytest.mark.asyncio
+async def test_income_drilldown_leaves_the_budget_toggle_alone(patched_data) -> None:
+    """Essential/discretionary classifies spending only, so income must not set it."""
+    async with ExpensesApp().run_test() as pilot:
+        await pilot.pause()
+        screen = await _click_row(pilot, "income_breakdown_2026_all", 0)
+
+        assert screen.filter_budget_type is None
+        assert _variant(screen, "budget_all_button") == "primary"
+        assert _variant(screen, "type_income_button") == "primary"

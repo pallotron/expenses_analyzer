@@ -41,6 +41,11 @@ from expenses.screens.tag_exclusion_screen import TagExclusionScreen
 from typing import Dict, Set, Optional, Any
 
 
+def _strip_income_prefix(row_key: str) -> str:
+    """Income tables key their rows "income_<name>"; drill-down wants the name."""
+    return row_key.removeprefix("income_")
+
+
 class SummaryScreen(BaseScreen, DataTableOperationsMixin):
     """A summary screen with transactions per year and month."""
 
@@ -1411,6 +1416,27 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 f"Error updating monthly income breakdown for year {year}: {e}"
             )
 
+    # What a click on each Summary table means: whether the first column holds a
+    # category or a merchant, and which side of the ledger the table shows.
+    _DRILLDOWN_TABLES = {
+        "monthly_income_breakdown": ("category", "income"),
+        "monthly_breakdown": ("category", "expense"),
+        "category_breakdown": ("category", "expense"),
+        "income_breakdown": ("category", "income"),
+        "top_merchants": ("merchant", "expense"),
+        "top_income": ("merchant", "income"),
+    }
+
+    @classmethod
+    def _drilldown_kind(cls, table_id: Optional[str]):
+        """Look up (field, transaction type) for a table id, longest prefix first."""
+        if not table_id:
+            return None
+        for prefix in sorted(cls._DRILLDOWN_TABLES, key=len, reverse=True):
+            if table_id.startswith(prefix):
+                return cls._DRILLDOWN_TABLES[prefix]
+        return None
+
     def _open_transactions(
         self,
         year: int,
@@ -1422,7 +1448,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         """Open the transaction view pre-filtered to the row that was clicked."""
         lookup = category or self.categories.get(merchant or "")
         budget_type = (
-            get_category_spending_type(lookup, self.category_types) if lookup else None
+            get_category_spending_type(lookup, self.category_types)
+            if lookup and transaction_type == "expense"
+            else None
         )
         self.app.push_screen(
             self.app.SCREENS["transactions"](
@@ -1449,8 +1477,12 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         category = None
         month = None
 
-        # Logic for Monthly Breakdown table
-        if table_id and table_id.startswith("monthly_breakdown"):
+        # Logic for Monthly Breakdown tables (expense and income share a layout)
+        _, transaction_type = self._drilldown_kind(table_id) or ("category", "expense")
+        if table_id and (
+            table_id.startswith("monthly_breakdown")
+            or table_id.startswith("monthly_income_breakdown")
+        ):
             column_key = event.cell_key.column_key
             column = event.data_table.columns[column_key]
             month_name = str(column.label)
@@ -1467,7 +1499,10 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 category = category_string
 
         # Logic for Category Breakdown tables
-        elif table_id and table_id.startswith("category_breakdown"):
+        elif table_id and (
+            table_id.startswith("category_breakdown")
+            or table_id.startswith("income_breakdown")
+        ):
             if "Total" in category_string:
                 return
 
@@ -1480,7 +1515,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         else:
             return
 
-        self._open_transactions(year, month, category=category)
+        self._open_transactions(
+            year, month, category=category, transaction_type=transaction_type
+        )
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle row selection (clicking on rows with cursor_type='row')."""
@@ -1515,18 +1552,25 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             month = int(active_month_pane_id[-1])
 
         # Handle different table types
-        if table_id and table_id.startswith("category_breakdown"):
+        kind = self._drilldown_kind(table_id)
+        if kind is None:
+            return
+        field, transaction_type = kind
+        if field == "merchant":
+            # Row keys carry the full merchant name; the cell may be truncated.
+            merchant = _strip_income_prefix(str(event.row_key.value))
+        else:
             category = first_cell_str
-        elif table_id and table_id.startswith("top_merchants"):
-            # For top merchants, use the row key which contains the full merchant name
-            row_key = event.row_key
-            merchant = str(row_key.value)
 
         # Navigate to transactions screen
         if merchant:
-            self._open_transactions(year, month, merchant=merchant)
+            self._open_transactions(
+                year, month, merchant=merchant, transaction_type=transaction_type
+            )
         elif category:
-            self._open_transactions(year, month, category=category)
+            self._open_transactions(
+                year, month, category=category, transaction_type=transaction_type
+            )
 
     def _get_current_month_context(self, year: int) -> Optional[int]:
         """Get the current month context from tabs, if applicable."""
@@ -1604,25 +1648,32 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             return
 
         # Handle different table types
-        category, merchant, month = None, None, None
-        if table_id and table_id.startswith("category_breakdown"):
-            category, merchant, month = self._handle_category_breakdown_table(
-                first_cell_str, year
-            )
-        elif table_id and table_id.startswith("top_merchants"):
+        kind = self._drilldown_kind(table_id)
+        if kind is None:
+            return
+        field, transaction_type = kind
+
+        if field == "merchant":
             category, merchant, month = self._handle_top_merchants_table(table, year)
-        elif table_id and table_id.startswith("monthly_breakdown"):
+            merchant = _strip_income_prefix(merchant or "")
+        elif table_id.startswith(("monthly_breakdown", "monthly_income_breakdown")):
             category, merchant, month = self._handle_monthly_breakdown_table(
                 table, first_cell_str, year
             )
         else:
-            return
+            category, merchant, month = self._handle_category_breakdown_table(
+                first_cell_str, year
+            )
 
         # Navigate to transactions screen
         if merchant:
-            self._open_transactions(year, month, merchant=merchant)
+            self._open_transactions(
+                year, month, merchant=merchant, transaction_type=transaction_type
+            )
         elif category:
-            self._open_transactions(year, month, category=category)
+            self._open_transactions(
+                year, month, category=category, transaction_type=transaction_type
+            )
 
     def populate_table(self) -> None:
         """Called by DataTableOperationsMixin on header click."""

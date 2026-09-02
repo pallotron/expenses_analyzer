@@ -103,3 +103,19 @@ def apply_merchant_decision(
         updated_categories[alias] = category
 
     return updated_aliases, updated_categories
+
+
+def pattern_claiming(merchant: str, aliases: Dict[str, str]) -> Optional[str]:
+    """The alias rule currently in force for `merchant`, if any.
+
+    Aliases are applied first-match-wins, so later rules that also match are
+    irrelevant; the editor shows the one that actually decides the name.
+    Unparseable rules are skipped, the same way alias application skips them.
+    """
+    for pattern in aliases:
+        try:
+            if re.search(pattern, merchant, re.IGNORECASE):
+                return pattern
+        except re.error:
+            continue
+    return None

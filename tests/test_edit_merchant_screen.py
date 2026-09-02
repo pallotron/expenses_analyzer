@@ -80,9 +80,10 @@ class TestEditMerchantScreen(unittest.IsolatedAsyncioTestCase):
             screen = EditMerchantScreen("APPLE.COM/BILL", current_alias="Apple")
             await pilot.app.push_screen(screen)
 
-            # Pattern input should be empty when editing
+            # With no alias table to consult, fall back to a suggestion rather
+            # than a blank box, which cannot be saved.
             pattern_input = pilot.app.screen.query_one("#pattern_input")
-            assert pattern_input.value == ""
+            assert pattern_input.value == screen.suggested_pattern
 
             # Alias input should have the current alias
             alias_input = pilot.app.screen.query_one("#alias_input")
@@ -407,3 +408,29 @@ class TestMerchantEditorIsADialog(unittest.IsolatedAsyncioTestCase):
 
             dialog = pilot.app.screen.query_one("#dialog")
             assert 0 < dialog.size.height < pilot.app.screen.size.height
+
+
+class TestMerchantEditorSeedsTheExistingRule(unittest.IsolatedAsyncioTestCase):
+    """Editing an aliased merchant must not start from a blank pattern box."""
+
+    async def test_the_pattern_box_shows_the_rule_in_force(self) -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            screen = EditMerchantScreen(
+                "MORTONS DUNVILLE",
+                "Morton's",
+                aliases={r"MORTONS.*": "Morton's"},
+            )
+            await pilot.app.push_screen(screen)
+            await pilot.pause()
+
+            assert screen.query_one("#pattern_input").value == r"MORTONS.*"
+
+    async def test_an_unaliased_merchant_still_gets_a_suggestion(self) -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            screen = EditMerchantScreen("APPLE.COM/BILL", aliases={})
+            await pilot.app.push_screen(screen)
+            await pilot.pause()
+
+            assert screen.query_one("#pattern_input").value == screen.suggested_pattern

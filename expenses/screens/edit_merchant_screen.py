@@ -7,7 +7,7 @@ import logging
 import pandas as pd
 
 from expenses.data_handler import get_category_spending_type
-from expenses.merchant_editor import preview_alias_change
+from expenses.merchant_editor import pattern_claiming, preview_alias_change
 
 
 class EditMerchantScreen(ModalScreen[bool]):
@@ -100,6 +100,9 @@ class EditMerchantScreen(ModalScreen[bool]):
         self.suggested_pattern = self._suggest_pattern(original_merchant)
         self.transactions = transactions
         self.aliases = aliases or {}
+        # Editing an existing merchant should start from the rule in force, so
+        # saving replaces that rule rather than appending a second one.
+        self.current_pattern = pattern_claiming(original_merchant, self.aliases)
         self.categories = categories or {}
         self.category_types = category_types or {}
         display_name = current_alias or original_merchant
@@ -176,7 +179,7 @@ class EditMerchantScreen(ModalScreen[bool]):
             Static(self.original_merchant, id="original_merchant"),
             Label("Regex Pattern (leave empty to remove alias):"),
             Input(
-                value=self.suggested_pattern if not self.current_alias else "",
+                value=self.current_pattern or self.suggested_pattern,
                 placeholder="e.g., POS APPLE\\.COM/BI.*",
                 id="pattern_input",
             ),

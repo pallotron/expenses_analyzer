@@ -3,7 +3,11 @@
 import pandas as pd
 import pytest
 
-from expenses.merchant_editor import apply_merchant_decision, preview_alias_change
+from expenses.merchant_editor import (
+    apply_merchant_decision,
+    pattern_claiming,
+    preview_alias_change,
+)
 
 
 @pytest.fixture
@@ -146,3 +150,29 @@ class TestApplyMerchantDecision:
         )
 
         assert aliases == {} and categories == {}
+
+
+class TestPatternClaiming:
+    """Which rule is actually in force for a merchant, so the editor can show it."""
+
+    ALIASES = {
+        r"Erfgo museum.*": "Museum",
+        r"Erfgo.*": "Erfgo catch-all",
+        r"Dunnes.*": "Dunnes Stores",
+    }
+
+    def test_finds_the_pattern_that_claims_the_merchant(self) -> None:
+        assert pattern_claiming("Dunnes Stores 12", self.ALIASES) == r"Dunnes.*"
+
+    def test_returns_the_first_match_because_aliases_are_ordered(self) -> None:
+        """Two rules match; only the earlier one ever applies."""
+        assert pattern_claiming("Erfgo museum 1", self.ALIASES) == r"Erfgo museum.*"
+
+    def test_returns_none_when_no_rule_claims_it(self) -> None:
+        assert pattern_claiming("Tesco", self.ALIASES) is None
+
+    def test_a_broken_rule_is_skipped_rather_than_raising(self) -> None:
+        """One bad regex in the file must not break the editor."""
+        aliases = {"Erfgo(": "Broken", r"Erfgo.*": "Good"}
+
+        assert pattern_claiming("Erfgo museum 1", aliases) == r"Erfgo.*"

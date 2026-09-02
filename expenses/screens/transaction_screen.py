@@ -1,4 +1,5 @@
 import logging
+from expenses.merchant_editor import apply_merchant_decision
 from expenses.transaction_filter import apply_filters
 import pandas as pd
 from typing import Dict
@@ -18,6 +19,8 @@ from expenses.data_handler import (
     delete_transactions,
     load_merchant_aliases,
     save_merchant_aliases,
+    save_categories,
+    load_default_categories,
     apply_merchant_aliases_to_series,
     update_single_transaction,
     update_transactions,
@@ -681,6 +684,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         """Update the table."""
         self.populate_table()
 
+    def _category_options(self) -> list[str]:
+        """Every category offered in the merchant editor's dropdown."""
+        known = set(load_default_categories()) | set(self.categories.values())
+        return sorted(known)
+
     def action_edit_merchant(self) -> None:
         """Edit merchant alias for the current row."""
         table = self.query_one("#transaction_table", DataTable)
@@ -709,19 +717,18 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             if not result:
                 return  # User cancelled
 
-            pattern, alias = result
+            pattern, alias, category = result
 
-            # Load current aliases
-            aliases = load_merchant_aliases()
-
-            # Add or update the pattern
-            aliases[pattern] = alias
-
-            # Save back to file
+            aliases, categories = apply_merchant_decision(
+                pattern, alias, category, load_merchant_aliases(), load_categories()
+            )
             save_merchant_aliases(aliases)
+            if category:
+                save_categories(categories)
 
             # Reload and refresh the display
             self.merchant_aliases = load_merchant_aliases()
+            self.categories = load_categories()
             self.populate_table()
 
             # Restore cursor position
@@ -733,7 +740,16 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             logging.info(f"Added merchant alias: pattern='{pattern}', alias='{alias}'")
 
         self.app.push_screen(
-            EditMerchantScreen(original_merchant, current_alias), handle_edit_result
+            EditMerchantScreen(
+                original_merchant,
+                current_alias,
+                transactions=self.transactions,
+                aliases=self.merchant_aliases,
+                categories=self.categories,
+                category_types=self.category_types,
+                available_categories=self._category_options(),
+            ),
+            handle_edit_result,
         )
 
     def action_edit_transaction(self) -> None:

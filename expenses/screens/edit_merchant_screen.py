@@ -1,9 +1,13 @@
 from textual.app import ComposeResult
 from textual.screen import ModalScreen
-from textual.widgets import Button, Static, Input, Label
+from textual.widgets import Button, Static, Input, Label, Select
 from textual.containers import Vertical, Horizontal
 from textual.binding import Binding
 import logging
+import pandas as pd
+
+from expenses.data_handler import get_category_spending_type
+from expenses.merchant_editor import preview_alias_change
 
 
 class EditMerchantScreen(ModalScreen[bool]):
@@ -15,17 +19,40 @@ class EditMerchantScreen(ModalScreen[bool]):
     ]
 
     def __init__(
-        self, original_merchant: str, current_alias: str | None = None
+        self,
+        original_merchant: str,
+        current_alias: str | None = None,
+        *,
+        transactions: "pd.DataFrame | None" = None,
+        aliases: dict | None = None,
+        categories: dict | None = None,
+        category_types: dict | None = None,
+        available_categories: list[str] | None = None,
     ) -> None:
         """Initialize the edit screen.
 
         Args:
             original_merchant: The original merchant name from the transaction
             current_alias: The current alias (if one exists), or None
+            transactions: Stored transactions, used to preview what a pattern claims
+            aliases: The alias table as it stands now
+            categories: Merchant-to-category mappings, keyed on display name
+            category_types: Essential/discretionary classification of categories
+            available_categories: Categories offered in the dropdown
         """
         self.original_merchant = original_merchant
         self.current_alias = current_alias
         self.suggested_pattern = self._suggest_pattern(original_merchant)
+        self.transactions = transactions
+        self.aliases = aliases or {}
+        self.categories = categories or {}
+        self.category_types = category_types or {}
+        display_name = current_alias or original_merchant
+        self.current_category = self.categories.get(display_name)
+        options = list(available_categories or sorted(set(self.categories.values())))
+        if self.current_category and self.current_category not in options:
+            options.insert(0, self.current_category)
+        self.category_options = options
         super().__init__()
 
     def _suggest_pattern(self, merchant: str) -> str:
@@ -108,6 +135,15 @@ class EditMerchantScreen(ModalScreen[bool]):
                 placeholder="e.g., Apple",
                 id="alias_input",
             ),
+            Label("Category:"),
+            Select(
+                [(name, name) for name in self.category_options],
+                value=self.current_category or Select.BLANK,
+                allow_blank=True,
+                id="category_select",
+            ),
+            Static("", id="budget_display"),
+            Static("", id="match_preview"),
             Horizontal(
                 Button("Save", variant="success", id="save"),
                 Button("Cancel", variant="error", id="cancel"),
@@ -122,12 +158,70 @@ class EditMerchantScreen(ModalScreen[bool]):
 
     def on_mount(self) -> None:
         """Focus the pattern input on mount."""
+        self._refresh_budget()
+        self._refresh_preview()
         # If there's already an alias, focus on the alias input
         # Otherwise focus on the pattern input
         if self.current_alias:
             self.query_one("#alias_input", Input).focus()
         else:
             self.query_one("#pattern_input", Input).focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Re-run the preview as the pattern is typed."""
+        if event.input.id in ("pattern_input", "alias_input"):
+            self._refresh_preview()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Budget type is derived from the category, so it follows the dropdown."""
+        if event.select.id == "category_select":
+            self._refresh_budget()
+            self._refresh_preview()
+
+    def _selected_category(self) -> str | None:
+        value = self.query_one("#category_select", Select).value
+        return None if value is Select.BLANK else str(value)
+
+    def _refresh_budget(self) -> None:
+        """Show which side of the budget the chosen category falls on."""
+        category = self._selected_category()
+        if not category:
+            text = ""
+        else:
+            spending_type = get_category_spending_type(category, self.category_types)
+            text = f"Budget: {spending_type.capitalize()} (from category)"
+        self.query_one("#budget_display", Static).update(text)
+
+    def _refresh_preview(self) -> None:
+        """Describe what the current pattern would do to the stored transactions."""
+        display = self.query_one("#match_preview", Static)
+        if self.transactions is None:
+            display.update("")
+            return
+
+        pattern = self.query_one("#pattern_input", Input).value.strip()
+        alias = self.query_one("#alias_input", Input).value.strip()
+        preview = preview_alias_change(
+            pattern, alias, self.transactions, self.aliases, self.categories
+        )
+
+        if preview.error:
+            display.update(f"⚠ invalid pattern: {preview.error}")
+            return
+        if not preview.matched:
+            display.update("")
+            return
+
+        lines = [f"▸ matches {preview.matched} transactions · {preview.total:,.2f}"]
+        was = ", ".join(
+            f"{count} {name}"
+            for name, count in preview.current_categories.most_common()
+        )
+        chosen = self._selected_category()
+        if was:
+            lines.append(f"  currently {was}" + (f" → {chosen}" if chosen else ""))
+        lines.append("  claims: " + ", ".join(sorted(preview.merchants)))
+        display.update("\n".join(lines))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -177,5 +271,6 @@ class EditMerchantScreen(ModalScreen[bool]):
             self.notify("Alias name is required", severity="error")
             return
 
-        # Return the pattern and alias as a tuple
-        self.dismiss((pattern, alias))
+        # Return the merchant-level decision: how to match it, what to call it,
+        # and what it counts as.
+        self.dismiss((pattern, alias, self._selected_category()))

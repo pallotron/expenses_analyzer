@@ -1,4 +1,6 @@
 import unittest
+
+import pandas as pd
 from textual.app import App
 from expenses.screens.edit_merchant_screen import EditMerchantScreen
 
@@ -273,3 +275,113 @@ class TestEditMerchantScreen(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMerchantEditorCategoryAndPreview(unittest.IsolatedAsyncioTestCase):
+    """The dialog owns the whole merchant-level decision, and shows its effect."""
+
+    TRANSACTIONS = pd.DataFrame(
+        {
+            "Merchant": ["Erfgo museum 1", "Erfgo museum 2", "Dunnes Stores"],
+            "Amount": [12.0, 12.0, 25.0],
+        }
+    )
+    CATEGORIES = {
+        "Erfgo museum 1": "Insurance",
+        "Erfgo museum 2": "Insurance",
+        "Dunnes Stores": "Groceries",
+    }
+    CATEGORY_TYPES = {
+        "essential": {"categories": ["Groceries", "Insurance"]},
+        "discretionary": {"categories": ["Hobbies"]},
+    }
+
+    def _screen(self, merchant: str = "Erfgo museum 1", alias=None):
+        return EditMerchantScreen(
+            merchant,
+            alias,
+            transactions=self.TRANSACTIONS,
+            aliases={},
+            categories=self.CATEGORIES,
+            category_types=self.CATEGORY_TYPES,
+            available_categories=["Groceries", "Hobbies", "Insurance"],
+        )
+
+    async def test_category_select_starts_on_the_merchants_current_category(
+        self,
+    ) -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            await pilot.app.push_screen(self._screen())
+            await pilot.pause()
+
+            assert pilot.app.screen.query_one("#category_select").value == "Insurance"
+
+    async def test_budget_line_follows_the_selected_category(self) -> None:
+        """Budget type is derived, so it must track the dropdown, not be typed."""
+        app = App()
+        async with app.run_test() as pilot:
+            screen = self._screen()
+            await pilot.app.push_screen(screen)
+            await pilot.pause()
+            assert "Essential" in str(screen.query_one("#budget_display").content)
+
+            screen.query_one("#category_select").value = "Hobbies"
+            await pilot.pause()
+
+            assert "Discretionary" in str(screen.query_one("#budget_display").content)
+
+    async def test_preview_counts_what_the_pattern_would_claim(self) -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            screen = self._screen()
+            await pilot.app.push_screen(screen)
+            await pilot.pause()
+
+            screen.query_one("#pattern_input").value = "Erfgo.*"
+            await pilot.pause()
+
+            preview = str(screen.query_one("#match_preview").content)
+            assert "2" in preview and "24.00" in preview
+
+    async def test_preview_names_the_merchants_swept_in(self) -> None:
+        """An unexpected name in the list is how a too-broad pattern is caught."""
+        app = App()
+        async with app.run_test() as pilot:
+            screen = self._screen()
+            await pilot.app.push_screen(screen)
+            await pilot.pause()
+
+            screen.query_one("#pattern_input").value = ".*s.*"
+            await pilot.pause()
+
+            assert "Dunnes Stores" in str(screen.query_one("#match_preview").content)
+
+    async def test_preview_reports_an_invalid_pattern(self) -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            screen = self._screen()
+            await pilot.app.push_screen(screen)
+            await pilot.pause()
+
+            screen.query_one("#pattern_input").value = "Erfgo("
+            await pilot.pause()
+
+            assert "invalid" in str(screen.query_one("#match_preview").content).lower()
+
+    async def test_save_returns_the_chosen_category(self) -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            screen = self._screen()
+            result = []
+            await pilot.app.push_screen(screen, lambda r: result.append(r))
+            await pilot.pause()
+
+            screen.query_one("#pattern_input").value = "Erfgo.*"
+            screen.query_one("#alias_input").value = "AG CIA Erfgoed"
+            screen.query_one("#category_select").value = "Hobbies"
+            await pilot.pause()
+            await pilot.press("ctrl+s")
+            await pilot.pause()
+
+            assert result == [("Erfgo.*", "AG CIA Erfgoed", "Hobbies")]

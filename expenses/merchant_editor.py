@@ -48,7 +48,7 @@ def preview_alias_change(
         the categories those rows resolve to today, and the merchants being
         swept together, which is how an over-broad pattern gives itself away.
     """
-    if not pattern or not alias or transactions.empty:
+    if not pattern or transactions.empty:
         return AliasPreview()
 
     try:
@@ -58,13 +58,16 @@ def preview_alias_change(
 
     # Assigning an existing key keeps its position, so editing a pattern can
     # outrank later ones while a brand new pattern is only tried last.
+    # The alias is only a label here; a placeholder lets the preview work while
+    # the user is still typing the pattern, before naming the merchant.
+    target = alias or "\x00pending-alias"
     candidate = dict(aliases)
-    candidate[pattern] = alias
+    candidate[pattern] = target
 
     before = apply_merchant_aliases_to_series(transactions["Merchant"], aliases)
     after = apply_merchant_aliases_to_series(transactions["Merchant"], candidate)
 
-    claimed = after == alias
+    claimed = after == target
 
     return AliasPreview(
         matched=int(claimed.sum()),
@@ -74,3 +77,29 @@ def preview_alias_change(
         ),
         merchants=Counter(before[claimed]),
     )
+
+
+def apply_merchant_decision(
+    pattern: str,
+    alias: str,
+    category: Optional[str],
+    aliases: Dict[str, str],
+    categories: Dict[str, str],
+) -> "tuple[Dict[str, str], Dict[str, str]]":
+    """Fold one merchant edit into the alias table and the category map.
+
+    Categories are keyed on the display name, so renaming a merchant writes its
+    category under the new name; the old key is left alone rather than deleted,
+    since another pattern may still resolve to it.
+
+    Returns:
+        New (aliases, categories) dicts. The arguments are not modified.
+    """
+    updated_aliases = dict(aliases)
+    updated_aliases[pattern] = alias
+
+    updated_categories = dict(categories)
+    if category:
+        updated_categories[alias] = category
+
+    return updated_aliases, updated_categories

@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from expenses.merchant_editor import preview_alias_change
+from expenses.merchant_editor import apply_merchant_decision, preview_alias_change
 
 
 @pytest.fixture
@@ -92,3 +92,57 @@ def test_an_empty_pattern_previews_nothing(transactions) -> None:
 
     assert preview.error is None
     assert preview.matched == 0
+
+
+def test_a_pattern_previews_before_an_alias_has_been_typed(transactions) -> None:
+    """You write the pattern first, so it must report matches straight away."""
+    preview = preview_alias_change(r"Erfgo.*", "", transactions, {}, CATEGORIES)
+
+    assert preview.matched == 3
+    assert preview.total == pytest.approx(77.0)
+
+
+class TestApplyMerchantDecision:
+    """Saving the dialog writes one alias rule and one category, consistently."""
+
+    def test_the_pattern_is_added_to_the_alias_table(self) -> None:
+        aliases, _ = apply_merchant_decision(r"Erfgo.*", "AG CIA Erfgoed", None, {}, {})
+
+        assert aliases == {r"Erfgo.*": "AG CIA Erfgoed"}
+
+    def test_the_category_is_keyed_on_the_display_alias(self) -> None:
+        """Categories are looked up by display name, so that is what to write."""
+        _, categories = apply_merchant_decision(
+            r"Erfgo.*", "AG CIA Erfgoed", "Hobbies", {}, {}
+        )
+
+        assert categories["AG CIA Erfgoed"] == "Hobbies"
+
+    def test_renaming_the_alias_carries_the_category_to_the_new_name(self) -> None:
+        _, categories = apply_merchant_decision(
+            r"Erfgo.*",
+            "Museums",
+            "Hobbies",
+            {r"Erfgo.*": "Old Name"},
+            {"Old Name": "Hobbies"},
+        )
+
+        assert categories["Museums"] == "Hobbies"
+
+    def test_leaving_the_category_unset_touches_no_categories(self) -> None:
+        before = {"Something Else": "Groceries"}
+        _, categories = apply_merchant_decision(
+            r"Erfgo.*", "AG CIA Erfgoed", None, {}, before
+        )
+
+        assert categories == before
+
+    def test_the_inputs_are_not_mutated(self) -> None:
+        """The caller decides whether to persist, so it keeps its originals."""
+        aliases, categories = {}, {}
+
+        apply_merchant_decision(
+            r"Erfgo.*", "AG CIA Erfgoed", "Hobbies", aliases, categories
+        )
+
+        assert aliases == {} and categories == {}

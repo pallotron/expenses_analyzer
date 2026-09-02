@@ -642,6 +642,8 @@ def append_transactions(
             )
 
     # Now combine and deduplicate
+    existing_count = len(existing_transactions)
+    new_count = len(new_transactions)
     combined = pd.concat([existing_transactions, new_transactions], ignore_index=True)
 
     # Create a temporary column with aliased merchant names for deduplication
@@ -654,15 +656,26 @@ def append_transactions(
     else:
         combined["_DedupeKey"] = combined["Merchant"]
 
-    # De-duplicate based on Date, Aliased Merchant, Amount (keep first occurrence)
+    # Number each row within its (Date, Merchant, Amount) group, counting the
+    # existing and incoming sides separately. A re-imported row lands on the same
+    # number as the row it duplicates and is dropped; a second genuine purchase
+    # from the same merchant on the same day gets a number of its own and stays.
+    combined["_Side"] = ["existing"] * existing_count + ["new"] * new_count
+    combined["_Occurrence"] = combined.groupby(
+        ["Date", "_DedupeKey", "Amount", "_Side"]
+    ).cumcount()
+
+    # De-duplicate based on Date, Aliased Merchant, Amount, Occurrence (keep first)
     # This prevents the same transaction from being imported multiple times, regardless of source
     # It also handles cases where a transaction is re-imported after being restored.
     combined.drop_duplicates(
-        subset=["Date", "_DedupeKey", "Amount"], keep="first", inplace=True
+        subset=["Date", "_DedupeKey", "Amount", "_Occurrence"],
+        keep="first",
+        inplace=True,
     )
 
-    # Remove the temporary deduplication column before saving
-    combined.drop(columns=["_DedupeKey"], inplace=True)
+    # Remove the temporary deduplication columns before saving
+    combined.drop(columns=["_DedupeKey", "_Side", "_Occurrence"], inplace=True)
 
     save_transactions_to_parquet(combined)
 

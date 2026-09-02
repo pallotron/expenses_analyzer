@@ -501,3 +501,97 @@ class TestDataHandler(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAppendTransactionsDeduplication(unittest.TestCase):
+    """Dedup must collapse re-imports without eating genuine repeat purchases."""
+
+    def _append(self, existing_df, new_df, aliases=None):
+        """Run append_transactions against in-memory data, return what was saved."""
+        with (
+            patch(
+                "expenses.data_handler.load_transactions_from_parquet",
+                return_value=existing_df.copy(),
+            ),
+            patch("expenses.data_handler.save_transactions_to_parquet") as mock_save,
+            patch(
+                "expenses.data_handler.load_merchant_aliases",
+                return_value=aliases or {},
+            ),
+        ):
+            append_transactions(new_df)
+            mock_save.assert_called_once()
+            return mock_save.call_args[0][0]
+
+    @staticmethod
+    def _frame(rows, deleted=False):
+        return pd.DataFrame(
+            {
+                "Date": pd.to_datetime([r[0] for r in rows]),
+                "Merchant": [r[1] for r in rows],
+                "Amount": [r[2] for r in rows],
+                "Deleted": [deleted] * len(rows),
+                "Type": ["expense"] * len(rows),
+            }
+        )
+
+    def test_same_day_repeat_purchase_survives_aliasing(self) -> None:
+        """Two tickets, same shop, same day, same price: both are real."""
+        aliases = {r".*AG CIA Erfgo.*": "AG CIA Erfgoed"}
+        existing = self._frame([("2026-08-12", "Old Merchant", 5.00)])
+        new = self._frame(
+            [
+                ("2026-08-12", "CNC AG CIA Erfgo 10/08 0", 12.00),
+                ("2026-08-12", "CNC AG CIA Erfgo 10/08 1", 12.00),
+            ]
+        )
+
+        saved = self._append(existing, new, aliases)
+
+        museum = saved[saved["Merchant"].str.contains("Erfgo")]
+        self.assertEqual(len(museum), 2)
+        self.assertEqual(museum["Amount"].sum(), 24.00)
+
+    def test_reimporting_the_same_batch_adds_nothing(self) -> None:
+        """The whole point of dedup: importing the same file twice is a no-op."""
+        rows = [
+            ("2026-08-12", "CNC AG CIA Erfgo 10/08 0", 12.00),
+            ("2026-08-12", "CNC AG CIA Erfgo 10/08 1", 12.00),
+        ]
+        aliases = {r".*AG CIA Erfgo.*": "AG CIA Erfgoed"}
+        existing = self._frame(rows)
+
+        saved = self._append(existing, self._frame(rows), aliases)
+
+        self.assertEqual(len(saved), 2)
+
+    def test_extra_occurrence_in_reimport_is_kept(self) -> None:
+        """Three visits where two were already recorded means one is new."""
+        aliases = {r".*AG CIA Erfgo.*": "AG CIA Erfgoed"}
+        existing = self._frame(
+            [
+                ("2026-08-12", "CNC AG CIA Erfgo 10/08 0", 12.00),
+                ("2026-08-12", "CNC AG CIA Erfgo 10/08 1", 12.00),
+            ]
+        )
+        new = self._frame(
+            [
+                ("2026-08-12", "CNC AG CIA Erfgo 10/08 0", 12.00),
+                ("2026-08-12", "CNC AG CIA Erfgo 10/08 1", 12.00),
+                ("2026-08-12", "CNC AG CIA Erfgo 10/08 2", 12.00),
+            ]
+        )
+
+        saved = self._append(existing, new, aliases)
+
+        self.assertEqual(len(saved), 3)
+
+    def test_same_transaction_from_two_sources_still_dedupes(self) -> None:
+        """Aliases exist so one purchase seen twice under different names collapses."""
+        aliases = {r"STARBUCKS.*": "Starbucks", r"Starbucks Coffee": "Starbucks"}
+        existing = self._frame([("2026-08-12", "STARBUCKS #1234", 4.50)])
+        new = self._frame([("2026-08-12", "Starbucks Coffee", 4.50)])
+
+        saved = self._append(existing, new, aliases)
+
+        self.assertEqual(len(saved), 1)

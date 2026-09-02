@@ -29,9 +29,14 @@ from expenses.screens.tag_transactions_screen import TagTransactionsScreen
 from expenses.tag_suggester import TagSuggester
 from expenses.tags import all_tags_in_series
 from textual.binding import Binding
-from typing import Any
+from typing import Any, Optional
 
 from datetime import datetime
+
+
+def _exact(value: Optional[str]) -> str:
+    """Quote a drill-down value so it matches that row and nothing wider."""
+    return f'"{value}"' if value else ""
 
 
 class TransactionScreen(BaseScreen, DataTableOperationsMixin):
@@ -121,9 +126,9 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Vertical(
                 Static("Merchant", classes="filter-label"),
                 ClearableInput(
-                    placeholder="contains...",
+                    placeholder='contains… ("exact")',
                     id="merchant_filter",
-                    value=self.filter_merchant or "",
+                    value=_exact(self.filter_merchant),
                 ),
                 classes="filter-field",
             ),
@@ -140,18 +145,18 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Vertical(
                 Static("Source", classes="filter-label"),
                 ClearableInput(
-                    placeholder="contains...",
+                    placeholder='contains… ("exact")',
                     id="source_filter",
-                    value=self.filter_source or "",
+                    value=_exact(self.filter_source),
                 ),
                 classes="filter-field",
             ),
             Vertical(
                 Static("Category", classes="filter-label"),
                 ClearableInput(
-                    placeholder="contains...",
+                    placeholder='contains… ("exact")',
                     id="category_filter",
-                    value=self.filter_category or "",
+                    value=_exact(self.filter_category),
                 ),
                 classes="filter-field",
             ),

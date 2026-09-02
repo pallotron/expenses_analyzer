@@ -1,5 +1,18 @@
 import pandas as pd
-from typing import Dict, Tuple, Any
+from typing import Any, Dict, Optional, Tuple
+
+
+def _unquote(value: Any) -> Optional[str]:
+    """The text inside a "quoted" filter value, or None if it is not quoted.
+
+    Quoting is how a caller asks for an exact match instead of a substring
+    search: drill-downs from the Summary screen quote what they pass, so
+    clicking a merchant called "NS" does not also pull in "Bunsen".
+    """
+    text = str(value)
+    if len(text) >= 2 and text.startswith('"') and text.endswith('"'):
+        return text[1:-1]
+    return None
 
 
 def apply_filters(
@@ -26,11 +39,18 @@ def apply_filters(
             elif op == "<=":
                 filtered_df = filtered_df[filtered_df[column] <= value]
             elif op == "contains":
-                filtered_df = filtered_df[
-                    filtered_df[column].str.contains(
-                        value, case=False, na=False, regex=False
-                    )
-                ]
+                exact = _unquote(value)
+                if exact is not None:
+                    filtered_df = filtered_df[
+                        filtered_df[column].astype(str).str.casefold()
+                        == exact.casefold()
+                    ]
+                else:
+                    filtered_df = filtered_df[
+                        filtered_df[column].str.contains(
+                            value, case=False, na=False, regex=False
+                        )
+                    ]
             elif op == "==":
                 filtered_df = filtered_df[filtered_df[column] == value]
         except (ValueError, TypeError):

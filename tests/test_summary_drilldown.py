@@ -15,6 +15,8 @@ CATEGORIES = {
     "Electric Ireland": "Utilities",
     "Booking.com": "Travel",
     "Acme Payroll": "Salary",
+    "NS": "Transportation",
+    "Bunsen": "Dining",
 }
 CATEGORY_TYPES = {
     "essential": {"categories": ["Utilities"], "annual_budget": 100.0},
@@ -47,6 +49,19 @@ def _make_df() -> pd.DataFrame:
             "Tags": "",
         }
     )
+    # "NS" is a substring of "Bunsen", which is the whole point of these rows.
+    for merchant, amount in (("NS", 10.0), ("NS", 10.0), ("Bunsen", 31.0)):
+        rows.append(
+            {
+                "Date": pd.Timestamp(year=2026, month=2, day=5),
+                "Merchant": merchant,
+                "Amount": amount,
+                "Source": "CSV Import",
+                "Type": "expense",
+                "Deleted": False,
+                "Tags": "",
+            }
+        )
     for month in range(1, 4):
         rows.append(
             {
@@ -201,3 +216,46 @@ async def test_income_drilldown_leaves_the_budget_toggle_alone(patched_data) -> 
         assert screen.filter_budget_type is None
         assert _variant(screen, "budget_all_button") == "primary"
         assert _variant(screen, "type_income_button") == "primary"
+
+
+async def _click_named_row(pilot: Any, table_id: str, name: str) -> TransactionScreen:
+    """Click the row whose first column reads `name`."""
+    table = pilot.app.screen.query_one(f"#{table_id}", DataTable)
+    row = next(
+        i
+        for i in range(table.row_count)
+        if str(table.get_cell_at((i, 0))).strip() == name
+    )
+    return await _click_row(pilot, table_id, row)
+
+
+@pytest.mark.asyncio
+async def test_short_merchant_drilldown_excludes_substring_matches(
+    patched_data,
+) -> None:
+    """Clicking NS must not drag in Bunsen, which merely contains "ns"."""
+    async with ExpensesApp().run_test() as pilot:
+        await pilot.pause()
+        screen = await _click_named_row(pilot, "top_merchants_2026_all", "NS")
+
+        assert isinstance(screen, TransactionScreen)
+        assert set(screen.display_df["DisplayMerchant"]) == {"NS"}
+        assert screen.display_df["Amount"].sum() == 20.0
+
+
+@pytest.mark.asyncio
+async def test_drilldown_total_matches_the_summary_row(patched_data) -> None:
+    """The whole point: the view reconciles with the figure that was clicked."""
+    async with ExpensesApp().run_test() as pilot:
+        await pilot.pause()
+        table = pilot.app.screen.query_one("#top_merchants_2026_all", DataTable)
+        row = next(
+            i
+            for i in range(table.row_count)
+            if str(table.get_cell_at((i, 0))).strip() == "NS"
+        )
+        summary_total = float(str(table.get_cell_at((row, 3))).replace(",", ""))
+
+        screen = await _click_named_row(pilot, "top_merchants_2026_all", "NS")
+
+        assert screen.display_df["Amount"].sum() == summary_total

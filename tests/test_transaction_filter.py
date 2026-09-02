@@ -190,3 +190,52 @@ def test_contains_filter_on_tags_column():
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestQuotedExactMatching(unittest.TestCase):
+    """A quoted filter value means "this exactly", not "contains this"."""
+
+    def setUp(self) -> None:
+        self.df = pd.DataFrame(
+            {
+                "merchant": ["NS", "Bunsen", "AXA Insurance", "NS"],
+                "category": ["Home", "Home Improvement", "Dining", "Home"],
+            }
+        )
+
+    def test_quoted_value_excludes_substring_matches(self) -> None:
+        """'NS' is a substring of Bunsen and Insurance; quoting must exclude them."""
+        filters = {"merchant": ("merchant", "contains", '"NS"')}
+        result = apply_filters(self.df, filters)
+
+        self.assertEqual(len(result), 2)
+        self.assertTrue(all(result["merchant"] == "NS"))
+
+    def test_bare_value_still_matches_substrings(self) -> None:
+        """Typing a bare value keeps searching, which is what it is for."""
+        filters = {"merchant": ("merchant", "contains", "NS")}
+        result = apply_filters(self.df, filters)
+
+        self.assertEqual(len(result), 4)
+
+    def test_quoted_value_is_case_insensitive(self) -> None:
+        """Exactness is about the whole value, not about capitals."""
+        filters = {"category": ("category", "contains", '"home"')}
+        result = apply_filters(self.df, filters)
+
+        self.assertEqual(len(result), 2)
+        self.assertTrue(all(result["category"] == "Home"))
+
+    def test_quoted_value_with_no_exact_match_returns_nothing(self) -> None:
+        """A quoted near-miss must not silently fall back to substring."""
+        filters = {"merchant": ("merchant", "contains", '"Insurance"')}
+        result = apply_filters(self.df, filters)
+
+        self.assertEqual(len(result), 0)
+
+    def test_lone_quote_is_treated_as_text(self) -> None:
+        """An unbalanced quote is a typo, not a mode switch."""
+        filters = {"merchant": ("merchant", "contains", '"NS')}
+        result = apply_filters(self.df, filters)
+
+        self.assertEqual(len(result), 0)

@@ -6,7 +6,7 @@ from textual.binding import Binding
 import logging
 
 
-class EditTransactionScreen(ModalScreen[bool]):
+class EditMerchantScreen(ModalScreen[bool]):
     """A modal screen to add/edit merchant alias for a transaction."""
 
     BINDINGS = [

@@ -1,16 +1,16 @@
 import unittest
 from textual.app import App
-from expenses.screens.edit_transaction_screen import EditTransactionScreen
+from expenses.screens.edit_merchant_screen import EditMerchantScreen
 
 
-class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
-    """Test suite for EditTransactionScreen."""
+class TestEditMerchantScreen(unittest.IsolatedAsyncioTestCase):
+    """Test suite for EditMerchantScreen."""
 
     async def test_screen_composition(self) -> None:
         """Test that screen has required elements."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("APPLE.COM/BILL")
+            screen = EditMerchantScreen("APPLE.COM/BILL")
             await pilot.app.push_screen(screen)
 
             # Check that all required elements are present
@@ -27,7 +27,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_pattern_suggestion_basic(self) -> None:
         """Test that pattern suggestion works for basic merchant names."""
-        screen = EditTransactionScreen("APPLE.COM/BILL")
+        screen = EditMerchantScreen("APPLE.COM/BILL")
         # Dots should be escaped (note: backslash in the pattern itself needs escaping in Python string)
         assert "APPLE" in screen.suggested_pattern
         assert "\\.COM" in screen.suggested_pattern
@@ -35,7 +35,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_pattern_suggestion_with_date(self) -> None:
         """Test that dates are removed from pattern suggestion."""
-        screen = EditTransactionScreen("POS APPLE.COM/BI 02/08")
+        screen = EditMerchantScreen("POS APPLE.COM/BI 02/08")
         # Date should be removed, and result should match POS APPLE.COM/BI.*
         assert "02/08" not in screen.suggested_pattern
         assert "POS" in screen.suggested_pattern
@@ -43,14 +43,14 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_pattern_suggestion_with_trailing_numbers(self) -> None:
         """Test that trailing numbers are removed from pattern."""
-        screen = EditTransactionScreen("AMAZON MKTPLACE 12345")
+        screen = EditMerchantScreen("AMAZON MKTPLACE 12345")
         # Trailing numbers should be removed
         assert "12345" not in screen.suggested_pattern
         assert "AMAZON" in screen.suggested_pattern
 
     async def test_pattern_suggestion_escapes_special_chars(self) -> None:
         """Test that special regex characters are escaped."""
-        screen = EditTransactionScreen("TEST*MERCHANT+NAME?")
+        screen = EditMerchantScreen("TEST*MERCHANT+NAME?")
         # Special chars should be escaped
         assert "\\*" in screen.suggested_pattern
         assert "\\+" in screen.suggested_pattern
@@ -60,7 +60,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test creating a new alias (no existing alias)."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("APPLE.COM/BILL", current_alias=None)
+            screen = EditMerchantScreen("APPLE.COM/BILL", current_alias=None)
             await pilot.app.push_screen(screen)
 
             # Pattern input should have suggested pattern
@@ -75,7 +75,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test editing an existing alias."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("APPLE.COM/BILL", current_alias="Apple")
+            screen = EditMerchantScreen("APPLE.COM/BILL", current_alias="Apple")
             await pilot.app.push_screen(screen)
 
             # Pattern input should be empty when editing
@@ -90,7 +90,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test that cancel button dismisses screen with False."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("TEST MERCHANT")
+            screen = EditMerchantScreen("TEST MERCHANT")
             await pilot.app.push_screen(screen)
 
             cancel_button = pilot.app.screen.query_one("#cancel")
@@ -104,7 +104,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test saving with valid pattern and alias."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("TEST MERCHANT")
+            screen = EditMerchantScreen("TEST MERCHANT")
             await pilot.app.push_screen(screen)
 
             # Set pattern and alias
@@ -126,7 +126,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test that saving without alias shows error."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("TEST MERCHANT")
+            screen = EditMerchantScreen("TEST MERCHANT")
             await pilot.app.push_screen(screen)
 
             # Set only pattern, no alias
@@ -148,7 +148,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test that invalid regex pattern shows error."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("TEST MERCHANT")
+            screen = EditMerchantScreen("TEST MERCHANT")
             await pilot.app.push_screen(screen)
 
             # Set invalid regex pattern
@@ -170,7 +170,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test that saving with alias but no pattern shows error."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("TEST MERCHANT")
+            screen = EditMerchantScreen("TEST MERCHANT")
             await pilot.app.push_screen(screen)
 
             # Clear pattern, set alias
@@ -192,7 +192,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test that emptying both pattern and alias dismisses."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("TEST MERCHANT")
+            screen = EditMerchantScreen("TEST MERCHANT")
             await pilot.app.push_screen(screen)
 
             # Clear both
@@ -214,7 +214,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test that Escape key cancels the dialog."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("TEST MERCHANT")
+            screen = EditMerchantScreen("TEST MERCHANT")
             await pilot.app.push_screen(screen)
 
             # Press escape
@@ -228,7 +228,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
         """Test that Ctrl+S triggers save."""
         app = App()
         async with app.run_test() as pilot:
-            screen = EditTransactionScreen("TEST MERCHANT")
+            screen = EditMerchantScreen("TEST MERCHANT")
             await pilot.app.push_screen(screen)
 
             # Set valid values
@@ -247,7 +247,7 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_pattern_suggestion_with_multiple_spaces(self) -> None:
         """Test that multiple spaces are normalized."""
-        screen = EditTransactionScreen("TEST   MERCHANT   NAME")
+        screen = EditMerchantScreen("TEST   MERCHANT   NAME")
         # Multiple spaces should be converted to \s+
         assert "\\s+" in screen.suggested_pattern
         # Should not have multiple consecutive spaces
@@ -255,19 +255,19 @@ class TestEditTransactionScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_pattern_suggestion_with_parentheses(self) -> None:
         """Test that parentheses are properly escaped."""
-        screen = EditTransactionScreen("MERCHANT(TEST)")
+        screen = EditMerchantScreen("MERCHANT(TEST)")
         assert "\\(" in screen.suggested_pattern
         assert "\\)" in screen.suggested_pattern
 
     async def test_pattern_suggestion_with_brackets(self) -> None:
         """Test that brackets are properly escaped."""
-        screen = EditTransactionScreen("MERCHANT[TEST]")
+        screen = EditMerchantScreen("MERCHANT[TEST]")
         assert "\\[" in screen.suggested_pattern
         assert "\\]" in screen.suggested_pattern
 
     async def test_pattern_suggestion_with_backslash(self) -> None:
         """Test that backslashes are properly escaped."""
-        screen = EditTransactionScreen("MERCHANT\\TEST")
+        screen = EditMerchantScreen("MERCHANT\\TEST")
         assert "\\\\" in screen.suggested_pattern
 
 

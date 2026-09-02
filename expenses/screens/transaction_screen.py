@@ -702,7 +702,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             current_alias = None  # No alias currently
 
         # Import here to avoid circular import
-        from expenses.screens.edit_transaction_screen import EditTransactionScreen
+        from expenses.screens.edit_merchant_screen import EditMerchantScreen
 
         def handle_edit_result(result):
             """Handle the result from the edit screen."""
@@ -733,7 +733,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             logging.info(f"Added merchant alias: pattern='{pattern}', alias='{alias}'")
 
         self.app.push_screen(
-            EditTransactionScreen(original_merchant, current_alias), handle_edit_result
+            EditMerchantScreen(original_merchant, current_alias), handle_edit_result
         )
 
     def action_edit_transaction(self) -> None:

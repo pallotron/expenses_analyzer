@@ -385,3 +385,25 @@ class TestMerchantEditorCategoryAndPreview(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
 
             assert result == [("Erfgo.*", "AG CIA Erfgoed", "Hobbies")]
+
+
+class TestMerchantEditorIsADialog(unittest.IsolatedAsyncioTestCase):
+    """It must float over the transaction list, not fill the terminal."""
+
+    async def test_the_dialog_is_narrower_than_the_screen(self) -> None:
+        app = App()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.app.push_screen(EditMerchantScreen("APPLE.COM/BILL"))
+            await pilot.pause()
+
+            dialog = pilot.app.screen.query_one("#dialog")
+            assert 0 < dialog.size.width < pilot.app.screen.size.width
+
+    async def test_the_dialog_is_shorter_than_the_screen(self) -> None:
+        app = App()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.app.push_screen(EditMerchantScreen("APPLE.COM/BILL"))
+            await pilot.pause()
+
+            dialog = pilot.app.screen.query_one("#dialog")
+            assert 0 < dialog.size.height < pilot.app.screen.size.height

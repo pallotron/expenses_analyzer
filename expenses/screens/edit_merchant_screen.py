@@ -13,6 +13,61 @@ from expenses.merchant_editor import preview_alias_change
 class EditMerchantScreen(ModalScreen[bool]):
     """A modal screen to add/edit merchant alias for a transaction."""
 
+    DEFAULT_CSS = """
+    EditMerchantScreen {
+        align: center middle;
+    }
+
+    EditMerchantScreen #dialog {
+        width: 70;
+        height: auto;
+        max-height: 90%;
+        overflow-y: auto;
+        padding: 1 2;
+        background: $surface;
+        border: solid $primary;
+    }
+
+    EditMerchantScreen #title {
+        text-align: center;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+
+    EditMerchantScreen #instruction {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+
+    EditMerchantScreen #original_merchant {
+        text-style: bold;
+    }
+
+    EditMerchantScreen #pattern_help {
+        color: $text-muted;
+    }
+
+    EditMerchantScreen #budget_display {
+        color: $text-muted;
+    }
+
+    EditMerchantScreen #match_preview {
+        color: $text-muted;
+        margin-top: 1;
+    }
+
+    EditMerchantScreen #button_container {
+        margin-top: 1;
+        align: center middle;
+    }
+
+    EditMerchantScreen #help_text {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 1;
+    }
+    """
+
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", show=False),
         Binding("ctrl+s", "save", "Save", show=False),

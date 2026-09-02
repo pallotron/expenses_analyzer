@@ -8,6 +8,8 @@ import pandas as pd
 
 from expenses.data_handler import get_category_spending_type
 from expenses.merchant_editor import pattern_claiming, preview_alias_change
+from expenses.tag_suggester import TagSuggester
+from expenses.tags import normalize_tag
 
 
 class EditMerchantScreen(ModalScreen[bool]):
@@ -83,6 +85,7 @@ class EditMerchantScreen(ModalScreen[bool]):
         categories: dict | None = None,
         category_types: dict | None = None,
         available_categories: list[str] | None = None,
+        known_tags: list[str] | None = None,
     ) -> None:
         """Initialize the edit screen.
 
@@ -94,6 +97,7 @@ class EditMerchantScreen(ModalScreen[bool]):
             categories: Merchant-to-category mappings, keyed on display name
             category_types: Essential/discretionary classification of categories
             available_categories: Categories offered in the dropdown
+            known_tags: Tags already in use, for typeahead
         """
         self.original_merchant = original_merchant
         self.current_alias = current_alias
@@ -111,6 +115,7 @@ class EditMerchantScreen(ModalScreen[bool]):
         if self.current_category and self.current_category not in options:
             options.insert(0, self.current_category)
         self.category_options = options
+        self.known_tags = known_tags or []
         super().__init__()
 
     def _suggest_pattern(self, merchant: str) -> str:
@@ -201,6 +206,12 @@ class EditMerchantScreen(ModalScreen[bool]):
                 id="category_select",
             ),
             Static("", id="budget_display"),
+            Label("Tags (added to matching transactions):"),
+            Input(
+                placeholder="comma separated",
+                id="tags_input",
+                suggester=TagSuggester(self.known_tags),
+            ),
             Static("", id="match_preview"),
             Horizontal(
                 Button("Save", variant="success", id="save"),
@@ -227,7 +238,7 @@ class EditMerchantScreen(ModalScreen[bool]):
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Re-run the preview as the pattern is typed."""
-        if event.input.id in ("pattern_input", "alias_input"):
+        if event.input.id in ("pattern_input", "alias_input", "tags_input"):
             self._refresh_preview()
 
     def on_select_changed(self, event: Select.Changed) -> None:
@@ -235,6 +246,11 @@ class EditMerchantScreen(ModalScreen[bool]):
         if event.select.id == "category_select":
             self._refresh_budget()
             self._refresh_preview()
+
+    def _typed_tags(self) -> list[str]:
+        """The tags box, normalised into storable tokens."""
+        raw = self.query_one("#tags_input", Input).value
+        return [tag for tag in (normalize_tag(t) for t in raw.split(",")) if tag]
 
     def _selected_category(self) -> str | None:
         value = self.query_one("#category_select", Select).value
@@ -279,6 +295,9 @@ class EditMerchantScreen(ModalScreen[bool]):
         if was:
             lines.append(f"  currently {was}" + (f" → {chosen}" if chosen else ""))
         lines.append("  claims: " + ", ".join(sorted(preview.merchants)))
+        tags = self._typed_tags()
+        if tags:
+            lines.append(f"  + tags {preview.matched} rows {', '.join(tags)}")
         display.update("\n".join(lines))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -331,4 +350,4 @@ class EditMerchantScreen(ModalScreen[bool]):
 
         # Return the merchant-level decision: how to match it, what to call it,
         # and what it counts as.
-        self.dismiss((pattern, alias, self._selected_category()))
+        self.dismiss((pattern, alias, self._selected_category(), self._typed_tags()))

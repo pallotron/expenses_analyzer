@@ -717,7 +717,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             if not result:
                 return  # User cancelled
 
-            pattern, alias, category = result
+            pattern, alias, category, tags = result
 
             aliases, categories = apply_merchant_decision(
                 pattern, alias, category, load_merchant_aliases(), load_categories()
@@ -725,6 +725,14 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             save_merchant_aliases(aliases)
             if category:
                 save_categories(categories)
+
+            tagged = 0
+            if tags:
+                stored = load_transactions_from_parquet(include_deleted=True)
+                display = apply_merchant_aliases_to_series(stored["Merchant"], aliases)
+                tagged = tag_transactions(
+                    stored.index[display == alias].tolist(), tags, mode="add"
+                )
 
             # Reload and refresh the display
             self.merchant_aliases = load_merchant_aliases()
@@ -734,9 +742,10 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             # Restore cursor position
             table.move_cursor(row=table.cursor_row)
 
-            self.app.show_notification(
-                f"Added alias: '{original_merchant}' → '{alias}'", timeout=3
-            )
+            message = f"Added alias: '{original_merchant}' → '{alias}'"
+            if tagged:
+                message += f", tagged {tagged} transaction(s)"
+            self.app.show_notification(message, timeout=3)
             logging.info(f"Added merchant alias: pattern='{pattern}', alias='{alias}'")
 
         self.app.push_screen(
@@ -748,6 +757,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
                 categories=self.categories,
                 category_types=self.category_types,
                 available_categories=self._category_options(),
+                known_tags=self._known_tags(),
             ),
             handle_edit_result,
         )

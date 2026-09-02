@@ -385,7 +385,7 @@ class TestMerchantEditorCategoryAndPreview(unittest.IsolatedAsyncioTestCase):
             await pilot.press("ctrl+s")
             await pilot.pause()
 
-            assert result == [("Erfgo.*", "AG CIA Erfgoed", "Hobbies")]
+            assert result == [("Erfgo.*", "AG CIA Erfgoed", "Hobbies", [])]
 
 
 class TestMerchantEditorIsADialog(unittest.IsolatedAsyncioTestCase):
@@ -434,3 +434,72 @@ class TestMerchantEditorSeedsTheExistingRule(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
 
             assert screen.query_one("#pattern_input").value == screen.suggested_pattern
+
+
+class TestMerchantEditorTags(unittest.IsolatedAsyncioTestCase):
+    """Tags typed here apply to every transaction the pattern matches."""
+
+    TRANSACTIONS = pd.DataFrame(
+        {"Merchant": ["Erfgo a", "Erfgo b"], "Amount": [12.0, 12.0]}
+    )
+
+    def _screen(self):
+        return EditMerchantScreen(
+            "Erfgo a",
+            None,
+            transactions=self.TRANSACTIONS,
+            aliases={},
+            categories={},
+            category_types={},
+            available_categories=["Hobbies"],
+            known_tags=["museums", "travel:belgium-2026"],
+        )
+
+    async def test_save_returns_the_tags_that_were_typed(self) -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            screen = self._screen()
+            result = []
+            await pilot.app.push_screen(screen, lambda r: result.append(r))
+            await pilot.pause()
+
+            screen.query_one("#pattern_input").value = "Erfgo.*"
+            screen.query_one("#alias_input").value = "Erfgoed"
+            screen.query_one("#tags_input").value = "Museums, travel:belgium-2026"
+            await pilot.pause()
+            await pilot.press("ctrl+s")
+            await pilot.pause()
+
+            assert result == [
+                ("Erfgo.*", "Erfgoed", None, ["museums", "travel:belgium-2026"])
+            ]
+
+    async def test_no_tags_typed_returns_an_empty_list(self) -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            screen = self._screen()
+            result = []
+            await pilot.app.push_screen(screen, lambda r: result.append(r))
+            await pilot.pause()
+
+            screen.query_one("#pattern_input").value = "Erfgo.*"
+            screen.query_one("#alias_input").value = "Erfgoed"
+            await pilot.pause()
+            await pilot.press("ctrl+s")
+            await pilot.pause()
+
+            assert result[0][3] == []
+
+    async def test_the_preview_says_how_many_rows_would_be_tagged(self) -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            screen = self._screen()
+            await pilot.app.push_screen(screen)
+            await pilot.pause()
+
+            screen.query_one("#pattern_input").value = "Erfgo.*"
+            screen.query_one("#tags_input").value = "museums"
+            await pilot.pause()
+
+            preview = str(screen.query_one("#match_preview").content)
+            assert "tags 2" in preview and "museums" in preview

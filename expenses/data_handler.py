@@ -1,4 +1,5 @@
 import logging
+from collections import Counter
 import pandas as pd
 import json
 import importlib.resources
@@ -507,6 +508,52 @@ def save_transactions_to_parquet(df: pd.DataFrame) -> None:
     logging.debug(f"Saved {len(df)} transactions to {TRANSACTIONS_FILE}")
 
 
+def _aliased(merchants: pd.Series, merchant_aliases: Dict[str, str]) -> pd.Series:
+    """Merchant names with aliases applied, or unchanged when there are none."""
+    if not merchant_aliases:
+        return merchants
+    return apply_merchant_aliases_to_series(merchants, merchant_aliases)
+
+
+def _drop_reimported_deletions(
+    new_transactions: pd.DataFrame,
+    deleted_transactions: pd.DataFrame,
+    merchant_aliases: Dict[str, str],
+) -> pd.DataFrame:
+    """Drop incoming rows that merely re-import a soft-deleted transaction.
+
+    Deleted rows are counted, not collected into a set, so each one absorbs a
+    single incoming copy. Deleting one of two identical same-day purchases then
+    suppresses one re-imported copy and lets the other through.
+    """
+    deleted_counts = Counter(
+        zip(
+            deleted_transactions["Date"].dt.date,
+            _aliased(deleted_transactions["Merchant"], merchant_aliases),
+            deleted_transactions["Amount"],
+        )
+    )
+
+    seen: Counter = Counter()
+    keep = []
+    for date, alias, amount in zip(
+        new_transactions["Date"],
+        _aliased(new_transactions["Merchant"], merchant_aliases),
+        new_transactions["Amount"],
+    ):
+        key = (date.date(), alias, amount)
+        keep.append(seen[key] >= deleted_counts[key])
+        seen[key] += 1
+
+    kept = new_transactions[pd.Series(keep, index=new_transactions.index)]
+    if len(kept) < len(new_transactions):
+        logging.info(
+            f"Filtered out {len(new_transactions) - len(kept)} new transactions "
+            "that match previously soft-deleted records."
+        )
+    return kept
+
+
 def append_transactions(
     new_transactions: pd.DataFrame,
     suggest_categories: bool = False,
@@ -591,55 +638,9 @@ def append_transactions(
     # --- Filter out new transactions that match soft-deleted ones ---
     deleted_mask = existing_transactions["Deleted"]
     if deleted_mask.any():
-        deleted_transactions = existing_transactions[deleted_mask]
-
-        # Apply merchant aliases to deleted transactions for matching
-        if merchant_aliases:
-            deleted_aliased = apply_merchant_aliases_to_series(
-                deleted_transactions["Merchant"], merchant_aliases
-            )
-        else:
-            deleted_aliased = deleted_transactions["Merchant"]
-
-        # Create a set of (Date, AliasedMerchant, Amount) tuples for efficient lookup
-        deleted_keys = set(
-            zip(
-                deleted_transactions["Date"].dt.date,
-                deleted_aliased,
-                deleted_transactions["Amount"],
-            )
+        new_transactions = _drop_reimported_deletions(
+            new_transactions, existing_transactions[deleted_mask], merchant_aliases
         )
-
-        # Apply merchant aliases to new transactions for matching
-        if merchant_aliases:
-            new_aliased = apply_merchant_aliases_to_series(
-                new_transactions["Merchant"], merchant_aliases
-            )
-        else:
-            new_aliased = new_transactions["Merchant"]
-
-        initial_count = len(new_transactions)
-        # Create a boolean mask to identify rows to keep
-        keep_mask = ~pd.Series(
-            [
-                (date.date(), alias, amount) in deleted_keys
-                for date, alias, amount in zip(
-                    new_transactions["Date"],
-                    new_aliased,
-                    new_transactions["Amount"],
-                )
-            ],
-            index=new_transactions.index,
-        )
-        new_transactions = new_transactions[keep_mask]
-        final_count = len(new_transactions)
-
-        if initial_count > final_count:
-            num_filtered = initial_count - final_count
-            logging.info(
-                f"Filtered out {num_filtered} new transactions that match "
-                "previously soft-deleted records."
-            )
 
     # Now combine and deduplicate
     existing_count = len(existing_transactions)
@@ -649,21 +650,25 @@ def append_transactions(
     # Create a temporary column with aliased merchant names for deduplication
     # This allows "STARBUCKS #1234" and "Starbucks Coffee" to be recognized as duplicates
     # if they both map to the same alias
-    if merchant_aliases:
-        combined["_DedupeKey"] = apply_merchant_aliases_to_series(
-            combined["Merchant"], merchant_aliases
-        )
-    else:
-        combined["_DedupeKey"] = combined["Merchant"]
+    combined["_DedupeKey"] = _aliased(combined["Merchant"], merchant_aliases)
 
     # Number each row within its (Date, Merchant, Amount) group, counting the
     # existing and incoming sides separately. A re-imported row lands on the same
     # number as the row it duplicates and is dropped; a second genuine purchase
     # from the same merchant on the same day gets a number of its own and stays.
     combined["_Side"] = ["existing"] * existing_count + ["new"] * new_count
-    combined["_Occurrence"] = combined.groupby(
-        ["Date", "_DedupeKey", "Amount", "_Side"]
-    ).cumcount()
+
+    # Soft-deleted rows already absorbed their re-import above, so they take no
+    # part in the ranking. Each gets a slot of its own that nothing else can
+    # match, which also keeps deduplication from eating the delete history.
+    rankable = ~(combined["_Side"].eq("existing") & combined["Deleted"].eq(True))
+    combined["_Occurrence"] = 0
+    combined.loc[rankable, "_Occurrence"] = (
+        combined[rankable].groupby(["Date", "_DedupeKey", "Amount", "_Side"]).cumcount()
+    )
+    deleted_slots = int((~rankable).sum())
+    if deleted_slots:
+        combined.loc[~rankable, "_Occurrence"] = [-1 - n for n in range(deleted_slots)]
 
     # De-duplicate based on Date, Aliased Merchant, Amount, Occurrence (keep first)
     # This prevents the same transaction from being imported multiple times, regardless of source

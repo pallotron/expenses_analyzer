@@ -595,3 +595,75 @@ class TestAppendTransactionsDeduplication(unittest.TestCase):
         saved = self._append(existing, new, aliases)
 
         self.assertEqual(len(saved), 1)
+
+
+class TestSoftDeleteReimportFiltering(unittest.TestCase):
+    """A soft-deleted row must absorb exactly one re-imported copy, not all of them."""
+
+    KEY = ("2026-08-12", "CNC AG CIA Erfgo 10/08 0", 12.00)
+    ALIASES = {r".*AG CIA Erfgo.*": "AG CIA Erfgoed"}
+
+    def _append(self, existing_df, new_df):
+        with (
+            patch(
+                "expenses.data_handler.load_transactions_from_parquet",
+                return_value=existing_df.copy(),
+            ),
+            patch("expenses.data_handler.save_transactions_to_parquet") as mock_save,
+            patch(
+                "expenses.data_handler.load_merchant_aliases", return_value=self.ALIASES
+            ),
+        ):
+            append_transactions(new_df)
+            return mock_save.call_args[0][0]
+
+    @classmethod
+    def _twins(cls, count, deleted):
+        """`count` identical museum tickets, all with the given Deleted flag."""
+        date, merchant, amount = cls.KEY
+        return pd.DataFrame(
+            {
+                "Date": pd.to_datetime([date] * count),
+                "Merchant": [merchant] * count,
+                "Amount": [amount] * count,
+                "Deleted": [deleted] * count,
+                "Type": ["expense"] * count,
+            }
+        )
+
+    @staticmethod
+    def _live(df):
+        return df[~df["Deleted"].eq(True)]
+
+    def test_deleting_one_twin_still_imports_the_other(self) -> None:
+        """One deletion must not suppress a second, genuinely separate ticket."""
+        saved = self._append(
+            self._twins(1, deleted=True), self._twins(2, deleted=False)
+        )
+
+        self.assertEqual(len(self._live(saved)), 1)
+
+    def test_deleted_row_is_not_resurrected_by_reimport(self) -> None:
+        """The deletion still has to stick when the same row comes back."""
+        saved = self._append(
+            self._twins(1, deleted=True), self._twins(1, deleted=False)
+        )
+
+        self.assertEqual(len(self._live(saved)), 0)
+
+    def test_two_deletions_absorb_two_reimported_rows(self) -> None:
+        """Counting works past one: two deleted rows swallow two incoming copies."""
+        saved = self._append(
+            self._twins(2, deleted=True), self._twins(2, deleted=False)
+        )
+
+        self.assertEqual(len(self._live(saved)), 0)
+
+    def test_stored_deleted_rows_are_never_dropped(self) -> None:
+        """Deduplication must not eat the soft-delete history itself."""
+        saved = self._append(
+            self._twins(2, deleted=True), self._twins(3, deleted=False)
+        )
+
+        self.assertEqual(len(saved[saved["Deleted"].astype(bool)]), 2)
+        self.assertEqual(len(self._live(saved)), 1)

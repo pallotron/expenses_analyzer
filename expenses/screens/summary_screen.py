@@ -1411,6 +1411,31 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
                 f"Error updating monthly income breakdown for year {year}: {e}"
             )
 
+    def _open_transactions(
+        self,
+        year: int,
+        month: Optional[int],
+        category: Optional[str] = None,
+        merchant: Optional[str] = None,
+        transaction_type: str = "expense",
+    ) -> None:
+        """Open the transaction view pre-filtered to the row that was clicked."""
+        lookup = category or self.categories.get(merchant or "")
+        budget_type = (
+            get_category_spending_type(lookup, self.category_types) if lookup else None
+        )
+        self.app.push_screen(
+            self.app.SCREENS["transactions"](
+                category=category,
+                merchant=merchant,
+                year=year,
+                month=month,
+                transaction_type=transaction_type,
+                budget_type=budget_type,
+                source=self._get_single_source_filter(),
+            )
+        )
+
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
         """Handle cell selection to navigate to the transaction screen."""
         year_tabs = self.query_one("#year_tabs", TabbedContent)
@@ -1455,14 +1480,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         else:
             return
 
-        self.app.push_screen(
-            self.app.SCREENS["transactions"](
-                category=category,
-                year=year,
-                month=month,
-                source=self._get_single_source_filter(),
-            )
-        )
+        self._open_transactions(year, month, category=category)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle row selection (clicking on rows with cursor_type='row')."""
@@ -1506,24 +1524,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
         # Navigate to transactions screen
         if merchant:
-            # For merchants, show transactions for that merchant
-            self.app.push_screen(
-                self.app.SCREENS["transactions"](
-                    merchant=merchant,
-                    year=year,
-                    month=month,
-                    source=self._get_single_source_filter(),
-                )
-            )
+            self._open_transactions(year, month, merchant=merchant)
         elif category:
-            self.app.push_screen(
-                self.app.SCREENS["transactions"](
-                    category=category,
-                    year=year,
-                    month=month,
-                    source=self._get_single_source_filter(),
-                )
-            )
+            self._open_transactions(year, month, category=category)
 
     def _get_current_month_context(self, year: int) -> Optional[int]:
         """Get the current month context from tabs, if applicable."""
@@ -1617,23 +1620,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
         # Navigate to transactions screen
         if merchant:
-            self.app.push_screen(
-                self.app.SCREENS["transactions"](
-                    merchant=merchant,
-                    year=year,
-                    month=month,
-                    source=self._get_single_source_filter(),
-                )
-            )
+            self._open_transactions(year, month, merchant=merchant)
         elif category:
-            self.app.push_screen(
-                self.app.SCREENS["transactions"](
-                    category=category,
-                    year=year,
-                    month=month,
-                    source=self._get_single_source_filter(),
-                )
-            )
+            self._open_transactions(year, month, category=category)
 
     def populate_table(self) -> None:
         """Called by DataTableOperationsMixin on header click."""

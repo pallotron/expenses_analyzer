@@ -54,6 +54,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         month: int | None = None,
         merchant: str | None = None,
         transaction_type: str | None = None,
+        budget_type: str | None = None,
         source: str | None = None,
         **kwargs: Any,
     ) -> None:
@@ -74,7 +75,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             self.filter_month = month  # None means "all year"
             self._direct_open = False
         self.filter_type: str | None = transaction_type
-        self.filter_budget_type: str | None = None  # None = all
+        self.filter_budget_type: str | None = budget_type  # None = all
         self.columns: list[str] = [
             "Date",
             "Merchant",
@@ -166,15 +167,23 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Button("Apply Filters", id="apply_filters_button", variant="primary"),
             Button("Clear Filters", id="clear_filters_button"),
             Horizontal(
-                Button("All", id="budget_all_button", variant="primary"),
-                Button("Essential", id="budget_essential_button"),
-                Button("Discretionary", id="budget_discretionary_button"),
+                *self._toggle_buttons(
+                    [
+                        (None, "All"),
+                        ("essential", "Essential"),
+                        ("discretionary", "Discretionary"),
+                    ],
+                    self._BUDGET_BUTTON_IDS,
+                    self.filter_budget_type,
+                ),
                 classes="button-group",
             ),
             Horizontal(
-                Button("All", id="type_all_button", variant="primary"),
-                Button("Income", id="type_income_button"),
-                Button("Expense", id="type_expense_button"),
+                *self._toggle_buttons(
+                    [(None, "All"), ("income", "Income"), ("expense", "Expense")],
+                    self._TYPE_BUTTON_IDS,
+                    self.filter_type,
+                ),
                 classes="button-group",
             ),
             Button("Select All", id="select_all_button"),
@@ -538,6 +547,18 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         "income": "type_income_button",
         "expense": "type_expense_button",
     }
+
+    @staticmethod
+    def _toggle_buttons(labels, ids_by_value, active) -> list[Button]:
+        """Build a toggle group with the button for `active` already highlighted."""
+        return [
+            Button(
+                label,
+                id=ids_by_value[value],
+                variant="primary" if value == active else "default",
+            )
+            for value, label in labels
+        ]
 
     def _apply_budget_filter(self, df: pd.DataFrame) -> pd.DataFrame:
         """Restrict rows to the active budget type, if one is selected."""

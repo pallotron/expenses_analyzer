@@ -1,4 +1,5 @@
 import logging
+from expenses.merchant_editor import apply_merchant_decision
 from expenses.transaction_filter import apply_filters
 import pandas as pd
 from typing import Dict
@@ -18,6 +19,8 @@ from expenses.data_handler import (
     delete_transactions,
     load_merchant_aliases,
     save_merchant_aliases,
+    save_categories,
+    load_default_categories,
     apply_merchant_aliases_to_series,
     update_single_transaction,
     update_transactions,
@@ -29,9 +32,14 @@ from expenses.screens.tag_transactions_screen import TagTransactionsScreen
 from expenses.tag_suggester import TagSuggester
 from expenses.tags import all_tags_in_series
 from textual.binding import Binding
-from typing import Any
+from typing import Any, Optional
 
 from datetime import datetime
+
+
+def _exact(value: Optional[str]) -> str:
+    """Quote a drill-down value so it matches that row and nothing wider."""
+    return f'"{value}"' if value else ""
 
 
 class TransactionScreen(BaseScreen, DataTableOperationsMixin):
@@ -54,6 +62,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         month: int | None = None,
         merchant: str | None = None,
         transaction_type: str | None = None,
+        budget_type: str | None = None,
         source: str | None = None,
         **kwargs: Any,
     ) -> None:
@@ -74,7 +83,7 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             self.filter_month = month  # None means "all year"
             self._direct_open = False
         self.filter_type: str | None = transaction_type
-        self.filter_budget_type: str | None = None  # None = all
+        self.filter_budget_type: str | None = budget_type  # None = all
         self.columns: list[str] = [
             "Date",
             "Merchant",
@@ -120,9 +129,9 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Vertical(
                 Static("Merchant", classes="filter-label"),
                 ClearableInput(
-                    placeholder="contains...",
+                    placeholder='contains… ("exact")',
                     id="merchant_filter",
-                    value=self.filter_merchant or "",
+                    value=_exact(self.filter_merchant),
                 ),
                 classes="filter-field",
             ),
@@ -139,18 +148,18 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Vertical(
                 Static("Source", classes="filter-label"),
                 ClearableInput(
-                    placeholder="contains...",
+                    placeholder='contains… ("exact")',
                     id="source_filter",
-                    value=self.filter_source or "",
+                    value=_exact(self.filter_source),
                 ),
                 classes="filter-field",
             ),
             Vertical(
                 Static("Category", classes="filter-label"),
                 ClearableInput(
-                    placeholder="contains...",
+                    placeholder='contains… ("exact")',
                     id="category_filter",
-                    value=self.filter_category or "",
+                    value=_exact(self.filter_category),
                 ),
                 classes="filter-field",
             ),
@@ -166,15 +175,23 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             Button("Apply Filters", id="apply_filters_button", variant="primary"),
             Button("Clear Filters", id="clear_filters_button"),
             Horizontal(
-                Button("All", id="budget_all_button", variant="primary"),
-                Button("Essential", id="budget_essential_button"),
-                Button("Discretionary", id="budget_discretionary_button"),
+                *self._toggle_buttons(
+                    [
+                        (None, "All"),
+                        ("essential", "Essential"),
+                        ("discretionary", "Discretionary"),
+                    ],
+                    self._BUDGET_BUTTON_IDS,
+                    self.filter_budget_type,
+                ),
                 classes="button-group",
             ),
             Horizontal(
-                Button("All", id="type_all_button", variant="primary"),
-                Button("Income", id="type_income_button"),
-                Button("Expense", id="type_expense_button"),
+                *self._toggle_buttons(
+                    [(None, "All"), ("income", "Income"), ("expense", "Expense")],
+                    self._TYPE_BUTTON_IDS,
+                    self.filter_type,
+                ),
                 classes="button-group",
             ),
             Button("Select All", id="select_all_button"),
@@ -539,6 +556,18 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         "expense": "type_expense_button",
     }
 
+    @staticmethod
+    def _toggle_buttons(labels, ids_by_value, active) -> list[Button]:
+        """Build a toggle group with the button for `active` already highlighted."""
+        return [
+            Button(
+                label,
+                id=ids_by_value[value],
+                variant="primary" if value == active else "default",
+            )
+            for value, label in labels
+        ]
+
     def _apply_budget_filter(self, df: pd.DataFrame) -> pd.DataFrame:
         """Restrict rows to the active budget type, if one is selected."""
         if self.filter_budget_type is None:
@@ -655,6 +684,11 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
         """Update the table."""
         self.populate_table()
 
+    def _category_options(self) -> list[str]:
+        """Every category offered in the merchant editor's dropdown."""
+        known = set(load_default_categories()) | set(self.categories.values())
+        return sorted(known)
+
     def action_edit_merchant(self) -> None:
         """Edit merchant alias for the current row."""
         table = self.query_one("#transaction_table", DataTable)
@@ -676,38 +710,56 @@ class TransactionScreen(BaseScreen, DataTableOperationsMixin):
             current_alias = None  # No alias currently
 
         # Import here to avoid circular import
-        from expenses.screens.edit_transaction_screen import EditTransactionScreen
+        from expenses.screens.edit_merchant_screen import EditMerchantScreen
 
         def handle_edit_result(result):
             """Handle the result from the edit screen."""
             if not result:
                 return  # User cancelled
 
-            pattern, alias = result
+            pattern, alias, category, tags = result
 
-            # Load current aliases
-            aliases = load_merchant_aliases()
-
-            # Add or update the pattern
-            aliases[pattern] = alias
-
-            # Save back to file
+            aliases, categories = apply_merchant_decision(
+                pattern, alias, category, load_merchant_aliases(), load_categories()
+            )
             save_merchant_aliases(aliases)
+            if category:
+                save_categories(categories)
+
+            tagged = 0
+            if tags:
+                stored = load_transactions_from_parquet(include_deleted=True)
+                display = apply_merchant_aliases_to_series(stored["Merchant"], aliases)
+                tagged = tag_transactions(
+                    stored.index[display == alias].tolist(), tags, mode="add"
+                )
 
             # Reload and refresh the display
             self.merchant_aliases = load_merchant_aliases()
+            self.categories = load_categories()
             self.populate_table()
 
             # Restore cursor position
             table.move_cursor(row=table.cursor_row)
 
-            self.app.show_notification(
-                f"Added alias: '{original_merchant}' → '{alias}'", timeout=3
-            )
+            message = f"Added alias: '{original_merchant}' → '{alias}'"
+            if tagged:
+                message += f", tagged {tagged} transaction(s)"
+            self.app.show_notification(message, timeout=3)
             logging.info(f"Added merchant alias: pattern='{pattern}', alias='{alias}'")
 
         self.app.push_screen(
-            EditTransactionScreen(original_merchant, current_alias), handle_edit_result
+            EditMerchantScreen(
+                original_merchant,
+                current_alias,
+                transactions=self.transactions,
+                aliases=self.merchant_aliases,
+                categories=self.categories,
+                category_types=self.category_types,
+                available_categories=self._category_options(),
+                known_tags=self._known_tags(),
+            ),
+            handle_edit_result,
         )
 
     def action_edit_transaction(self) -> None:

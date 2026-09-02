@@ -1,4 +1,5 @@
 import logging
+from collections import Counter
 import pandas as pd
 import json
 import importlib.resources
@@ -79,6 +80,26 @@ def clean_amount(amount_series: pd.Series) -> pd.Series:
 
 
 # --- Category Management ---
+def _with_normalized_keys(categories: Dict[str, str]) -> Dict[str, str]:
+    """Let a date-stamped mapping answer to its stripped name as well.
+
+    Merchants categorised before normalisation are keyed on the stamped name
+    ("CNC ROEBUCK PHAR 28/07 1"), which nothing resolves to any more. Adding
+    the stripped name keeps those categorisations working, and applies them to
+    future visits to the same shop.
+    """
+    votes: Dict[str, Counter] = {}
+    for merchant, category in categories.items():
+        stripped = normalize_merchant_name(merchant)
+        if stripped != merchant and stripped not in categories:
+            votes.setdefault(stripped, Counter())[category] += 1
+
+    augmented = dict(categories)
+    for stripped, tally in votes.items():
+        augmented[stripped] = tally.most_common(1)[0][0]
+    return augmented
+
+
 def load_categories() -> Dict[str, str]:
     """Load merchant-to-category mappings from JSON file.
 
@@ -91,7 +112,7 @@ def load_categories() -> Dict[str, str]:
 
     try:
         with open(CATEGORIES_FILE, "r") as f:
-            return json.load(f)
+            return _with_normalized_keys(json.load(f))
     except json.JSONDecodeError as e:
         logging.warning(
             f"Categories file is corrupted (invalid JSON): {e}. "
@@ -343,6 +364,22 @@ def save_merchant_aliases(aliases: Dict[str, str]) -> None:
     logging.info(f"Saved {len(aliases)} merchant alias patterns")
 
 
+_DATE_STAMP = re.compile(r"\s*\d{2}/\d{2}.*$")
+
+
+def normalize_merchant_name(merchant_name: str) -> str:
+    """Drop the transaction date some feeds append to the merchant string.
+
+    "POS ST VINCENTS 26/08 09" and "POS ST VINCENTS 14/03 11" are the same
+    shop; without this every visit would be a merchant of its own and no
+    categorisation would ever carry over. Digits that belong to the name are
+    kept: only text from the first dd/mm onwards is removed.
+    """
+    if not merchant_name:
+        return merchant_name
+    return _DATE_STAMP.sub("", str(merchant_name)).strip() or merchant_name
+
+
 def apply_merchant_alias(merchant_name: str, aliases: Dict[str, str]) -> str:
     """Apply merchant alias based on regex pattern matching.
 
@@ -353,7 +390,7 @@ def apply_merchant_alias(merchant_name: str, aliases: Dict[str, str]) -> str:
     Returns:
         Display alias if a pattern matches, otherwise the original merchant name
     """
-    if not merchant_name or not aliases:
+    if not merchant_name:
         return merchant_name
 
     # Try each pattern in order (patterns are checked in dict order)
@@ -367,7 +404,8 @@ def apply_merchant_alias(merchant_name: str, aliases: Dict[str, str]) -> str:
             )
             continue
 
-    return merchant_name
+    # No hand-written alias claimed it, so fall back to stripping the date stamp.
+    return normalize_merchant_name(merchant_name)
 
 
 def apply_merchant_aliases_to_series(
@@ -507,6 +545,52 @@ def save_transactions_to_parquet(df: pd.DataFrame) -> None:
     logging.debug(f"Saved {len(df)} transactions to {TRANSACTIONS_FILE}")
 
 
+def _aliased(merchants: pd.Series, merchant_aliases: Dict[str, str]) -> pd.Series:
+    """Merchant names with aliases applied, or unchanged when there are none."""
+    if not merchant_aliases:
+        return merchants
+    return apply_merchant_aliases_to_series(merchants, merchant_aliases)
+
+
+def _drop_reimported_deletions(
+    new_transactions: pd.DataFrame,
+    deleted_transactions: pd.DataFrame,
+    merchant_aliases: Dict[str, str],
+) -> pd.DataFrame:
+    """Drop incoming rows that merely re-import a soft-deleted transaction.
+
+    Deleted rows are counted, not collected into a set, so each one absorbs a
+    single incoming copy. Deleting one of two identical same-day purchases then
+    suppresses one re-imported copy and lets the other through.
+    """
+    deleted_counts = Counter(
+        zip(
+            deleted_transactions["Date"].dt.date,
+            _aliased(deleted_transactions["Merchant"], merchant_aliases),
+            deleted_transactions["Amount"],
+        )
+    )
+
+    seen: Counter = Counter()
+    keep = []
+    for date, alias, amount in zip(
+        new_transactions["Date"],
+        _aliased(new_transactions["Merchant"], merchant_aliases),
+        new_transactions["Amount"],
+    ):
+        key = (date.date(), alias, amount)
+        keep.append(seen[key] >= deleted_counts[key])
+        seen[key] += 1
+
+    kept = new_transactions[pd.Series(keep, index=new_transactions.index)]
+    if len(kept) < len(new_transactions):
+        logging.info(
+            f"Filtered out {len(new_transactions) - len(kept)} new transactions "
+            "that match previously soft-deleted records."
+        )
+    return kept
+
+
 def append_transactions(
     new_transactions: pd.DataFrame,
     suggest_categories: bool = False,
@@ -591,78 +675,49 @@ def append_transactions(
     # --- Filter out new transactions that match soft-deleted ones ---
     deleted_mask = existing_transactions["Deleted"]
     if deleted_mask.any():
-        deleted_transactions = existing_transactions[deleted_mask]
-
-        # Apply merchant aliases to deleted transactions for matching
-        if merchant_aliases:
-            deleted_aliased = apply_merchant_aliases_to_series(
-                deleted_transactions["Merchant"], merchant_aliases
-            )
-        else:
-            deleted_aliased = deleted_transactions["Merchant"]
-
-        # Create a set of (Date, AliasedMerchant, Amount) tuples for efficient lookup
-        deleted_keys = set(
-            zip(
-                deleted_transactions["Date"].dt.date,
-                deleted_aliased,
-                deleted_transactions["Amount"],
-            )
+        new_transactions = _drop_reimported_deletions(
+            new_transactions, existing_transactions[deleted_mask], merchant_aliases
         )
-
-        # Apply merchant aliases to new transactions for matching
-        if merchant_aliases:
-            new_aliased = apply_merchant_aliases_to_series(
-                new_transactions["Merchant"], merchant_aliases
-            )
-        else:
-            new_aliased = new_transactions["Merchant"]
-
-        initial_count = len(new_transactions)
-        # Create a boolean mask to identify rows to keep
-        keep_mask = ~pd.Series(
-            [
-                (date.date(), alias, amount) in deleted_keys
-                for date, alias, amount in zip(
-                    new_transactions["Date"],
-                    new_aliased,
-                    new_transactions["Amount"],
-                )
-            ],
-            index=new_transactions.index,
-        )
-        new_transactions = new_transactions[keep_mask]
-        final_count = len(new_transactions)
-
-        if initial_count > final_count:
-            num_filtered = initial_count - final_count
-            logging.info(
-                f"Filtered out {num_filtered} new transactions that match "
-                "previously soft-deleted records."
-            )
 
     # Now combine and deduplicate
+    existing_count = len(existing_transactions)
+    new_count = len(new_transactions)
     combined = pd.concat([existing_transactions, new_transactions], ignore_index=True)
 
     # Create a temporary column with aliased merchant names for deduplication
     # This allows "STARBUCKS #1234" and "Starbucks Coffee" to be recognized as duplicates
     # if they both map to the same alias
-    if merchant_aliases:
-        combined["_DedupeKey"] = apply_merchant_aliases_to_series(
-            combined["Merchant"], merchant_aliases
-        )
-    else:
-        combined["_DedupeKey"] = combined["Merchant"]
+    combined["_DedupeKey"] = _aliased(combined["Merchant"], merchant_aliases)
 
-    # De-duplicate based on Date, Aliased Merchant, Amount (keep first occurrence)
+    # Number each row within its (Date, Merchant, Amount) group, counting the
+    # existing and incoming sides separately. A re-imported row lands on the same
+    # number as the row it duplicates and is dropped; a second genuine purchase
+    # from the same merchant on the same day gets a number of its own and stays.
+    combined["_Side"] = ["existing"] * existing_count + ["new"] * new_count
+
+    # Soft-deleted rows already absorbed their re-import above, so they take no
+    # part in the ranking. Each gets a slot of its own that nothing else can
+    # match, which also keeps deduplication from eating the delete history.
+    rankable = ~(combined["_Side"].eq("existing") & combined["Deleted"].eq(True))
+    combined["_Occurrence"] = 0
+    combined.loc[rankable, "_Occurrence"] = (
+        combined[rankable].groupby(["Date", "_DedupeKey", "Amount", "_Side"]).cumcount()
+    )
+    deleted_slots = int((~rankable).sum())
+    if deleted_slots:
+        combined.loc[~rankable, "_Occurrence"] = [-1 - n for n in range(deleted_slots)]
+
+    # De-duplicate based on Date, Aliased Merchant, Amount, Occurrence (keep first)
     # This prevents the same transaction from being imported multiple times, regardless of source
     # It also handles cases where a transaction is re-imported after being restored.
     combined.drop_duplicates(
-        subset=["Date", "_DedupeKey", "Amount"], keep="first", inplace=True
+        subset=["Date", "_DedupeKey", "Amount", "_Occurrence"],
+        keep="first",
+        inplace=True,
     )
 
-    # Remove the temporary deduplication column before saving
-    combined.drop(columns=["_DedupeKey"], inplace=True)
+    # Remove the temporary deduplication columns before saving
+    combined.drop(columns=["_DedupeKey", "_Side", "_Occurrence"], inplace=True)
 
     save_transactions_to_parquet(combined)
 

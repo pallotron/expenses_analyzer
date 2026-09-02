@@ -80,6 +80,26 @@ def clean_amount(amount_series: pd.Series) -> pd.Series:
 
 
 # --- Category Management ---
+def _with_normalized_keys(categories: Dict[str, str]) -> Dict[str, str]:
+    """Let a date-stamped mapping answer to its stripped name as well.
+
+    Merchants categorised before normalisation are keyed on the stamped name
+    ("CNC ROEBUCK PHAR 28/07 1"), which nothing resolves to any more. Adding
+    the stripped name keeps those categorisations working, and applies them to
+    future visits to the same shop.
+    """
+    votes: Dict[str, Counter] = {}
+    for merchant, category in categories.items():
+        stripped = normalize_merchant_name(merchant)
+        if stripped != merchant and stripped not in categories:
+            votes.setdefault(stripped, Counter())[category] += 1
+
+    augmented = dict(categories)
+    for stripped, tally in votes.items():
+        augmented[stripped] = tally.most_common(1)[0][0]
+    return augmented
+
+
 def load_categories() -> Dict[str, str]:
     """Load merchant-to-category mappings from JSON file.
 
@@ -92,7 +112,7 @@ def load_categories() -> Dict[str, str]:
 
     try:
         with open(CATEGORIES_FILE, "r") as f:
-            return json.load(f)
+            return _with_normalized_keys(json.load(f))
     except json.JSONDecodeError as e:
         logging.warning(
             f"Categories file is corrupted (invalid JSON): {e}. "
@@ -344,6 +364,22 @@ def save_merchant_aliases(aliases: Dict[str, str]) -> None:
     logging.info(f"Saved {len(aliases)} merchant alias patterns")
 
 
+_DATE_STAMP = re.compile(r"\s*\d{2}/\d{2}.*$")
+
+
+def normalize_merchant_name(merchant_name: str) -> str:
+    """Drop the transaction date some feeds append to the merchant string.
+
+    "POS ST VINCENTS 26/08 09" and "POS ST VINCENTS 14/03 11" are the same
+    shop; without this every visit would be a merchant of its own and no
+    categorisation would ever carry over. Digits that belong to the name are
+    kept: only text from the first dd/mm onwards is removed.
+    """
+    if not merchant_name:
+        return merchant_name
+    return _DATE_STAMP.sub("", str(merchant_name)).strip() or merchant_name
+
+
 def apply_merchant_alias(merchant_name: str, aliases: Dict[str, str]) -> str:
     """Apply merchant alias based on regex pattern matching.
 
@@ -354,7 +390,7 @@ def apply_merchant_alias(merchant_name: str, aliases: Dict[str, str]) -> str:
     Returns:
         Display alias if a pattern matches, otherwise the original merchant name
     """
-    if not merchant_name or not aliases:
+    if not merchant_name:
         return merchant_name
 
     # Try each pattern in order (patterns are checked in dict order)
@@ -368,7 +404,8 @@ def apply_merchant_alias(merchant_name: str, aliases: Dict[str, str]) -> str:
             )
             continue
 
-    return merchant_name
+    # No hand-written alias claimed it, so fall back to stripping the date stamp.
+    return normalize_merchant_name(merchant_name)
 
 
 def apply_merchant_aliases_to_series(

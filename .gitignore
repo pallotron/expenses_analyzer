@@ -35,3 +35,11 @@ uv.lock
 # Ignore all .csv files except those in the examples/ directory
 *.csv
 !examples/*.csv
+
+# Local databases. A migrated expenses.db holds the full transaction history,
+# so this must never become committable. WAL mode writes the -wal/-shm
+# sidecars alongside it, which carry the same data.
+*.db
+*.db-shm
+*.db-wal
+*.sqlite*

@@ -1,2 +1,2 @@
 [flake8]
-exclude = .venv/*
+exclude = .venv/*,frontend/node_modules/*,worker/node_modules/*

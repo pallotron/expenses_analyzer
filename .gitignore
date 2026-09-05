@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 build/
 dist/
+*.tsbuildinfo
 *.egg-info/
 
 # Environments
@@ -35,3 +36,22 @@ uv.lock
 # Ignore all .csv files except those in the examples/ directory
 *.csv
 !examples/*.csv
+
+# Local databases. A migrated expenses.db holds the full transaction history,
+# so this must never become committable. WAL mode writes the -wal/-shm
+# sidecars alongside it, which carry the same data.
+*.db
+*.db-shm
+*.db-wal
+*.sqlite*
+
+# Node / frontend / worker (matching audax_tracker)
+node_modules/
+dist/
+*.tsbuildinfo
+.wrangler/
+worker/.dev.vars
+.env
+.env.*
+!.env.example
+*.local

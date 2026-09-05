@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 build/
 dist/
+*.tsbuildinfo
 *.egg-info/
 
 # Environments
@@ -43,3 +44,14 @@ uv.lock
 *.db-shm
 *.db-wal
 *.sqlite*
+
+# Node / frontend / worker (matching audax_tracker)
+node_modules/
+dist/
+*.tsbuildinfo
+.wrangler/
+worker/.dev.vars
+.env
+.env.*
+!.env.example
+*.local

@@ -1,0 +1,29 @@
+name = "expenses-analyzer-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Fill in database_id after creating the database:
+#   npx wrangler d1 create expenses
+# then seed it from a local migration:
+#   sqlite3 expenses.db .dump | npx wrangler d1 execute expenses --remote --file=-
+[[d1_databases]]
+binding = "DB"
+database_name = "expenses"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# Cloudflare Access sits in front of this Worker and supplies a signed JWT.
+# CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD identify the Access application whose
+# token the Worker verifies; neither is a secret, but both are per-deployment.
+[vars]
+CF_ACCESS_TEAM_DOMAIN = ""
+CF_ACCESS_AUD = ""
+
+# Secret: TRUELAYER_CLIENT_ID     (npx wrangler secret put TRUELAYER_CLIENT_ID)
+# Secret: TRUELAYER_CLIENT_SECRET
+# Secret: GEMINI_API_KEY
+# Secret: TOKEN_ENCRYPTION_KEY    (encrypts bank tokens at rest in D1)
+
+# Add the custom domain once it is chosen:
+# routes = [
+#   { pattern = "api.example.com", custom_domain = true }
+# ]

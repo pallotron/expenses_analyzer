@@ -1,0 +1,21 @@
+{
+  "name": "worker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "db:generate": "drizzle-kit generate",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260903.1",
+    "drizzle-kit": "^0.31.6",
+    "typescript": "~5.9.3",
+    "wrangler": "^4.70.0"
+  }
+}

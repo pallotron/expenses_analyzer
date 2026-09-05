@@ -28,6 +28,19 @@ jobs:
       - name: Test with Coverage
         run: make coverage
 
+      # Proves the SQL in tools/crosscheck/queries still reproduces the Python
+      # analysis. Runs on generated data, so CI needs nobody's real parquet.
+      - name: Analysis cross-check
+        run: |
+          FIXTURE=$(mktemp -d)
+          .venv/bin/python tools/crosscheck/make_fixture.py "$FIXTURE"
+          export EXPENSES_ANALYZER_CONFIG_DIR="$FIXTURE"
+          PYTHONPATH=. .venv/bin/python tools/migrate_to_sqlite.py \
+            --out "$FIXTURE/ci.db" --tokens-plaintext \
+            --user a@example.com:"Person A":self \
+            --user b@example.com:"Person B":partner
+          PYTHONPATH=. .venv/bin/python tools/crosscheck/analysis_crosscheck.py "$FIXTURE/ci.db"
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -60,3 +73,32 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+  worker:
+    name: Worker Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: worker/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc -b
+
+      # Regenerating must be a no-op. If it is not, schema.ts changed without a
+      # matching migration, and anything seeded from drizzle/ would drift from
+      # the schema the Worker compiles against.
+      - name: Schema and migrations agree
+        run: |
+          npx drizzle-kit generate
+          git diff --exit-code drizzle/

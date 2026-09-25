@@ -318,3 +318,25 @@ def test_payslip_periods_lists_every_owners_months():
 
 def test_payslip_periods_empty_when_no_payslips():
     assert payslip_periods(pd.DataFrame()) == set()
+
+
+def test_enhanced_savings_skips_payslip_months_without_bank_data():
+    # Feb's payslip is imported before Feb's bank data. Counting its pension
+    # would add savings with no matching income or spending, so the year shows
+    # Jan only until Feb's transactions arrive.
+    txns = _bank_transactions(
+        [
+            ("2026-01-05", 8200.0, "income"),
+            ("2026-01-10", 6200.0, "expense"),
+        ]
+    )
+    result = get_enhanced_savings_totals(txns, _payslips(), year=2026)
+    assert result is not None
+    assert result["months_covered"] == [1]
+    assert result["pension_saved"] == 2340.0
+    assert result["coverage_label"] == "Jan"
+
+
+def test_enhanced_savings_none_for_a_month_without_bank_data():
+    txns = _bank_transactions([("2026-01-05", 8200.0, "income")])
+    assert get_enhanced_savings_totals(txns, _payslips(), year=2026, month=2) is None

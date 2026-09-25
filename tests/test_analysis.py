@@ -1,7 +1,12 @@
 import pandas as pd
 import pytest
 
-from expenses.analysis import calculate_trends, exclude_tagged_transactions, get_enhanced_savings_totals
+from expenses.analysis import (
+    calculate_trends,
+    exclude_tagged_transactions,
+    get_enhanced_savings_totals,
+    payslip_periods,
+)
 from typing import List, Tuple, cast
 
 
@@ -302,3 +307,14 @@ def test_enhanced_savings_aligns_bank_to_covered_months():
     # Only Feb's bank net (2600) should be counted, not Jan+Feb (6600).
     assert result["enhanced_saved"] == 2600.0 + 2340.0
     assert result["enhanced_saved"] != 6600.0 + 2340.0
+
+
+def test_payslip_periods_lists_every_owners_months():
+    payslips = pd.DataFrame(
+        {"Owner": ["self", "partner", "self"], "Month": ["2026-08", "2026-09", "2025-12"]}
+    )
+    assert payslip_periods(payslips) == {(2026, 8), (2026, 9), (2025, 12)}
+
+
+def test_payslip_periods_empty_when_no_payslips():
+    assert payslip_periods(pd.DataFrame()) == set()

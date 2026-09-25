@@ -33,12 +33,13 @@ from expenses.analysis import (
     calculate_trends,
     get_cash_flow_totals,
     get_enhanced_savings_totals,
+    payslip_periods,
     split_tagged_transactions,
 )
 from expenses.payslip_handler import load_payslips
 from expenses.tags import all_tags_in_series, namespaces_in_series
 from expenses.screens.tag_exclusion_screen import TagExclusionScreen
-from typing import Dict, Set, Optional, Any
+from typing import Dict, Set, Optional, Any, Tuple
 
 
 def _strip_income_prefix(row_key: str) -> str:
@@ -208,6 +209,23 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         self.hidden_tag_total = self._compute_hidden_tag_total(
             *self._get_active_year_month()
         )
+        try:
+            self._payslips: pd.DataFrame = load_payslips()
+        except Exception as exc:
+            logging.warning("Payslips unavailable: %s", exc)
+            self._payslips = pd.DataFrame()
+        # Months a payslip was imported for before their bank data arrived. They
+        # still get a tab, so the import is visible rather than silently absent.
+        self._payslip_only_periods = (
+            payslip_periods(self._payslips) - self._transaction_periods()
+        )
+
+    def _transaction_periods(self) -> Set[Tuple[int, int]]:
+        """The (year, month) pairs that have at least one transaction."""
+        df = getattr(self, "_all_transactions", None)
+        if df is None or df.empty:
+            return set()
+        return set(zip(df["Date"].dt.year, df["Date"].dt.month))
 
     @property
     def transactions(self) -> pd.DataFrame:
@@ -334,16 +352,13 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             classes="source-filter-bar",
         )
 
-        years = sorted(self.transactions["Date"].dt.year.unique(), reverse=True)
+        periods = self._transaction_periods() | self._payslip_only_periods
+        years = sorted({year for year, _ in periods}, reverse=True)
 
         with TabbedContent(id="year_tabs"):
             for year in years:
                 with TabPane(str(year), id=f"year_{year}"):
-                    months_in_year = sorted(
-                        self.transactions[self.transactions["Date"].dt.year == year][
-                            "Date"
-                        ].dt.month.unique()
-                    )
+                    months_in_year = sorted(m for y, m in periods if y == year)
 
                     with TabbedContent(
                         id=f"month_tabs_{year}", initial=f"month_{year}_all"
@@ -584,8 +599,7 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
         df = getattr(self, "_all_transactions", None)
         if df is None or df.empty:
             return ((), ())
-        dates = df["Date"]
-        periods = tuple(sorted(set(zip(dates.dt.year, dates.dt.month))))
+        periods = tuple(sorted(self._transaction_periods() | self._payslip_only_periods))
         sources = tuple(sorted(df["Source"].dropna().unique().tolist()))
         return (periods, sources)
 
@@ -892,6 +906,9 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
 
     def update_cash_flow(self, year: int, month: Optional[int] = None) -> None:
         """Updates the cash flow summary for a year or specific month."""
+        if month and (year, month) in self._payslip_only_periods:
+            self._show_payslip_only_note(year, month)
+            return
         try:
             if month:
                 widget_id = f"cash_flow_{year}_{month}"
@@ -956,6 +973,23 @@ class SummaryScreen(BaseScreen, DataTableOperationsMixin):
             cash_flow_widget.update("\n".join(parts))
         except Exception as e:
             logging.warning(f"Error updating cash flow for {year}/{month}: {e}")
+
+    def _show_payslip_only_note(self, year: int, month: int) -> None:
+        """Explain a month that has a payslip but no bank transactions yet.
+
+        No savings rate is shown: against zero bank income the pension-aware
+        rate would read 100%, which says nothing about the month.
+        """
+        rows = self._payslips[self._payslips["Month"].astype(str) == f"{year:04d}-{month:02d}"]
+        pension = float((rows["PensionEE"] + rows["AVC"] + rows["PensionER"]).sum())
+        month_name = datetime(year, month, 1).strftime("%B %Y")
+        self.query_one(f"#cash_flow_{year}_{month}", Static).update(
+            f"[yellow]No bank transactions for {month_name} yet.[/yellow] "
+            "The payslip is imported; income and expenses fill in once the "
+            "bank data is synced or imported.\n"
+            f"[bold]Pension from payslip:[/bold] [green]{pension:,.2f}[/green] "
+            "(employee + AVC + employer)"
+        )
 
     def _build_spending_type_line(
         self, df: pd.DataFrame, month: Optional[int] = None

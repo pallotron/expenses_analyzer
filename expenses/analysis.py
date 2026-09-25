@@ -1,5 +1,5 @@
 import calendar
-from typing import List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 import pandas as pd
 
@@ -365,4 +365,14 @@ def get_enhanced_savings_totals(
         "reconciled": bool(matched["YTDReconciled"].all()),
         "months_covered": months_covered,
         "coverage_label": _coverage_label(months_covered),
+    }
+
+
+def payslip_periods(payslips: pd.DataFrame) -> Set[Tuple[int, int]]:
+    """Return the (year, month) pairs any owner has a payslip for."""
+    if payslips is None or payslips.empty:
+        return set()
+    return {
+        (int(year), int(month))
+        for year, month in payslips["Month"].astype(str).str.split("-", n=1)
     }

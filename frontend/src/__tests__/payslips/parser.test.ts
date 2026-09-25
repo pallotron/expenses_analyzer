@@ -224,6 +224,19 @@ describe("netReconciled", () => {
     expect(run.netReconciled).toBe(false);
   });
 
+  it("counts a tax advice reimbursement toward gross", () => {
+    // The payslip includes this in its own Gross Pay, so leaving it out
+    // understates gross and net by the same amount and trips the net check.
+    const run = parseLines(
+      [...JULY_LINES.slice(0, 2), "Tax Adv Reimbursement 615.00", ...JULY_LINES.slice(2), "8876.73", "NOTE"],
+      "2026-09",
+      "2026-09.pdf",
+    )!;
+    expect(run.reimbursements).toBe(c("655.00"));
+    expect(run.gross).toBe(c("17123.33"));
+    expect(run.netReconciled).toBe(true);
+  });
+
   it("accepts a matching stated net", () => {
     const run = parseLines(
       [...JULY_LINES, "8261.73", "NOTE"],

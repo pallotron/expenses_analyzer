@@ -200,6 +200,7 @@ const HANDLERS: Record<string, Handler> = {
   "device reimbursement": handleDeviceReimbursement,
   "device reimbur grossup": handleDeviceReimbursement,
   "health insurance sub": handleDeviceReimbursement,
+  "tax adv reimbursement": handleDeviceReimbursement,
   "device reimb(tax free)": handleNonTaxable,
   "working from home sub": handleNonTaxable,
   "subsistence vouched": handleNonTaxable,

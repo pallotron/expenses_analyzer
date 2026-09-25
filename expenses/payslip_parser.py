@@ -189,6 +189,7 @@ _HANDLERS = {
     "device reimbursement": _handle_device_reimbursement,
     "device reimbur grossup": _handle_device_reimbursement,
     "health insurance sub": _handle_device_reimbursement,
+    "tax adv reimbursement": _handle_device_reimbursement,
     "device reimb(tax free)": _handle_non_taxable,
     "working from home sub": _handle_non_taxable,
     "subsistence vouched": _handle_non_taxable,

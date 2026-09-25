@@ -177,6 +177,17 @@ def test_net_reconciled_flags_a_label_the_parser_does_not_know():
     assert run.net_reconciled is False
 
 
+def test_parse_lines_counts_tax_advice_reimbursement_toward_gross():
+    # The payslip includes this in its own Gross Pay, so leaving it out
+    # understates gross and net by the same amount and trips the net check.
+    lines = JULY_LINES[:2] + ["Tax Adv Reimbursement 615.00"] + JULY_LINES[2:]
+    run = parse_lines(lines + ["8876.73", "NOTE"], month="2026-09", source_file="2026-09.pdf")
+    assert run is not None
+    assert run.reimbursements == 40.00 + 615.00
+    assert run.gross == 16508.33 + 615.00
+    assert run.net_reconciled is True
+
+
 def test_net_reconciled_accepts_a_matching_stated_net():
     lines = JULY_LINES + ["8261.73", "NOTE"]
     run = parse_lines(lines, month="2026-07", source_file="2026-07.pdf")

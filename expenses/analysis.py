@@ -1,5 +1,5 @@
 import calendar
-from typing import List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 import pandas as pd
 
@@ -298,6 +298,14 @@ def _align_bank_totals(
     return get_cash_flow_totals(aligned)
 
 
+def _bank_periods(transactions: pd.DataFrame) -> Set[Tuple[int, int]]:
+    """The (year, month) pairs that have at least one bank transaction."""
+    if transactions is None or transactions.empty or "Date" not in transactions.columns:
+        return set()
+    dates = transactions["Date"]
+    return set(zip(dates.dt.year, dates.dt.month))
+
+
 def get_enhanced_savings_totals(
     transactions: pd.DataFrame,
     payslips: pd.DataFrame,
@@ -314,7 +322,9 @@ def get_enhanced_savings_totals(
     should count both people's contributions. Only pension is added: both
     people's net pay already lands in the tracked bank accounts, so adding
     either net salary would double-count it. A month counts as covered when at
-    least one owner has a payslip for it.
+    least one owner has a payslip for it and it has bank transactions: a
+    payslip imported ahead of its month's bank data would otherwise add pension
+    savings with no income or spending to set them against.
 
     Args:
         transactions: DataFrame with Date, Amount, Type columns.
@@ -329,7 +339,7 @@ def get_enhanced_savings_totals(
 
     Returns dict with pension_saved, enhanced_saved, income_with_pension,
     rate_with_pension, reconciled, months_covered, coverage_label. None if no
-    payslip rows match the period.
+    payslip month in the period also has bank transactions.
     """
     if payslips is None or payslips.empty:
         return None
@@ -339,6 +349,10 @@ def get_enhanced_savings_totals(
     if month is not None:
         key = f"{year:04d}-{month:02d}"
         matched = payslips[payslips["Month"].astype(str) == key]
+    bank_periods = _bank_periods(transactions)
+    matched = matched[
+        [(year, int(str(m).split("-")[1])) in bank_periods for m in matched["Month"]]
+    ]
     if matched.empty:
         return None
 
@@ -365,4 +379,14 @@ def get_enhanced_savings_totals(
         "reconciled": bool(matched["YTDReconciled"].all()),
         "months_covered": months_covered,
         "coverage_label": _coverage_label(months_covered),
+    }
+
+
+def payslip_periods(payslips: pd.DataFrame) -> Set[Tuple[int, int]]:
+    """Return the (year, month) pairs any owner has a payslip for."""
+    if payslips is None or payslips.empty:
+        return set()
+    return {
+        (int(year), int(month))
+        for year, month in payslips["Month"].astype(str).str.split("-", n=1)
     }

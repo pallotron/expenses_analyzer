@@ -121,17 +121,16 @@ with pandas. Afterwards it means a local SQLite copy of D1. Keeping the TUI
 alive for this would be the wrong trade: a second writer is sync option (b), and
 a read-only TUI means maintaining Python that nothing checks any more.
 
-**The views.** `tools/crosscheck/queries/views.sql` already defines `v_live`
-(live rows, category resolved override → merchant → `"Other"`),
-`v_excluded_ids` and `v_summary` (Summary totals with the tag exclusions
-applied). They are `TEMP` views today, so they exist only while the cross-check
-runs. Move them into `worker/src/db/schema.ts` as `sqliteView`s so they live in
-the generated migrations, in D1, and in every snapshot. Then point the
-cross-check at the migrated views instead of `views.sql`, so the definition that
-was verified is the one that ships.
+**The views (done).** `v_live` (live rows, category resolved override →
+merchant → `"Other"`), `v_excluded_ids`, `v_summary` (Summary totals with the
+tag exclusions applied) and `v_transactions` are `sqliteView`s in
+`worker/src/db/schema.ts`, generated into `worker/drizzle/0001_*.sql`. The
+cross-check runs against the migrated views, so the definitions that were
+verified are the ones that ship. It also diffs `v_transactions` against the
+parquet row by row.
 
-Add one more view, `v_transactions`, in the same shape as the parquet rows so
-ad-hoc questions need no joins:
+`v_transactions` has the same shape as the parquet rows, so ad-hoc questions
+need no joins:
 
 | column         | from                                                          |
 |----------------|---------------------------------------------------------------|
@@ -151,7 +150,7 @@ Only live rows, same as `v_live`. For `tags`, sort the names in a subquery
 before `group_concat`. Don't depend on `ORDER BY` inside the aggregate, which
 needs SQLite 3.44.
 
-**The snapshot.** A script, `tools/snapshot.sh`, that:
+**The snapshot (written, not yet run against real D1).** `tools/snapshot.sh`:
 
 1. `npx wrangler d1 export expenses --remote --output=<tmp>.sql`
 2. Loads it into a fresh SQLite file: `sqlite3 <db> < <tmp>.sql`

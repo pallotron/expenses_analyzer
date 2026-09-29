@@ -1,0 +1,1248 @@
+{
+  "_generated_by": "tools/crosscheck/vectors.py — do not edit by hand",
+  "normalizeMerchantName": [
+    [
+      "POS ST VINCENTS 26/08 09",
+      "POS ST VINCENTS"
+    ],
+    [
+      "POS ST VINCENTS 14/03 11",
+      "POS ST VINCENTS"
+    ],
+    [
+      "CNC ROEBUCK PHAR 28/07 1",
+      "CNC ROEBUCK PHAR"
+    ],
+    [
+      "TESCO STORES 3021",
+      "TESCO STORES 3021"
+    ],
+    [
+      "7-ELEVEN 12/01",
+      "7-ELEVEN"
+    ],
+    [
+      "12/01 LEADING DATE",
+      "12/01 LEADING DATE"
+    ],
+    [
+      "SHOP  10/08",
+      "SHOP"
+    ],
+    [
+      "SHOP 10/8 1",
+      "SHOP 10/8 1"
+    ],
+    [
+      "",
+      ""
+    ],
+    [
+      "   ",
+      "   "
+    ],
+    [
+      "AMAZON.CO.UK*AB12CD",
+      "AMAZON.CO.UK*AB12CD"
+    ],
+    [
+      "CAFÉ NÉRO 01/02 3",
+      "CAFÉ NÉRO"
+    ]
+  ],
+  "aliases": {
+    "rules": [
+      [
+        ".*AG CIA Erfgo.*",
+        "AG CIA Erfgoed"
+      ],
+      [
+        "STARBUCKS.*",
+        "Starbucks"
+      ],
+      [
+        "Starbucks Coffee",
+        "Starbucks"
+      ],
+      [
+        "^AMZN|AMAZON",
+        "Amazon"
+      ],
+      [
+        "amazon prime",
+        "Amazon Prime"
+      ],
+      [
+        "CAFÉ N[EÉ]RO",
+        "Caffè Nero"
+      ],
+      [
+        "[invalid",
+        "Never"
+      ],
+      [
+        "TESCO\\s+STORES\\s+\\d+",
+        "Tesco"
+      ],
+      [
+        "\\bSPAR\\b",
+        "Spar"
+      ]
+    ],
+    "cases": [
+      [
+        "POS ST VINCENTS 26/08 09",
+        "POS ST VINCENTS"
+      ],
+      [
+        "POS ST VINCENTS 14/03 11",
+        "POS ST VINCENTS"
+      ],
+      [
+        "CNC ROEBUCK PHAR 28/07 1",
+        "CNC ROEBUCK PHAR"
+      ],
+      [
+        "TESCO STORES 3021",
+        "Tesco"
+      ],
+      [
+        "7-ELEVEN 12/01",
+        "7-ELEVEN"
+      ],
+      [
+        "12/01 LEADING DATE",
+        "12/01 LEADING DATE"
+      ],
+      [
+        "SHOP  10/08",
+        "SHOP"
+      ],
+      [
+        "SHOP 10/8 1",
+        "SHOP 10/8 1"
+      ],
+      [
+        "",
+        ""
+      ],
+      [
+        "   ",
+        "   "
+      ],
+      [
+        "AMAZON.CO.UK*AB12CD",
+        "Amazon"
+      ],
+      [
+        "CAFÉ NÉRO 01/02 3",
+        "Caffè Nero"
+      ],
+      [
+        "CNC AG CIA Erfgo 10/08 0",
+        "AG CIA Erfgoed"
+      ],
+      [
+        "starbucks #1234",
+        "Starbucks"
+      ],
+      [
+        "Starbucks Coffee",
+        "Starbucks"
+      ],
+      [
+        "amzn mktp",
+        "Amazon"
+      ],
+      [
+        "Amazon Prime Video",
+        "Amazon"
+      ],
+      [
+        "café néro 02/02 1",
+        "Caffè Nero"
+      ],
+      [
+        "EUROSPAR 12/04 1",
+        "EUROSPAR"
+      ],
+      [
+        "SPAR EXPRESS 12/04",
+        "Spar"
+      ],
+      [
+        "Something Unknown 09/09 2",
+        "Something Unknown"
+      ]
+    ]
+  },
+  "amountCents": [
+    [
+      "12.34",
+      1234
+    ],
+    [
+      "-12.34",
+      -1234
+    ],
+    [
+      "(12.34)",
+      -1234
+    ],
+    [
+      "€1,234.56",
+      123456
+    ],
+    [
+      "£ 5",
+      500
+    ],
+    [
+      "$0.99",
+      99
+    ],
+    [
+      "-",
+      0
+    ],
+    [
+      "",
+      0
+    ],
+    [
+      "abc",
+      0
+    ],
+    [
+      "1.005",
+      100
+    ],
+    [
+      "2.675",
+      268
+    ],
+    [
+      "12.345",
+      1234
+    ],
+    [
+      "0.125",
+      12
+    ],
+    [
+      "0.135",
+      14
+    ],
+    [
+      "1e3",
+      100000
+    ],
+    [
+      "+5",
+      500
+    ],
+    [
+      " 7.10 ",
+      710
+    ],
+    [
+      "(1,000.00)",
+      -100000
+    ],
+    [
+      "0",
+      0
+    ],
+    [
+      "-0.00",
+      0
+    ],
+    [
+      "100",
+      10000
+    ],
+    [
+      "3.14159",
+      314
+    ],
+    [
+      ".5",
+      50
+    ],
+    [
+      "5.",
+      500
+    ]
+  ],
+  "tags": {
+    "normalizeTag": [
+      [
+        "Emergency",
+        "emergency"
+      ],
+      [
+        " trip Paris ",
+        "trip-paris"
+      ],
+      [
+        "trip:paris-jun26",
+        "trip:paris-jun26"
+      ],
+      [
+        "a_b",
+        "a_b"
+      ],
+      [
+        "bad*chars!",
+        "badchars"
+      ],
+      [
+        "",
+        ""
+      ],
+      [
+        "ÉTÉ",
+        "t"
+      ],
+      [
+        "xxx",
+        "xxx"
+      ]
+    ],
+    "parseTags": [
+      [
+        null,
+        []
+      ],
+      [
+        "",
+        []
+      ],
+      [
+        "emergency",
+        [
+          "emergency"
+        ]
+      ],
+      [
+        "emergency,trip:paris",
+        [
+          "emergency",
+          "trip:paris"
+        ]
+      ],
+      [
+        ",,gift,",
+        [
+          "gift"
+        ]
+      ],
+      [
+        "a,b,a",
+        [
+          "a",
+          "b",
+          "a"
+        ]
+      ]
+    ],
+    "joinTags": [
+      [
+        [
+          "Emergency",
+          "emergency",
+          "Trip Paris"
+        ],
+        "emergency,trip-paris"
+      ],
+      [
+        [
+          "",
+          "!!",
+          "gift"
+        ],
+        "gift"
+      ],
+      [
+        [],
+        ""
+      ]
+    ],
+    "addTags": [
+      [
+        null,
+        [
+          "Gift",
+          "emergency"
+        ],
+        "gift,emergency"
+      ],
+      [
+        "",
+        [
+          "Gift",
+          "emergency"
+        ],
+        "gift,emergency"
+      ],
+      [
+        "emergency",
+        [
+          "Gift",
+          "emergency"
+        ],
+        "emergency,gift"
+      ],
+      [
+        "emergency,trip:paris",
+        [
+          "Gift",
+          "emergency"
+        ],
+        "emergency,trip:paris,gift"
+      ],
+      [
+        ",,gift,",
+        [
+          "Gift",
+          "emergency"
+        ],
+        "gift,emergency"
+      ],
+      [
+        "a,b,a",
+        [
+          "Gift",
+          "emergency"
+        ],
+        "a,b,gift,emergency"
+      ]
+    ],
+    "removeTags": [
+      [
+        null,
+        [
+          "EMERGENCY"
+        ],
+        ""
+      ],
+      [
+        "",
+        [
+          "EMERGENCY"
+        ],
+        ""
+      ],
+      [
+        "emergency",
+        [
+          "EMERGENCY"
+        ],
+        ""
+      ],
+      [
+        "emergency,trip:paris",
+        [
+          "EMERGENCY"
+        ],
+        "trip:paris"
+      ],
+      [
+        ",,gift,",
+        [
+          "EMERGENCY"
+        ],
+        "gift"
+      ],
+      [
+        "a,b,a",
+        [
+          "EMERGENCY"
+        ],
+        "a,b"
+      ]
+    ],
+    "normalizePattern": [
+      [
+        "emergency",
+        "emergency"
+      ],
+      [
+        "Trip:*",
+        "trip:*"
+      ],
+      [
+        "trip:*",
+        "trip:*"
+      ],
+      [
+        "*",
+        "*"
+      ],
+      [
+        "tr*ip",
+        "trip"
+      ],
+      [
+        "trip**",
+        "trip*"
+      ],
+      [
+        " gift ",
+        "gift"
+      ],
+      [
+        "",
+        ""
+      ]
+    ],
+    "isValidPattern": [
+      [
+        "emergency",
+        true
+      ],
+      [
+        "Trip:*",
+        false
+      ],
+      [
+        "trip:*",
+        true
+      ],
+      [
+        "*",
+        false
+      ],
+      [
+        "tr*ip",
+        false
+      ],
+      [
+        "trip**",
+        false
+      ],
+      [
+        " gift ",
+        false
+      ],
+      [
+        "",
+        false
+      ]
+    ],
+    "cellMatchesPatterns": [
+      [
+        "emergency,gift",
+        [
+          "emergency"
+        ],
+        true
+      ],
+      [
+        "trip:paris",
+        [
+          "trip:*"
+        ],
+        true
+      ],
+      [
+        "tripx:rome",
+        [
+          "trip:*"
+        ],
+        false
+      ],
+      [
+        "trip_a",
+        [
+          "trip_*"
+        ],
+        true
+      ],
+      [
+        "tripxa",
+        [
+          "trip_*"
+        ],
+        false
+      ],
+      [
+        "gift",
+        [
+          "*"
+        ],
+        false
+      ],
+      [
+        "",
+        [
+          "emergency"
+        ],
+        false
+      ],
+      [
+        null,
+        [
+          "emergency"
+        ],
+        false
+      ],
+      [
+        "trip",
+        [
+          "trip:*"
+        ],
+        false
+      ]
+    ]
+  },
+  "imports": {
+    "aliases": [
+      [
+        ".*AG CIA Erfgo.*",
+        "AG CIA Erfgoed"
+      ],
+      [
+        "STARBUCKS.*",
+        "Starbucks"
+      ],
+      [
+        "Starbucks Coffee",
+        "Starbucks"
+      ],
+      [
+        "^AMZN|AMAZON",
+        "Amazon"
+      ],
+      [
+        "amazon prime",
+        "Amazon Prime"
+      ],
+      [
+        "CAFÉ N[EÉ]RO",
+        "Caffè Nero"
+      ],
+      [
+        "[invalid",
+        "Never"
+      ],
+      [
+        "TESCO\\s+STORES\\s+\\d+",
+        "Tesco"
+      ],
+      [
+        "\\bSPAR\\b",
+        "Spar"
+      ]
+    ],
+    "scenarios": [
+      {
+        "name": "empty store takes everything, twins included",
+        "existing": [],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-13",
+            "merchant": "TESCO STORES 3021",
+            "amount": 45.1,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-13",
+              "Tesco",
+              4510
+            ]
+          ],
+          "deleted": 0
+        }
+      },
+      {
+        "name": "same-day repeat purchase survives aliasing",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "Old Merchant",
+            "amount": 5.0,
+            "deleted": false
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 1",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "Old Merchant",
+              500
+            ]
+          ],
+          "deleted": 0
+        }
+      },
+      {
+        "name": "reimporting the same batch adds nothing",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 1",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 1",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ]
+          ],
+          "deleted": 0
+        }
+      },
+      {
+        "name": "extra occurrence in a reimport is kept",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ]
+          ],
+          "deleted": 0
+        }
+      },
+      {
+        "name": "one purchase under two names collapses",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "STARBUCKS #1234",
+            "amount": 4.5,
+            "deleted": false
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "Starbucks Coffee",
+            "amount": 4.5,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "Starbucks",
+              450
+            ]
+          ],
+          "deleted": 0
+        }
+      },
+      {
+        "name": "date stamps do not make a new merchant",
+        "existing": [
+          {
+            "date": "2026-03-14",
+            "merchant": "POS ST VINCENTS 14/03 11",
+            "amount": 30.0,
+            "deleted": false
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-03-14",
+            "merchant": "POS ST VINCENTS 14/03 12",
+            "amount": 30.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-03-14",
+            "merchant": "POS ST VINCENTS 14/03 13",
+            "amount": 30.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-03-14",
+              "POS ST VINCENTS",
+              3000
+            ],
+            [
+              "2026-03-14",
+              "POS ST VINCENTS",
+              3000
+            ]
+          ],
+          "deleted": 0
+        }
+      },
+      {
+        "name": "a different amount or day is a different purchase",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.01,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-13",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1201
+            ],
+            [
+              "2026-08-13",
+              "AG CIA Erfgoed",
+              1200
+            ]
+          ],
+          "deleted": 0
+        }
+      },
+      {
+        "name": "deleting one twin still imports the other",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": true
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ]
+          ],
+          "deleted": 1
+        }
+      },
+      {
+        "name": "a deleted row is not resurrected",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": true
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [],
+          "deleted": 1
+        }
+      },
+      {
+        "name": "two deletions absorb two copies",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": true
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": true
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [],
+          "deleted": 2
+        }
+      },
+      {
+        "name": "deleted history is never dropped",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": true
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": true
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ]
+          ],
+          "deleted": 2
+        }
+      },
+      {
+        "name": "deletions and live rows together",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": true
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ]
+          ],
+          "deleted": 1
+        }
+      },
+      {
+        "name": "deleted twin whose live sibling survived",
+        "existing": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": true
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          },
+          {
+            "date": "2026-08-12",
+            "merchant": "CNC AG CIA Erfgo 10/08 0",
+            "amount": 12.0,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ],
+            [
+              "2026-08-12",
+              "AG CIA Erfgoed",
+              1200
+            ]
+          ],
+          "deleted": 1
+        }
+      },
+      {
+        "name": "case-insensitive alias merges spellings",
+        "existing": [
+          {
+            "date": "2026-01-05",
+            "merchant": "AMAZON MARKETPLACE",
+            "amount": 19.99,
+            "deleted": false
+          }
+        ],
+        "new": [
+          {
+            "date": "2026-01-05",
+            "merchant": "amzn mktp",
+            "amount": 19.99,
+            "deleted": false
+          },
+          {
+            "date": "2026-01-05",
+            "merchant": "amzn mktp",
+            "amount": 19.99,
+            "deleted": false
+          }
+        ],
+        "expected": {
+          "live": [
+            [
+              "2026-01-05",
+              "Amazon",
+              1999
+            ],
+            [
+              "2026-01-05",
+              "Amazon",
+              1999
+            ]
+          ],
+          "deleted": 0
+        }
+      }
+    ]
+  }
+}

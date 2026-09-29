@@ -49,19 +49,16 @@ Money is integer cents everywhere. Never multiply a float by 100.
 
 Local development works with no Cloudflare account: local D1 + `wrangler dev`.
 
-## Blocked: the sync decision
+## Decided: no sync (2026-09-29)
 
-**This is due before the service layer is built**, because option (b) needs
-change-tracking columns in the schema and those are far cheaper to add now than
-to retrofit.
+**(a) One mode per install**: desktop *or* cloud, never both over the same
+data. The schema gets no change-tracking columns, and the service layer is
+unblocked.
 
-- **(a) One mode per install** — desktop *or* cloud, no sync. Nearly free.
-- **(b) Desktop as an offline client of the cloud** — change tracking, conflict
-  resolution, and a merge story for two people editing one transaction. A
-  project comparable in size to the rest of the port.
-
-"Use it offline on my laptop, same data my wife sees" is (b). "Desktop for me,
-website for both of us" is (a).
+The rejected option was (b), desktop as an offline client of the cloud. It
+needs change tracking, conflict resolution and a merge story for two people
+editing one transaction, which is a project about the size of the rest of the
+port. Revisiting it means adding those columns to a live schema.
 
 The TrueLayer client secret can never ship inside a desktop app, so bank sync
 needs the hosted Worker either way. Everything else works offline. If a desktop
@@ -84,6 +81,9 @@ thing that was verified.
   takes the *first* regex match — insertion order was load-bearing.
 - `transaction_filter.py`, `tags.py`, `validation.py`, `merchant_editor.py`.
 - `getUser(request)` + Cloudflare Access JWT verification with `jose`.
+- Promote the analysis views into the schema — see
+  [Local analysis snapshot](#local-analysis-snapshot). Do this with the first
+  query module, since those modules should read from the views too.
 
 ### 2. Frontend screens (`frontend/`)
 
@@ -110,6 +110,65 @@ TrueLayer.
 ### 5. Cutover
 
 Delete `expenses/`, `tests/`, `tools/crosscheck/` and this file in one change.
+Only do it once `tools/snapshot.sh` has replaced the parquet for ad-hoc
+analysis. The script and the views stay after cutover.
+
+## Local analysis snapshot
+
+The TUI goes at cutover, but asking Claude questions about the data from a
+terminal has to keep working. Today that means reading `transactions.parquet`
+with pandas. Afterwards it means a local SQLite copy of D1. Keeping the TUI
+alive for this would be the wrong trade: a second writer is sync option (b), and
+a read-only TUI means maintaining Python that nothing checks any more.
+
+**The views.** `tools/crosscheck/queries/views.sql` already defines `v_live`
+(live rows, category resolved override → merchant → `"Other"`),
+`v_excluded_ids` and `v_summary` (Summary totals with the tag exclusions
+applied). They are `TEMP` views today, so they exist only while the cross-check
+runs. Move them into `worker/src/db/schema.ts` as `sqliteView`s so they live in
+the generated migrations, in D1, and in every snapshot. Then point the
+cross-check at the migrated views instead of `views.sql`, so the definition that
+was verified is the one that ships.
+
+Add one more view, `v_transactions`, in the same shape as the parquet rows so
+ad-hoc questions need no joins:
+
+| column         | from                                                          |
+|----------------|---------------------------------------------------------------|
+| `id`           | `transactions.id`                                             |
+| `date`         | `date(t.date, 'unixepoch')` — ISO text, not epoch seconds     |
+| `merchant`     | `merchants.canonical_name`, falling back to `merchant_raw`    |
+| `merchant_raw` | as imported                                                   |
+| `amount_cents` | the integer. Aggregate on this, never on `amount`             |
+| `amount`       | `amount_cents / 100.0`, for display only                      |
+| `type`         | `expense` / `income`                                          |
+| `category`     | as in `v_live`                                                |
+| `spending_type`| as in `v_live`                                                |
+| `tags`         | sorted, comma-separated tag names, like the parquet `Tags`    |
+| `source`       | import source                                                 |
+
+Only live rows, same as `v_live`. For `tags`, sort the names in a subquery
+before `group_concat`. Don't depend on `ORDER BY` inside the aggregate, which
+needs SQLite 3.44.
+
+**The snapshot.** A script, `tools/snapshot.sh`, that:
+
+1. `npx wrangler d1 export expenses --remote --output=<tmp>.sql`
+2. Loads it into a fresh SQLite file: `sqlite3 <db> < <tmp>.sql`
+3. Clears `bank_connections`. The tokens are encrypted and the key never
+   leaves Cloudflare, but they have no use locally.
+4. Prints the row count of `v_transactions` and the latest date, so a stale or
+   empty export is obvious.
+
+The target path comes from `EXPENSES_SNAPSHOT_DB`, defaulting to
+`~/.config/expenses_analyzer/snapshot.db`. It is never inside the repo. In
+desktop mode (option (a), SQLite in OPFS) the data is not reachable from a
+shell, so that mode needs an "Export database" button that downloads the same
+file.
+
+Before cutover, check that a snapshot answers the questions currently asked of
+the parquet: yearly and monthly totals, category breakdowns, and the savings
+rate joined with `payslips`.
 
 ## Cloudflare wiring (manual, not scripted)
 

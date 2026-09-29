@@ -23,9 +23,8 @@ Two invariants to protect while building. Both are cheap now and a refactor late
    `Cf-Access-Authenticated-User-Email` on its own — verify the signature and
    the `aud` claim.
 2. **`env.DB` is touched only by the Drizzle setup.** No D1-specific calls
-   (`.prepare()`, `.batch()`) in query code. The stub `/health` in
-   `worker/src/index.ts` currently violates this and must not set a precedent —
-   fix it when the first real route lands.
+   (`.prepare()`, `.batch()`) in query code. `createDb()` in
+   `worker/src/db/client.ts` is that setup; everything else takes a `Db`.
 
 Money is integer cents everywhere. Never multiply a float by 100.
 
@@ -74,16 +73,22 @@ Port the analysis first: the SQL already exists and is already proved correct.
 query module and keep the cross-check pointed at the SQL files so they stay the
 thing that was verified.
 
-- `analysis.py` (368) → query modules. Covered by the cross-check.
+- ~~`analysis.py` (368) → query modules.~~ Done: `worker/src/queries/analysis.ts`
+  over `v_summary`/`v_live`. `src/__tests__/queries/analysis.test.ts` proves
+  each function returns exactly what its SQL file returns, on a synthetic
+  fixture in CI and on real data with
+  `CROSSCHECK_DB=<db built by migrate_to_sqlite.py> npm test`. The chain is
+  Python = SQL (cross-check) and SQL = TypeScript (this test). Query modules
+  take a `Db` (`src/db/types.ts`), never a D1 binding, and `/health` now goes
+  through `createDb`, so invariant 2 holds everywhere.
 - `data_handler.py` (954) → most of this is parquet I/O that simply disappears.
   What survives is alias resolution, category resolution and dedup. Note
   `merchant_aliases.priority` exists because the Python walks the alias dict and
   takes the *first* regex match — insertion order was load-bearing.
 - `transaction_filter.py`, `tags.py`, `validation.py`, `merchant_editor.py`.
 - `getUser(request)` + Cloudflare Access JWT verification with `jose`.
-- Promote the analysis views into the schema — see
-  [Local analysis snapshot](#local-analysis-snapshot). Do this with the first
-  query module, since those modules should read from the views too.
+- ~~Promote the analysis views into the schema.~~ Done, see
+  [Local analysis snapshot](#local-analysis-snapshot).
 
 ### 2. Frontend screens (`frontend/`)
 

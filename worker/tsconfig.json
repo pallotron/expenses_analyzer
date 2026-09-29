@@ -17,5 +17,8 @@
     "erasableSyntaxOnly": true,
     "noEmit": true
   },
-  "include": ["src", "drizzle.config.ts"]
+  "include": ["src", "drizzle.config.ts"],
+  // Tests run under Node and are checked by tsconfig.test.json; Node's globals
+  // must not leak into the Worker's type environment.
+  "exclude": ["src/__tests__"]
 }

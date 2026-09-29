@@ -21,8 +21,10 @@ cd .. && PYTHONPATH=. .venv/bin/python tools/migrate_to_sqlite.py \
     --out expenses.db \
     --user you@example.com:"Your Name":self
 
-# 2. Apply the schema to the local D1.
-cd worker && npx wrangler d1 execute expenses --local --file=drizzle/0000_*.sql
+# 2. Apply the schema to the local D1, every migration in order.
+cd worker && for f in drizzle/*.sql; do
+    npx wrangler d1 execute expenses --local --file="$f"
+done
 
 # 3. Load the data.
 #    Use the script rather than `sqlite3 .dump`: that emits tables in CREATE

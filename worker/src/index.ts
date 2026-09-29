@@ -8,6 +8,10 @@
  * the Cf-Access-Authenticated-User-Email header on its own).
  */
 
+import { count, isNull } from "drizzle-orm";
+import { createDb } from "./db/client";
+import { transactions } from "./db/schema";
+
 export interface Env {
   DB: D1Database;
   CF_ACCESS_TEAM_DOMAIN: string;
@@ -19,10 +23,11 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
-      const { results } = await env.DB.prepare(
-        "SELECT COUNT(*) AS transactions FROM transactions WHERE deleted_at IS NULL",
-      ).all();
-      return Response.json({ ok: true, ...results[0] });
+      const [row] = await createDb(env.DB)
+        .select({ transactions: count() })
+        .from(transactions)
+        .where(isNull(transactions.deletedAt));
+      return Response.json({ ok: true, ...row });
     }
 
     return new Response("Not found", { status: 404 });

@@ -7,15 +7,20 @@
     "build": "tsc -b",
     "db:generate": "drizzle-kit generate",
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev"
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typecheck": "tsc -b && tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "drizzle-orm": "^0.44.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260903.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.0.0",
     "drizzle-kit": "^0.31.6",
     "typescript": "~5.9.3",
+    "vitest": "^5.0.2",
     "wrangler": "^4.70.0"
   }
 }

@@ -79,18 +79,40 @@ To start over, delete `.wrangler/state/v3/d1` and repeat from step 2.
 
 ## Deploying
 
-Needs a Cloudflare account, and these are not yet done:
+Served at `expenses.angelofailla.com` behind Cloudflare Access. `workers.dev`
+and preview URLs are off, so the custom domain is the only way in.
+
+**Access** (Cloudflare One dashboard, Zero Trust Free):
+- Team domain: `pallotron.cloudflareaccess.com`, which is `CF_ACCESS_TEAM_DOMAIN`.
+- Self-hosted application "expenses" for `expenses.angelofailla.com`, with
+  one Allow policy listing the household emails. Its **Application Audience
+  (AUD) Tag**, under the application's **Additional settings** tab, is
+  `CF_ACCESS_AUD`. Not the policy ID: that is a dashed UUID, the AUD is 64 hex
+  characters.
+- A new user needs adding in both places: the policy, and the `users` table.
+
+**D1:** `npx wrangler d1 create expenses`, with the id in `wrangler.toml`.
+Keep `binding = "DB"`: the code reads `env.DB`. Schema, then data:
 
 ```sh
-npx wrangler d1 create expenses     # put the returned id in wrangler.toml
-sqlite3 expenses.db .dump | npx wrangler d1 execute expenses --remote --file=-
+for f in drizzle/*.sql; do
+    npx wrangler d1 execute expenses --remote --file="$f"
+done
+../tools/dump_for_d1.sh ../expenses.db > /tmp/d1_data.sql
+npx wrangler d1 execute expenses --remote --file=/tmp/d1_data.sql
+```
+
+Not `sqlite3 .dump`, which emits tables in CREATE order and includes
+`sqlite_sequence`; D1 rejects both.
+
+**Deploy:** `npx wrangler deploy`. Then `https://expenses.angelofailla.com/api/me`
+should log you in and return your user.
+
+**Secrets**, needed once bank sync and categorisation are ported:
+
+```sh
 npx wrangler secret put TRUELAYER_CLIENT_ID
 npx wrangler secret put TRUELAYER_CLIENT_SECRET
 npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put TOKEN_ENCRYPTION_KEY
 ```
-
-`CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` in `wrangler.toml` come from the
-Cloudflare Access application that fronts this Worker. They are not secrets, but
-the Worker must verify the Access JWT against them rather than trusting the
-`Cf-Access-Authenticated-User-Email` header.

@@ -2,28 +2,31 @@ name = "expenses-analyzer-api"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 
-# Fill in database_id after creating the database:
-#   npx wrangler d1 create expenses
-# then seed it from a local migration:
-#   sqlite3 expenses.db .dump | npx wrangler d1 execute expenses --remote --file=-
+# Served only on the custom domain, which the Access application protects.
+# workers.dev is off: it would be a second address with no Access in front.
+# Top-level keys must stay above the first [table] header, or TOML files them
+# under that table.
+workers_dev = false
+preview_urls = false
+routes = [
+  { pattern = "expenses.angelofailla.com", custom_domain = true }
+]
+
+# Created with `npx wrangler d1 create expenses`. Apply drizzle/*.sql in order,
+# then seed with tools/dump_for_d1.sh (not `sqlite3 .dump`, which D1 rejects).
 [[d1_databases]]
 binding = "DB"
 database_name = "expenses"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "ce692cdd-1d7f-4eba-8f36-b8ec6e1b285b"
 
 # Cloudflare Access sits in front of this Worker and supplies a signed JWT.
 # CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD identify the Access application whose
 # token the Worker verifies; neither is a secret, but both are per-deployment.
 [vars]
-CF_ACCESS_TEAM_DOMAIN = ""
-CF_ACCESS_AUD = ""
+CF_ACCESS_TEAM_DOMAIN = "pallotron.cloudflareaccess.com"
+CF_ACCESS_AUD = "af6e9c488346fcaf590728ed831f2adbfb7300a2bc744cbb70464528801a3d76"
 
 # Secret: TRUELAYER_CLIENT_ID     (npx wrangler secret put TRUELAYER_CLIENT_ID)
 # Secret: TRUELAYER_CLIENT_SECRET
 # Secret: GEMINI_API_KEY
 # Secret: TOKEN_ENCRYPTION_KEY    (encrypts bank tokens at rest in D1)
-
-# Add the custom domain once it is chosen:
-# routes = [
-#   { pattern = "api.example.com", custom_domain = true }
-# ]

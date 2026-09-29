@@ -161,7 +161,7 @@ Only live rows, same as `v_live`. For `tags`, sort the names in a subquery
 before `group_concat`. Don't depend on `ORDER BY` inside the aggregate, which
 needs SQLite 3.44.
 
-**The snapshot (written, not yet run against real D1).** `tools/snapshot.sh`:
+**The snapshot (working since 2026-09-29).** `tools/snapshot.sh`:
 
 1. `npx wrangler d1 export expenses --remote --output=<tmp>.sql`
 2. Loads it into a fresh SQLite file: `sqlite3 <db> < <tmp>.sql`
@@ -182,16 +182,43 @@ rate joined with `payslips`.
 
 ## Cloudflare wiring (manual, not scripted)
 
-Needed before anything can deploy:
+The steps themselves are in `worker/README.md` under "Deploying".
 
-- `wrangler d1 create expenses`, put the id in `worker/wrangler.toml`
-  (currently a placeholder).
-- Seed remote D1 via `tools/dump_for_d1.sh`.
+Done 2026-09-29:
+- D1 `expenses` created, id in `worker/wrangler.toml`. Migrations `0000` and
+  `0001` applied to it (schema and views, no data).
+- Access: team `pallotron.cloudflareaccess.com`, a self-hosted application for
+  `expenses.angelofailla.com` with an Allow policy for the two household emails.
+  Both values are in `wrangler.toml`.
+- Deployed to `expenses.angelofailla.com` (custom domain; `workers.dev` and
+  preview URLs off). Anonymous and forged-header requests are redirected to the
+  Access login before reaching the Worker. A logged-in user with no `users` row
+  gets a 403 from `getUser`, confirmed in `wrangler tail`.
+- Seeded from the parquet with two users, owner keys `self` and `katia`, whose
+  emails match the Access policy. The
+  cross-check passed on the seed database before upload. `bank_connections`
+  was emptied first, so no TrueLayer tokens are on Cloudflare; the banks get
+  re-linked when bank sync is ported. D1 matches the seed on 13 counts and
+  totals.
+
+Still to do:
+- Add Google login to Access. Login is currently one-time PIN (plus the
+  Cloudflare-account option). Needs a Google Cloud OAuth client ("Web
+  application"; origin `https://pallotron.cloudflareaccess.com`, redirect
+  `https://pallotron.cloudflareaccess.com/cdn-cgi/access/callback`; consent
+  screen External, both Gmail addresses as test users), then add **Google**
+  (not Google Workspace) under Integrations → Identity providers.
+- The parquet is still the TUI's live data, so D1 is a copy as of
+  2026-09-29. Anything imported in the TUI from now on is not in D1. Decide
+  when to stop writing through the TUI, or re-seed (wipe the tables and repeat
+  the seed) before cutover.
+- Track migrations. `0000` and `0001` went in with `d1 execute`, so nothing
+  records that they ran. Before `0002`, set `migrations_dir = "drizzle"` on the
+  D1 binding and backfill wrangler's `d1_migrations` table with the two applied
+  names, then use `wrangler d1 migrations apply`.
 - Secrets: `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`, `GEMINI_API_KEY`,
-  `TOKEN_ENCRYPTION_KEY`.
-- Create the Access application (two users), then set `CF_ACCESS_TEAM_DOMAIN`
-  and `CF_ACCESS_AUD`.
-- `deploy.yml` — deferred until there is something deployable.
+  `TOKEN_ENCRYPTION_KEY`, when bank sync and categorisation are ported.
+- `deploy.yml`: deploying from CI needs an API token secret in GitHub.
 
 ## Known issue carried over
 

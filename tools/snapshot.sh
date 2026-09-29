@@ -31,7 +31,14 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
 echo "exporting D1 database '$DATABASE'..."
-(cd "$ROOT/worker" && npx wrangler d1 export "$DATABASE" --remote --output="$WORK/dump.sql")
+# wrangler prints a presigned URL that downloads the whole export for an hour.
+# Keep it out of terminal scrollback and logs: show wrangler's output only on
+# failure, and even then without the URL.
+if ! (cd "$ROOT/worker" && npx wrangler d1 export "$DATABASE" --remote --output="$WORK/dump.sql") \
+    > "$WORK/export.log" 2>&1; then
+    grep -v 'cloudflarestorage\.com' "$WORK/export.log" >&2
+    exit 1
+fi
 
 # Build beside the target and move into place, so a failed load never leaves a
 # half-written snapshot where the old one was.

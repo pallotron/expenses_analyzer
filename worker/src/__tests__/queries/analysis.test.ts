@@ -9,7 +9,7 @@
  * by tools/migrate_to_sqlite.py to run the same comparison on real data too.
  */
 
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -17,6 +17,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { Db } from "../../db/types";
 import * as schema from "../../db/schema";
+import { WORKER, emptyDatabase } from "../helpers/db";
 import {
   cashFlowTotals,
   categoryBreakdown,
@@ -27,20 +28,9 @@ import {
   type Scope,
 } from "../../queries/analysis";
 
-const WORKER = resolve(import.meta.dirname, "../../..");
-const MIGRATIONS = resolve(WORKER, "drizzle");
 const QUERIES = resolve(WORKER, "../tools/crosscheck/queries");
 
 /* ------------------------------------------------------------- fixture */
-
-function migrate(sqlite: Database.Database): void {
-  for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort()) {
-    for (const statement of readFileSync(resolve(MIGRATIONS, file), "utf8")
-      .split("--> statement-breakpoint")) {
-      if (statement.trim()) sqlite.exec(statement);
-    }
-  }
-}
 
 const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 1000;
 
@@ -111,8 +101,7 @@ function seed(sqlite: Database.Database): void {
 }
 
 function fixture(): Database.Database {
-  const sqlite = new Database(":memory:");
-  migrate(sqlite);
+  const sqlite = emptyDatabase();
   seed(sqlite);
   return sqlite;
 }

@@ -36,7 +36,38 @@ npx wrangler d1 execute expenses --local --file=/tmp/d1_data.sql
 npx wrangler dev
 ```
 
-Then `curl http://localhost:8787/health` reports the live transaction count.
+Every route needs a user. There is no Access locally, so name one of the
+`users` emails in `worker/.dev.vars` (gitignored):
+
+```sh
+echo 'DEV_USER_EMAIL=you@example.com' > .dev.vars
+```
+
+It is honoured only for requests to `localhost`, so it cannot open up a
+deployment. Then `curl http://localhost:8787/api/me` shows who you are acting
+as, and `curl http://localhost:8787/health` reports the live transaction count.
+Without it every request gets a 500, because Access is not configured.
+
+## Tests
+
+```sh
+npm run typecheck   # the Worker, and the tests under Node
+npm test
+```
+
+`src/__tests__/queries/` proves each query module equal to its SQL file in
+`../tools/crosscheck/queries/`. To run that comparison on real data too, point
+it at a database built by `tools/migrate_to_sqlite.py`:
+
+```sh
+CROSSCHECK_DB=../expenses.db npm test
+```
+
+**Adding a dependency:** `npm install <pkg>` on an existing tree drops every
+other platform's rolldown binding from the lockfile (npm's optional-dependency
+bug), which breaks Vitest here and in CI. Add the package to `package.json`,
+then `rm -rf node_modules package-lock.json && npm install`, and check that
+`git diff package-lock.json` only adds what you meant to.
 
 Query the local database directly at any time:
 

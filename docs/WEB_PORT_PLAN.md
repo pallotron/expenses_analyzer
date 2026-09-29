@@ -86,7 +86,13 @@ thing that was verified.
   `merchant_aliases.priority` exists because the Python walks the alias dict and
   takes the *first* regex match — insertion order was load-bearing.
 - `transaction_filter.py`, `tags.py`, `validation.py`, `merchant_editor.py`.
-- `getUser(request)` + Cloudflare Access JWT verification with `jose`.
+- ~~`getUser(request)` + Cloudflare Access JWT verification with `jose`.~~ Done:
+  `worker/src/auth.ts`. Checks signature (RS256 only), issuer, audience and
+  expiry, then maps the email claim to `users`. Unknown or missing email is a
+  403, and an empty `CF_ACCESS_AUD`/`CF_ACCESS_TEAM_DOMAIN` is a 500. Every
+  route goes through it, including `/health`. `DEV_USER_EMAIL` in `.dev.vars`
+  stands in for Access, but only for requests to localhost. `/api/me` is the
+  route to hit first after deploying.
 - ~~Promote the analysis views into the schema.~~ Done, see
   [Local analysis snapshot](#local-analysis-snapshot).
 

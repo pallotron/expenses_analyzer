@@ -12,7 +12,8 @@
     "typecheck": "tsc -b && tsc -p tsconfig.test.json"
   },
   "dependencies": {
-    "drizzle-orm": "^0.44.6"
+    "drizzle-orm": "^0.44.6",
+    "jose": "^6.2.12"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260903.1",

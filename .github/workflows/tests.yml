@@ -93,7 +93,12 @@ jobs:
       - run: npm ci
 
       - name: Typecheck
-        run: npx tsc -b
+        run: npm run typecheck
+
+      # Includes the proof that each query module returns exactly what its
+      # tools/crosscheck/queries/ SQL file returns.
+      - name: Test
+        run: npm test
 
       # Regenerating must be a no-op. If it is not, schema.ts changed without a
       # matching migration, and anything seeded from drizzle/ would drift from

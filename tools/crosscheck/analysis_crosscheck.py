@@ -35,11 +35,13 @@ from expenses.data_handler import (
     load_tag_settings,
     load_transactions_from_parquet,
 )
+from expenses.tags import parse_tags
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from money import to_cents  # noqa: E402  (needs the path line above)
 
 QUERIES = Path(__file__).resolve().parent / "queries"
+REQUIRED_VIEWS = ("v_live", "v_summary", "v_transactions")
 
 Row = Tuple
 Rows = List[Row]
@@ -151,7 +153,40 @@ def py_hidden_tag_total(live: pd.DataFrame) -> Rows:
     return [(int(excluded.loc[excluded["Type"] == "expense", "Cents"].sum()),)]
 
 
+def py_transaction_rows(live: pd.DataFrame) -> Rows:
+    """Every live row as v_transactions presents it."""
+    return sorted(
+        (
+            date.strftime("%Y-%m-%d"),
+            merchant,
+            int(cents),
+            txn_type,
+            category,
+            ",".join(sorted(parse_tags(tags))),
+        )
+        for date, merchant, cents, txn_type, category, tags in zip(
+            live["Date"],
+            live["DisplayMerchant"],
+            live["Cents"],
+            live["Type"],
+            live["Category"],
+            live["Tags"],
+        )
+    )
+
+
 # ------------------------------------------------------------ the sql side
+
+
+def missing_views(conn: sqlite3.Connection) -> List[str]:
+    """Views the checks need that the database lacks.
+
+    They come from the schema's generated migrations rather than from this
+    tool, so what is verified is exactly what the Worker and a snapshot see.
+    """
+    rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'view'")
+    present = {row[0] for row in rows}
+    return [name for name in REQUIRED_VIEWS if name not in present]
 
 
 def run_sql(conn: sqlite3.Connection, filename: str, view: str, params: dict) -> Rows:
@@ -251,6 +286,15 @@ CHECKS = [
         view="v_live",
         columns=("income_cents", "expenses_cents"),
     ),
+    # The flat view a local snapshot is analysed through. Row for row, so a
+    # wrong merchant, category or tag list shows up even where totals agree.
+    Check(
+        "transaction rows (snapshot view)",
+        "transaction_rows.sql",
+        py_transaction_rows,
+        view="v_transactions",
+        columns=("date", "merchant", "amount_cents", "type", "category", "tags"),
+    ),
 ]
 
 
@@ -307,14 +351,20 @@ def main() -> int:
         return 0
 
     conn = sqlite3.connect(f"file:{args.database}?mode=ro", uri=True)
-    conn.executescript((QUERIES / "views.sql").read_text())
+    missing = missing_views(conn)
+    if missing:
+        conn.close()
+        parser.error(
+            f"{args.database} has no {', '.join(missing)}; it predates the views in "
+            "worker/src/db/schema.ts. Rebuild it with tools/migrate_to_sqlite.py"
+        )
 
     checks = [c for c in CHECKS if not args.only or args.only.lower() in c.name.lower()]
     print(f"comparing {len(checks)} analyses over {len(live)} live transactions\n")
 
     failures = 0
     for check in checks:
-        frame = live if check.view == "v_live" else summary
+        frame = summary if check.view == "v_summary" else live
         expected = check.python(frame)
         actual = run_sql(conn, check.query, check.view, check.params)
         if not report(check, expected, actual):

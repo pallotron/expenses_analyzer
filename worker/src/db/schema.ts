@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
-  sqliteTable, text, integer, primaryKey, index, uniqueIndex,
+  sqliteTable, sqliteView, text, integer, real, primaryKey, index, uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 /**
@@ -279,3 +279,135 @@ export const settings = sqliteTable("settings", {
   updatedBy: integer("updated_by").references(() => users.id),
   updatedAt: integer("updated_at").notNull().default(now),
 });
+
+/* ------------------------------------------------------------------ views */
+
+/*
+ * The three rules every summary depends on, written once so no query has to
+ * restate them:
+ *
+ *   1. Live rows only. A soft-deleted transaction is history, never a total.
+ *   2. Category resolves per-transaction override first, then the merchant's
+ *      category, then the literal "Other" — mirroring the Python's
+ *      DisplayMerchant.map(categories).fillna("Other").
+ *   3. Tag exclusion honours the trailing-star prefix patterns.
+ *
+ * tools/crosscheck/ runs its queries against these views and diffs the result
+ * with the Python, so rerun it after changing any of them.
+ */
+
+export const vLive = sqliteView("v_live", {
+  id: integer("id").notNull(),
+  date: integer("date").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  type: text("type", { enum: ["expense", "income"] }).notNull(),
+  source: text("source").notNull(),
+  merchantRaw: text("merchant_raw").notNull(),
+  merchant: text("merchant"),
+  category: text("category").notNull(),
+  spendingType: text("spending_type", { enum: ["essential", "discretionary"] }),
+  year: text("year").notNull(),
+  month: text("month").notNull(),
+}).as(sql`
+SELECT
+  t.id,
+  t.date,
+  t.amount_cents,
+  t.type,
+  t.source,
+  t.merchant_raw,
+  m.canonical_name          AS merchant,
+  COALESCE(c.name, 'Other') AS category,
+  c.spending_type,
+  strftime('%Y', t.date, 'unixepoch')    AS year,
+  strftime('%Y-%m', t.date, 'unixepoch') AS month
+FROM transactions t
+LEFT JOIN merchants m  ON m.id = t.merchant_id
+LEFT JOIN categories c ON c.id = COALESCE(t.category_override_id, m.category_id)
+WHERE t.deleted_at IS NULL
+`);
+
+/*
+ * Transactions matching any exclusion pattern.
+ *
+ * The prefix test is substr(), not LIKE. Tag names may contain "_", which LIKE
+ * treats as a single-character wildcard, so LIKE 'trip_%' would also match
+ * 'tripx:...'. substr() compares literally and has no such trap.
+ */
+export const vExcludedIds = sqliteView("v_excluded_ids", {
+  id: integer("id").notNull(),
+}).as(sql`
+SELECT DISTINCT tt.transaction_id AS id
+FROM transaction_tags tt
+JOIN tags g ON g.id = tt.tag_id
+JOIN tag_exclusion_patterns p ON
+  CASE
+    WHEN p.pattern LIKE '%*'
+      THEN substr(g.name, 1, length(p.pattern) - 1) = substr(p.pattern, 1, length(p.pattern) - 1)
+    ELSE g.name = p.pattern
+  END
+`);
+
+/** What the Summary screen totals: live rows minus the excluded tags. */
+export const vSummary = sqliteView("v_summary", {
+  id: integer("id").notNull(),
+  date: integer("date").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  type: text("type", { enum: ["expense", "income"] }).notNull(),
+  source: text("source").notNull(),
+  merchantRaw: text("merchant_raw").notNull(),
+  merchant: text("merchant"),
+  category: text("category").notNull(),
+  spendingType: text("spending_type", { enum: ["essential", "discretionary"] }),
+  year: text("year").notNull(),
+  month: text("month").notNull(),
+}).as(sql`
+SELECT * FROM v_live
+WHERE id NOT IN (SELECT id FROM v_excluded_ids)
+`);
+
+/**
+ * The parquet's shape, for ad-hoc analysis of a local snapshot
+ * (tools/snapshot.sh). Live rows, one per transaction, no joins needed.
+ *
+ * Aggregate on amount_cents; `amount` is for reading only. Tags are sorted in a
+ * subquery before group_concat because ORDER BY inside the aggregate needs
+ * SQLite 3.44.
+ */
+export const vTransactions = sqliteView("v_transactions", {
+  id: integer("id").notNull(),
+  date: text("date").notNull(),
+  merchant: text("merchant").notNull(),
+  merchantRaw: text("merchant_raw").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  amount: real("amount").notNull(),
+  type: text("type", { enum: ["expense", "income"] }).notNull(),
+  category: text("category").notNull(),
+  spendingType: text("spending_type", { enum: ["essential", "discretionary"] }),
+  tags: text("tags").notNull(),
+  source: text("source").notNull(),
+}).as(sql`
+SELECT
+  l.id,
+  date(l.date, 'unixepoch')          AS date,
+  COALESCE(l.merchant, l.merchant_raw) AS merchant,
+  l.merchant_raw,
+  l.amount_cents,
+  l.amount_cents / 100.0             AS amount,
+  l.type,
+  l.category,
+  l.spending_type,
+  COALESCE(tg.tags, '')              AS tags,
+  l.source
+FROM v_live l
+LEFT JOIN (
+  SELECT transaction_id, group_concat(name, ',') AS tags
+  FROM (
+    SELECT tt.transaction_id, g.name
+    FROM transaction_tags tt
+    JOIN tags g ON g.id = tt.tag_id
+    ORDER BY tt.transaction_id, g.name
+  )
+  GROUP BY transaction_id
+) tg ON tg.transaction_id = l.id
+`);

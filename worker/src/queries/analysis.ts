@@ -214,3 +214,48 @@ export async function categoryMonthTotalsAllTypes(db: Db, scope: Scope = {}): Pr
     .groupBy(v.month, v.category)
     .orderBy(v.month, v.category);
 }
+
+export interface ScopedMerchantRow {
+  /** Canonical name, or the statement's text when it never resolved (as v_transactions). */
+  merchant: string;
+  /** Most frequent category among the rows in scope; ties go alphabetically first. */
+  category: string;
+  amountCents: number;
+  txnCount: number;
+}
+
+/**
+ * The Summary's merchant tables (update_top_merchants_view and
+ * update_top_income_view) for one scope. Descending by amount, then name.
+ */
+export async function merchantsInScope(
+  db: Db,
+  type: TransactionType,
+  scope: Scope = {},
+): Promise<ScopedMerchantRow[]> {
+  const v = source(scope);
+  const name = sql<string>`COALESCE(${v.merchant}, ${v.merchantRaw})`;
+  const parts = await db
+    .select({ merchant: name, category: v.category, amountCents: sumCents(v), txnCount: count() })
+    .from(v)
+    .where(and(eq(v.type, type), ...scopeTerms(v, scope)))
+    .groupBy(name, v.category);
+
+  const merged = new Map<string, ScopedMerchantRow & { modeCount: number }>();
+  for (const p of parts) {
+    const m = merged.get(p.merchant);
+    if (!m) {
+      merged.set(p.merchant, { ...p, modeCount: p.txnCount });
+      continue;
+    }
+    m.amountCents += p.amountCents;
+    m.txnCount += p.txnCount;
+    if (p.txnCount > m.modeCount || (p.txnCount === m.modeCount && p.category < m.category)) {
+      m.category = p.category;
+      m.modeCount = p.txnCount;
+    }
+  }
+  return [...merged.values()]
+    .map(({ modeCount: _modeCount, ...row }) => row)
+    .sort((a, b) => b.amountCents - a.amountCents || a.merchant.localeCompare(b.merchant));
+}

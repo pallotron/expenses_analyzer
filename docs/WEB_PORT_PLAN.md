@@ -133,22 +133,122 @@ thing that was verified.
 
 ### 2. Frontend screens (`frontend/`)
 
-Summary first — it is the biggest screen (1,694 lines) and the one whose numbers
-the cross-check already guarantees. Then Transactions (971), Import (406),
-Categorize (292), Payslips (229), Link Banks (674).
+The service layer for most of this already exists (`services/transactions.ts`,
+`services/merchants.ts`); what is missing is routes and screens. The inventory
+below was taken from the TUI on 2026-09-30 so that nothing is lost at cutover.
+Each line is a TUI feature, where it lives, and what the web does with it.
 
-- ~~Summary, core views.~~ Done: one Worker serves the app and the API
-  (`[assets]`, `run_worker_first`), `GET /api/summary` and `/periods`, and the
-  dashboard with tiles, spending split, monthly chart, breakdowns and the
-  monthly grid. The grid's anomaly flags and the merchant lists are held to
-  the Python by the `summary` section of `python_vectors.json`. Still to come
-  for Summary: the pension-aware savings rate, drill-down (with
-  Transactions), editing the exclusion patterns, the payslip-only month note.
+**Order**, one PR each unless noted: Transactions (read) → Transactions
+(edit) → Summary drill-down + hidden-tag editor → Categorize + Gemini →
+Import → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
+
+#### Summary (`summary_screen.py`) — core done in PR #30
+
+- ~~Tiles, spending split with budgets, monthly chart, breakdowns, grid with
+  anomaly flags, source filter, include-hidden toggle (`x`).~~ Done.
+- Drill-down (`enter` on a category/merchant/month cell) → link into
+  Transactions with the matching filters. Needs Transactions (read).
+- Hidden-tag editor (`X`, `tag_exclusion_screen.py`): edit
+  `tag_exclusion_patterns`, entries may end in `*`. Service + small sheet.
+- Pension-aware savings rate (`get_enhanced_savings_totals`) and the
+  payslip-only month note (`_coverage_label`). Needs payslips in D1, so it
+  lands with or after Payslips.
+- Compact mode (`ctrl+m`), focus mode (`f`): **dropped**, the responsive
+  layout replaces them.
+- Export PDF (`e`): step 4.
+
+#### Transactions (`transaction_screen.py` + modals)
+
+Read PR:
+- List with filters: date range, merchant, category, source (quoted =
+  exact), amount range, tags, type (all/income/expense), budget type
+  (all/essential/discretionary). `listTransactions` already implements the
+  Python filter; needs a route and paging. Filters live in the URL so
+  Summary can link in.
+- Phone: card rows; desktop: table with sortable columns.
+
+Edit PR:
+- Edit one transaction (`edit_single_transaction_screen.py`): date,
+  merchant, amount, source, type → `updateTransaction`.
+- Bulk edit selected (`b`, `bulk_edit_transaction_screen.py`): merchant,
+  source, type for many rows.
+- Edit merchant (`e`, `edit_merchant_screen.py`): regex pattern, display
+  alias, category, tags, live preview of affected rows →
+  `previewAliasChange` / `saveMerchantDecision`. Suggests a pattern from the
+  raw name (`_suggest_pattern`).
+- Tag selected (`g`) / tag all filtered (`G`), add or remove
+  (`tag_transactions_screen.py`) → `tagTransactions`. Tag inputs autocomplete
+  from known tags (`tag_suggester.py`).
+- Cycle a category's budget type from a row (`x`).
+- Select, select all, delete selected (soft delete) →
+  `softDeleteTransactions`. The TUI has no restore UI although
+  `restore_deleted_transactions` exists; the web adds an "Undo" after delete
+  using `restoreTransactions`.
+- **Bulk delete screen (`d`, `delete_screen.py`) folds in here**: its
+  filters (date, merchant regex/glob, category, source, amount) are the
+  Transactions filters plus "select all filtered → delete". Regex/glob
+  matching is dropped in favour of the list's contains/exact match.
+- Export PDF (`p`): step 4.
+
+#### Categorize (`categorize_screen.py`)
+
+- Merchant list with its category, filter by merchant and by category,
+  multi-select, assign an existing category or type a new one.
+- "Auto-categorize uncategorized" → Gemini, below.
+
+#### Gemini categorization (`gemini_utils.py`)
+
+Two entry points in the TUI: the import checkbox "Suggest categories for new
+merchants with AI" and Categorize's "Auto-Categorize Uncategorized". Both send
+the merchant names not yet in `categories.json` to Gemini in one call, with the
+existing categories as guidance (income and expense prompts differ), and
+merge the returned `{merchant: category}` map.
+
+Port: `worker/src/services/categorize.ts` calls the Gemini REST API with
+`fetch` from the Worker. The key is a Worker secret (`wrangler secret put
+GEMINI_API_KEY`), never sent to the browser. The model name becomes a
+`[vars]` entry (the TUI hardcodes `gemini-2.5-flash`; making it configurable
+was already on TODO.md). Prompt building and response parsing are pure
+functions held to the Python with a `gemini` section in `python_vectors.json`;
+the network call is mocked in tests. Suggestions are shown for review before
+they are saved, unlike the TUI, which saved them silently. Only merchant
+names are sent, as today.
+
+#### Import (`import_screen.py`, `file_browser_screen.py`)
+
+- File picker (a browser `<input type=file>` replaces the file browser),
+  preview of the first rows, column mapping: date, merchant, amount,
+  optional separate amount-out column, type (auto from sign / all expenses /
+  all income), source (existing or new), AI-suggest checkbox.
+- Smart date parsing (`_parse_date_smart`), PayPal rows skipped by Balance
+  Impact (`_should_skip_paypal_row`), per-reason skip counts reported.
+- Parse the CSV in the browser, POST rows; `importTransactions` already
+  validates, dedups and suppresses soft-deleted re-imports.
+
+#### Budget types (`u`, `budget_types_screen.py`)
+
+- Toggle each category essential/discretionary; set the annual essential and
+  discretionary budgets (`spending_type_budgets`). Small settings screen.
+
+#### Payslips (`y`, `payslips_screen.py`)
+
+- Owners (people), import payslip PDFs, preview, save. The parser is already
+  ported (`frontend/src/payslips/`). Folders become a multi-file picker.
 
 Payslips are parsed **client-side** with pdf.js and only the parsed numbers are
 POSTed. A Worker has no filesystem, so the folder scanner cannot survive — and
 keeping the PDF off Cloudflare keeps the employer name off third-party
 infrastructure. There is deliberately no `payslip_folders` table.
+
+#### Not ported
+
+- Backups (`b`, `backup.py`, `backup_screen.py`) and auto-recovery from a
+  corrupt parquet: D1 Time Travel (point-in-time restore: 7 days on the free plan, 30 on paid) and
+  `tools/snapshot.sh` replace them. Restoring is a manual
+  `wrangler d1 time-travel restore`, documented in the README.
+- Log viewer widget and `app.log`: `wrangler tail` / Workers Logs.
+- Command palette, keybindings, notifications: normal web navigation and
+  toasts.
 
 ### 3. Bank integration
 

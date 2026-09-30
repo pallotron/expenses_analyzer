@@ -41,6 +41,12 @@ jobs:
             --user b@example.com:"Person B":partner
           PYTHONPATH=. .venv/bin/python tools/crosscheck/analysis_crosscheck.py "$FIXTURE/ci.db"
 
+      # The Worker's tests replay the Python's answers from this file. If the
+      # Python changed, the file must be regenerated so the TypeScript port is
+      # held to the new behaviour rather than the old.
+      - name: Python vectors are current
+        run: PYTHONPATH=. .venv/bin/python tools/crosscheck/vectors.py --check
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:

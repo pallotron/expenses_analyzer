@@ -63,6 +63,18 @@ it at a database built by `tools/migrate_to_sqlite.py`:
 CROSSCHECK_DB=../expenses.db npm test
 ```
 
+That also checks the import port on real data. It gets an in-memory copy, so
+the file is never written.
+
+`src/__tests__/fixtures/python_vectors.json` is the Python's own answers, for
+merchant names, amounts, tags and whole import scenarios, which the domain and
+service tests replay. Never edit it by hand. After changing the Python or the
+scenarios in `tools/crosscheck/vectors.py`, regenerate it from the repo root:
+
+```sh
+PYTHONPATH=. .venv/bin/python tools/crosscheck/vectors.py
+```
+
 **Adding a dependency:** `npm install <pkg>` on an existing tree drops every
 other platform's rolldown binding from the lockfile (npm's optional-dependency
 bug), which breaks Vitest here and in CI. Add the package to `package.json`,

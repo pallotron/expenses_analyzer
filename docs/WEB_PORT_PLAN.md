@@ -81,11 +81,33 @@ thing that was verified.
   Python = SQL (cross-check) and SQL = TypeScript (this test). Query modules
   take a `Db` (`src/db/types.ts`), never a D1 binding, and `/health` now goes
   through `createDb`, so invariant 2 holds everywhere.
-- `data_handler.py` (954) → most of this is parquet I/O that simply disappears.
-  What survives is alias resolution, category resolution and dedup. Note
-  `merchant_aliases.priority` exists because the Python walks the alias dict and
-  takes the *first* regex match — insertion order was load-bearing.
-- `transaction_filter.py`, `tags.py`, `validation.py`, `merchant_editor.py`.
+- ~~`data_handler.py` (954)~~ Done. The parquet I/O is gone, and the rest is in
+  `worker/src/domain/` (merchant normalisation and aliasing, amount parsing)
+  and `worker/src/services/transactions.ts` (import with dedup and
+  soft-delete suppression, delete, restore, tag, edit).
+  - **Verification.** `tools/crosscheck/vectors.py` runs the Python's own
+    functions, including `append_transactions` on 14 scenarios, and writes
+    the answers to `worker/src/__tests__/fixtures/python_vectors.json`. The
+    Worker's tests replay that file, and CI fails if it is stale. With
+    `CROSSCHECK_DB`, every real transaction resolves to the merchant the
+    migration gave it, and re-importing all of them adds nothing.
+  - **Differences from the Python.** Delete, restore and edit act on ids. The
+    Python matched on (date, merchant, amount) and so hit every identical twin.
+    Occurrence values are only kept free; which copies are duplicates is still
+    decided by counting, as in the Python.
+  - **Amounts.** Python stored `round(x * 100)` half-to-even in binary floats
+    (pandas `.round(2)`), so "2.675" is 268 cents but "1.005" is 100.
+    `parseAmountCents` reproduces that, or re-imports would miss their
+    duplicates by a cent.
+  - **Left for later.**
+    - Gemini category suggestions on import move with `gemini_utils.py`.
+    - Exact dedup on `external_id` moves with the TrueLayer port. It has to
+      decide how provider ids meet rows migrated without one.
+    - Dedup uses each row's stored merchant. When the merchant editor adds an
+      alias, it must re-point the matching rows, as the Python re-derived
+      display names on every load.
+- ~~`tags.py`~~ Done, in `worker/src/domain/tags.ts`, held to the same vectors.
+- `transaction_filter.py`, `validation.py`, `merchant_editor.py`.
 - ~~`getUser(request)` + Cloudflare Access JWT verification with `jose`.~~ Done:
   `worker/src/auth.ts`. Checks signature (RS256 only), issuer, audience and
   expiry, then maps the email claim to `users`. Unknown or missing email is a
@@ -222,9 +244,8 @@ Still to do:
 
 ## Known issue carried over
 
-`append_transactions` builds `deleted_keys` as a **set**, so soft-deleting one
-of two identical same-day transactions suppresses both on re-import. The port
-removes this structurally (real primary key + partial unique index on
-`(date, merchant_id, amount_cents, occurrence)` over live rows only, verified
-against 64 same-day repeats in real data). Fix it in Python only if the TUI
-stays in use long enough to matter.
+The soft-delete collision is fixed on both sides. The Python now counts deleted
+rows instead of collecting them in a set (`_drop_reimported_deletions`), and
+the port does the same, held to it by the import vectors. What the Python
+still gets wrong is deleting and restoring by (date, merchant, amount), which
+touches every identical twin; the port acts on ids.

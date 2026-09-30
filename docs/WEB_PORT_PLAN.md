@@ -247,21 +247,23 @@ Still to do:
   2026-09-29. Anything imported in the TUI from now on is not in D1. Decide
   when to stop writing through the TUI, or re-seed (wipe the tables and repeat
   the seed) before cutover.
-- Track migrations. `0000` and `0001` went in with `d1 execute`, so nothing
-  records that they ran. Before `0002`, set `migrations_dir = "drizzle"` on the
-  D1 binding and backfill wrangler's `d1_migrations` table with the two applied
-  names, then use `wrangler d1 migrations apply`.
 - Secrets: `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`, `GEMINI_API_KEY`,
   `TOKEN_ENCRYPTION_KEY`, when bank sync and categorisation are ported.
-- **Deploy pipeline**, like `~/code/audax_tracker`'s, plus a schema step:
-  1. Switch to tracked migrations (the item above) first.
-  2. `deploy.yml` on push to main: run the tests, then
-     `wrangler d1 migrations apply expenses --remote`, then `wrangler deploy`.
-  3. Before migrating, log the restore point
-     (`wrangler d1 time-travel info expenses`). D1 Time Travel restores to any
-     minute of the last 7 days on the free plan, so no snapshots are needed.
-  4. GitHub secrets `CLOUDFLARE_API_TOKEN` (Workers and D1 edit) and
-     `CLOUDFLARE_ACCOUNT_ID`.
+- **Deploy pipeline secrets.** `.github/workflows/deploy.yml` is in place but
+  cannot run until the repository has `CLOUDFLARE_API_TOKEN` and
+  `CLOUDFLARE_ACCOUNT_ID` (see `worker/README.md`, "Deploying").
+
+Done 2026-09-30:
+- **Tracked migrations.** `migrations_dir = "drizzle"` on the D1 binding.
+  Remote `d1_migrations` was backfilled with `0000` and `0001`, after checking
+  the remote schema had their 13 tables and 4 views. `wrangler d1 migrations
+  apply` now applies drizzle-kit's files, verified on a fresh local D1.
+- **Deploy pipeline**, like `~/code/audax_tracker`'s plus a schema step. On a
+  merge to main touching `worker/`: typecheck, tests and the drift check, then
+  log the D1 Time Travel restore point, apply migrations, deploy, and confirm
+  the hostname still redirects to Access. Migrations go before the code, so
+  each must keep the previous Worker working. Time Travel (7 days on the free
+  plan) is the rollback, so no snapshots are taken.
 
   CI never needs real data. Worker tests build in-memory SQLite from the
   migrations, the Python cross-check runs on `make_fixture.py` output, and

@@ -36,3 +36,58 @@ export function averageCents(row: GridRow, isTotal = false): number {
   const active = row.months.filter((m) => m.amountCents > 0).length;
   return active ? row.totalCents / active : 0;
 }
+
+export type SpendingKind = "essential" | "discretionary";
+
+export interface PeriodsResponse {
+  /** Newest year first; months ascending, 1–12. */
+  years: { year: number; months: number[] }[];
+  sources: string[];
+}
+
+export interface CategoryItem {
+  category: string;
+  /** Expenses: essential, else discretionary (as get_category_spending_type). Income: null. */
+  spendingType: SpendingKind | null;
+  amountCents: number;
+}
+
+export interface MerchantItem {
+  merchant: string;
+  category: string;
+  spendingType: SpendingKind | null;
+  amountCents: number;
+  txnCount: number;
+}
+
+export interface MonthTotals {
+  month: number;
+  incomeCents: number;
+  expensesCents: number;
+}
+
+export interface SummaryResponse {
+  year: number;
+  month: number | null;
+  cashFlow: { incomeCents: number; expensesCents: number };
+  spendingType: {
+    essentialCents: number;
+    discretionaryCents: number;
+    /** Annual; the client divides by 12 in a month view, as the TUI does. */
+    essentialBudgetCents: number | null;
+    discretionaryBudgetCents: number | null;
+  };
+  /** Descending by amount. */
+  expenseCategories: CategoryItem[];
+  incomeCategories: CategoryItem[];
+  /** Every merchant, descending by amount. */
+  topMerchants: MerchantItem[];
+  topIncome: MerchantItem[];
+  /** Year view only: twelve entries, January first. */
+  monthlyTotals: MonthTotals[] | null;
+  /** Year view only. */
+  monthly: { expense: Grid; income: Grid } | null;
+  /** Expense total the tag exclusion hides in this period and these sources. */
+  hiddenCents: number;
+  excludedPatterns: string[];
+}

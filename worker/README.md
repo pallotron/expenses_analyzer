@@ -21,10 +21,9 @@ cd .. && PYTHONPATH=. .venv/bin/python tools/migrate_to_sqlite.py \
     --out expenses.db \
     --user you@example.com:"Your Name":self
 
-# 2. Apply the schema to the local D1, every migration in order.
-cd worker && for f in drizzle/*.sql; do
-    npx wrangler d1 execute expenses --local --file="$f"
-done
+# 2. Apply the schema to the local D1. wrangler records what it applied in
+#    d1_migrations, so rerunning this only applies new migrations.
+cd worker && npx wrangler d1 migrations apply expenses --local
 
 # 3. Load the data.
 #    Use the script rather than `sqlite3 .dump`: that emits tables in CREATE
@@ -104,12 +103,12 @@ and preview URLs are off, so the custom domain is the only way in.
 - A new user needs adding in both places: the policy, and the `users` table.
 
 **D1:** `npx wrangler d1 create expenses`, with the id in `wrangler.toml`.
-Keep `binding = "DB"`: the code reads `env.DB`. Schema, then data:
+Keep `binding = "DB"`: the code reads `env.DB`. `migrations_dir = "drizzle"`
+makes wrangler apply drizzle-kit's files and record each in `d1_migrations`.
+For a new database, apply the schema, then load data:
 
 ```sh
-for f in drizzle/*.sql; do
-    npx wrangler d1 execute expenses --remote --file="$f"
-done
+npx wrangler d1 migrations apply expenses --remote
 ../tools/dump_for_d1.sh ../expenses.db > /tmp/d1_data.sql
 npx wrangler d1 execute expenses --remote --file=/tmp/d1_data.sql
 ```
@@ -117,8 +116,25 @@ npx wrangler d1 execute expenses --remote --file=/tmp/d1_data.sql
 Not `sqlite3 .dump`, which emits tables in CREATE order and includes
 `sqlite_sequence`; D1 rejects both.
 
-**Deploy:** `npx wrangler deploy`. Then `https://expenses.angelofailla.com/api/me`
-should log you in and return your user.
+**Deploy:** automatic. `.github/workflows/deploy.yml` runs on every merge to
+main that touches `worker/`. It re-runs the checks, logs a D1 Time Travel
+restore point, applies pending migrations, deploys, and confirms the hostname
+still redirects to the Access login. Rerun it from the Actions tab
+(`workflow_dispatch`); `npx wrangler deploy` by hand still works.
+
+It needs two repository secrets:
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`, a user API token with **Workers Scripts: Edit**,
+  **D1: Edit** and **Workers Routes: Edit** on `angelofailla.com`. The "Edit
+  Cloudflare Workers" template, plus D1, covers it.
+
+**Migrations run before the new code deploys**, so a migration must leave the
+previous Worker working: add tables and columns, and drop them in a later
+deploy. To undo a bad one, run the `wrangler d1 time-travel restore` command
+the deploy logged. That also discards any writes made since, so do it quickly.
+
+Then `https://expenses.angelofailla.com/api/me` should log you in and return
+your user.
 
 **Secrets**, needed once bank sync and categorisation are ported:
 

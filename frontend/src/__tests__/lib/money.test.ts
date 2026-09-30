@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCents, formatPercent, savingsRate } from "../../lib/money";
+import { formatAxisCents, formatCents, formatPercent, savingsRate } from "../../lib/money";
 
 describe("formatCents", () => {
   it("formats euros with two decimals and grouping", () => {
@@ -15,6 +15,15 @@ describe("formatCents", () => {
   it("keeps cents under a thousand even when compact", () => {
     expect(formatCents(2_940, { compact: true })).toBe("€29.40");
     expect(formatCents(95_050, { compact: true })).toBe("€950.50");
+  });
+});
+
+describe("formatAxisCents", () => {
+  it("is always short, so ticks line up: no cents at zero or below a thousand", () => {
+    expect(formatAxisCents(0)).toBe("€0");
+    expect(formatAxisCents(50_000)).toBe("€500");
+    expect(formatAxisCents(400_000)).toBe("€4K");
+    expect(formatAxisCents(1_600_000)).toBe("€16K");
   });
 });
 

@@ -64,7 +64,8 @@ export function SummaryPage() {
   const data = summary.data;
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
-      <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      {/* Two rows at every width: up to twelve month chips need the whole line. */}
+      <header className="flex flex-col gap-2">
         <PeriodPicker periods={periods.data} year={year} month={view.month}
           onChange={(y, m) => update({ year: y, month: m })} />
         <FiltersBar sources={periods.data.sources} selected={view.sources} hidden={view.hidden}

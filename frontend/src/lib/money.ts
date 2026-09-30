@@ -13,6 +13,14 @@ export function formatCents(cents: number, opts: { compact?: boolean } = {}): st
   return (opts.compact && Math.abs(cents) >= 100_000 ? compact : full).format(cents / 100);
 }
 
+/**
+ * Chart axis ticks: always the short form, so "€0" sits under "€4K" rather
+ * than "€0.00". For round tick values only, never for figures a reader adds up.
+ */
+export function formatAxisCents(cents: number): string {
+  return compact.format(cents / 100);
+}
+
 /** get_cash_flow_totals' savings rate, in percent. Null when there is no income. */
 export function savingsRate(incomeCents: number, expensesCents: number): number | null {
   if (incomeCents <= 0) return null;

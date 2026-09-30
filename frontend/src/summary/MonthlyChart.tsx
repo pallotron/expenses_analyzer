@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatCents } from "../lib/money";
+import { formatAxisCents, formatCents } from "../lib/money";
 import type { MonthTotals } from "../lib/types";
 
 const MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
@@ -14,7 +14,7 @@ export function MonthlyChart(props: { totals: MonthTotals[] }) {
           <BarChart data={data} barGap={1}>
             <CartesianGrid vertical={false} strokeOpacity={0.15} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
-            <YAxis tickFormatter={(c: number) => formatCents(c, { compact: true })} width={56} tickLine={false} axisLine={false} fontSize={12} />
+            <YAxis tickFormatter={formatAxisCents} width={56} tickLine={false} axisLine={false} fontSize={12} />
             <Tooltip formatter={(c) => formatCents(Number(c))} />
             <Bar dataKey="incomeCents" name="Income" fill="var(--color-income)" radius={[3, 3, 0, 0]} />
             <Bar dataKey="expensesCents" name="Expenses" fill="var(--color-expense)" radius={[3, 3, 0, 0]} />

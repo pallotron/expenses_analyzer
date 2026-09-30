@@ -5,7 +5,9 @@
 
 const full = new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" });
 const compact = new Intl.NumberFormat("en-IE", {
-  style: "currency", currency: "EUR", notation: "compact", maximumFractionDigits: 1,
+  // The minimum is explicit: without it some ICU versions (Node 22) pad to
+  // "€1.0K" and "€0.0" while others (Node 24, most browsers) print "€1K".
+  style: "currency", currency: "EUR", notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1,
 });
 
 /** Compact only from €1,000 up: below that, compact notation would show "€29.4". */

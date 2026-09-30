@@ -55,3 +55,6 @@ worker/.dev.vars
 .env.*
 !.env.example
 *.local
+
+# Brainstorming companion mockups
+.superpowers/

@@ -5,9 +5,11 @@
 
 import { describe, expect, it } from "vitest";
 
+import { applyFilters, parseAmountFilter, type FilterableRow } from "../../domain/filters";
 import {
-  compileAliases, normalizeMerchantName, resolveMerchantName,
+  compileAliases, normalizeMerchantName, patternClaiming, resolveMerchantName,
 } from "../../domain/merchants";
+import { validateImportRows } from "../../domain/validation";
 import { parseAmountCents } from "../../domain/money";
 import * as tags from "../../domain/tags";
 import rawVectors from "../fixtures/python_vectors.json";
@@ -29,6 +31,18 @@ const vectors = rawVectors as unknown as {
     normalizePattern: Pair<string, string>[];
     isValidPattern: Pair<string, boolean>[];
     cellMatchesPatterns: [Cell, string[], boolean][];
+  };
+  filters: {
+    rows: [string, string, number, string, string, string, string, string][];
+    cases: { filter: Record<string, string>; expected: number[] }[];
+  };
+  validation: {
+    maxDate: string;
+    cases: { name: string; rows: [string, string, number, string][]; errors: string[] }[];
+  };
+  merchantEditor: {
+    aliases: Pair<string, string>[];
+    claiming: Pair<string, string | null>[];
   };
 };
 
@@ -83,5 +97,51 @@ describe("tag helpers match expenses/tags.py", () => {
   });
   it.each(t.cellMatchesPatterns)("cellMatchesPatterns %j %j -> %j", (cell, patterns, expected) => {
     expect(tags.cellMatchesPatterns(cell, patterns)).toBe(expected);
+  });
+});
+
+describe("filters match the Transactions screen", () => {
+  const rows: (FilterableRow & { index: number })[] = vectors.filters.rows.map(
+    ([date, merchant, amount, source, category, type, tags, budget], index) => ({
+      index, date, merchant, amountCents: Math.round(amount * 100), source, category, type, tags, budget,
+    }),
+  );
+
+  it.each(vectors.filters.cases.map((c) => [JSON.stringify(c.filter), c] as const))(
+    "%s",
+    (_label, { filter, expected }) => {
+      const result = applyFilters(rows, {
+        dateFrom: filter.dateFrom,
+        dateTo: filter.dateTo,
+        merchant: filter.merchant,
+        category: filter.category,
+        source: filter.source,
+        tags: filter.tags,
+        type: filter.type as "expense" | "income" | undefined,
+        budget: filter.budget as "essential" | "discretionary" | undefined,
+        amountMinCents: filter.amountMin === undefined ? undefined : parseAmountFilter(filter.amountMin),
+        amountMaxCents: filter.amountMax === undefined ? undefined : parseAmountFilter(filter.amountMax),
+      });
+      expect(result.map((r) => r.index)).toEqual(expected);
+    },
+  );
+});
+
+describe("import validation reports what validation.py reported", () => {
+  it.each(vectors.validation.cases.map((c) => [c.name, c] as const))("%s", (_name, { rows, errors }) => {
+    const typed = rows.map(([date, merchant, amount, type]) => ({
+      date, merchant, amountCents: Math.round(amount * 100), type,
+    }));
+    expect(validateImportRows(typed, { maxDate: vectors.validation.maxDate })).toEqual(errors);
+  });
+});
+
+describe("the rule claiming a merchant matches merchant_editor.pattern_claiming", () => {
+  const rules = [
+    ...vectors.merchantEditor.aliases.map(([pattern, canonicalName]) => ({ pattern, canonicalName })),
+    { pattern: "[invalid", canonicalName: "Never" },
+  ];
+  it.each(vectors.merchantEditor.claiming)("%j -> %j", (merchant, expected) => {
+    expect(patternClaiming(merchant, rules)).toBe(expected);
   });
 });

@@ -30,6 +30,7 @@ export interface AliasRule {
 }
 
 export interface CompiledAlias {
+  pattern: string;
   regex: RegExp;
   canonicalName: string;
 }
@@ -46,12 +47,24 @@ export function compileAliases(
   const compiled: CompiledAlias[] = [];
   for (const { pattern, canonicalName } of rules) {
     try {
-      compiled.push({ regex: new RegExp(pattern, "i"), canonicalName });
+      compiled.push({ pattern, regex: new RegExp(pattern, "i"), canonicalName });
     } catch (error) {
       onInvalid(pattern, error);
     }
   }
   return compiled;
+}
+
+/**
+ * The alias rule currently deciding `raw`'s name, or null if none matches.
+ * First match wins, so later rules that also match are irrelevant.
+ * merchant_editor.pattern_claiming.
+ */
+export function patternClaiming(raw: string, rules: AliasRule[]): string | null {
+  for (const { regex, pattern } of compileAliases(rules)) {
+    if (regex.test(raw)) return pattern;
+  }
+  return null;
 }
 
 /** The canonical merchant name for a raw statement string. */

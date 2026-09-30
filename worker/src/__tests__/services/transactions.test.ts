@@ -19,62 +19,20 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { atomic } from "../../db/atomic";
 import * as schema from "../../db/schema";
 import type { Db } from "../../db/types";
-import { compileAliases, resolveMerchantName } from "../../domain/merchants";
-import { epochDay } from "../../domain/money";
+import { resolveMerchantName } from "../../domain/merchants";
 import {
   importTransactions, loadAliases, restoreTransactions, softDeleteTransactions,
   tagTransactions, updateTransaction, type ImportRow,
 } from "../../services/transactions";
 import vectors from "../fixtures/python_vectors.json";
-import { emptyDatabase, inMemoryCopy } from "../helpers/db";
+import { inMemoryCopy } from "../helpers/db";
+import {
+  USER, cents, count, liveRows, seed, store as makeStore, type Spec,
+} from "../helpers/store";
 
-const USER = 1;
-const cents = (euros: number) => Math.round(euros * 100);
-
-interface Spec { date: string; merchant: string; amount: number; deleted: boolean }
-
-/** An empty store with one user and the vectors' aliases, in priority order. */
-function store(aliasRules: string[][] = vectors.imports.aliases) {
-  const sqlite = emptyDatabase();
-  sqlite.exec(`INSERT INTO users (id, email, display_name, owner_key) VALUES (1, 'a@example.com', 'A', 'self')`);
-  aliasRules.forEach(([pattern, canonical], priority) => {
-    sqlite.prepare(`INSERT OR IGNORE INTO merchants (canonical_name) VALUES (?)`).run(canonical);
-    sqlite.prepare(`
-      INSERT INTO merchant_aliases (pattern, priority, merchant_id)
-      SELECT ?, ?, id FROM merchants WHERE canonical_name = ?
-    `).run(pattern, priority, canonical);
-  });
-  return { sqlite, db: drizzle(sqlite, { schema }) as unknown as Db };
-}
-
-/** Seed rows the way migrate_to_sqlite.py does: occurrence counted over live rows only. */
-function seed(sqlite: Database.Database, specs: Spec[], aliasRules: string[][]) {
-  const aliases = compileAliases(aliasRules.map(([pattern, canonicalName]) => ({ pattern, canonicalName })));
-  const counts = new Map<string, number>();
-  for (const s of specs) {
-    const canonical = resolveMerchantName(s.merchant, aliases);
-    sqlite.prepare(`INSERT OR IGNORE INTO merchants (canonical_name) VALUES (?)`).run(canonical);
-    const key = JSON.stringify([s.date, canonical, cents(s.amount)]);
-    const occurrence = s.deleted ? 0 : (counts.get(key) ?? 0);
-    if (!s.deleted) counts.set(key, occurrence + 1);
-    sqlite.prepare(`
-      INSERT INTO transactions (date, merchant_raw, merchant_id, amount_cents, occurrence, deleted_at)
-      SELECT ?, ?, id, ?, ?, ? FROM merchants WHERE canonical_name = ?
-    `).run(epochDay(s.date), s.merchant, cents(s.amount), occurrence, s.deleted ? 1 : null, canonical);
-  }
-}
-
-function liveRows(sqlite: Database.Database): [string, string, number][] {
-  return sqlite.prepare(`
-    SELECT date(t.date, 'unixepoch'), m.canonical_name, t.amount_cents
-    FROM transactions t JOIN merchants m ON m.id = t.merchant_id
-    WHERE t.deleted_at IS NULL
-    ORDER BY 1, 2, 3
-  `).raw().all() as [string, string, number][];
-}
-
-const count = (sqlite: Database.Database, where: string) =>
-  (sqlite.prepare(`SELECT COUNT(*) FROM transactions WHERE ${where}`).raw().get() as [number])[0];
+/** The vectors' aliases, which every scenario here is seeded with. */
+const ALIASES = vectors.imports.aliases;
+const store = (rules: string[][] = ALIASES) => makeStore(rules);
 
 const importRows = (specs: Spec[]): ImportRow[] =>
   specs.map((s) => ({ date: s.date, merchant: s.merchant, amountCents: cents(s.amount) }));

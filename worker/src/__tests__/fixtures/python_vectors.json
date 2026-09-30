@@ -1895,5 +1895,1300 @@
         null
       ]
     ]
+  },
+  "summary": {
+    "categoryTypes": {
+      "essential": {
+        "categories": [
+          "Groceries",
+          "Rent"
+        ]
+      },
+      "discretionary": {
+        "categories": [
+          "Dining"
+        ]
+      }
+    },
+    "rows": [
+      [
+        "2025-01-03",
+        "Tesco",
+        30000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-01-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-01-25",
+        "Employer",
+        400000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-02-03",
+        "Tesco",
+        31000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-02-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-02-25",
+        "Employer",
+        410000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-03-03",
+        "Tesco",
+        32000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-03-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-03-25",
+        "Employer",
+        400000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-04-03",
+        "Tesco",
+        30000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-04-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-04-25",
+        "Employer",
+        410000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-05-03",
+        "Tesco",
+        31000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-05-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-05-25",
+        "Employer",
+        400000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-07-03",
+        "Tesco",
+        30000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-07-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-07-25",
+        "Employer",
+        400000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-08-03",
+        "Tesco",
+        31000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-08-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-08-25",
+        "Employer",
+        410000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-09-03",
+        "Tesco",
+        32000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-09-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-09-25",
+        "Employer",
+        400000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-10-03",
+        "Tesco",
+        30000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-10-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-10-25",
+        "Employer",
+        410000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-11-03",
+        "Tesco",
+        31000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-11-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-11-25",
+        "Employer",
+        400000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-12-03",
+        "Tesco",
+        32000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2025-12-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2025-12-25",
+        "Employer",
+        410000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2026-01-03",
+        "Tesco",
+        30000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2026-01-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2026-01-25",
+        "Employer",
+        400000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2026-02-03",
+        "Tesco",
+        90000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2026-02-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2026-02-25",
+        "Employer",
+        410000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2026-03-03",
+        "Tesco",
+        32000,
+        "expense",
+        "Groceries",
+        "Bank A"
+      ],
+      [
+        "2026-03-01",
+        "Landlord",
+        150000,
+        "expense",
+        "Rent",
+        "Bank A"
+      ],
+      [
+        "2026-03-25",
+        "Employer",
+        400000,
+        "income",
+        "Salary",
+        "Bank A"
+      ],
+      [
+        "2025-03-14",
+        "Cafe",
+        2000,
+        "expense",
+        "Dining",
+        "Card"
+      ],
+      [
+        "2025-09-20",
+        "Cafe",
+        2500,
+        "expense",
+        "Dining",
+        "Card"
+      ],
+      [
+        "2026-01-10",
+        "Cafe",
+        9000,
+        "expense",
+        "Dining",
+        "Card"
+      ],
+      [
+        "2026-02-11",
+        "Bistro",
+        4300,
+        "expense",
+        "Dining",
+        "Card"
+      ],
+      [
+        "2025-04-02",
+        "Mystery",
+        1000,
+        "expense",
+        "Other",
+        "Card"
+      ],
+      [
+        "2025-05-09",
+        "Refund Co",
+        50000,
+        "income",
+        "Other",
+        "Bank A"
+      ],
+      [
+        "2025-07-12",
+        "Mystery",
+        1500,
+        "expense",
+        "Other",
+        "Card"
+      ],
+      [
+        "2026-03-05",
+        "Bookshop",
+        5000,
+        "expense",
+        "Books",
+        "Card"
+      ],
+      [
+        "2026-02-15",
+        "Tesco",
+        1234,
+        "expense",
+        "Groceries",
+        "Card"
+      ]
+    ],
+    "grids": [
+      {
+        "year": 2025,
+        "sources": null,
+        "type": "expense",
+        "expected": {
+          "total": {
+            "totalCents": 1997000,
+            "months": [
+              180000,
+              181000,
+              184000,
+              181000,
+              181000,
+              0,
+              181500,
+              181000,
+              184500,
+              180000,
+              181000,
+              182000
+            ]
+          },
+          "rows": [
+            {
+              "category": "Rent",
+              "totalCents": 1650000,
+              "averageCents": 150000,
+              "months": [
+                150000,
+                150000,
+                150000,
+                150000,
+                150000,
+                0,
+                150000,
+                150000,
+                150000,
+                150000,
+                150000,
+                150000
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Groceries",
+              "totalCents": 340000,
+              "averageCents": 30909,
+              "months": [
+                30000,
+                31000,
+                32000,
+                30000,
+                31000,
+                0,
+                30000,
+                31000,
+                32000,
+                30000,
+                31000,
+                32000
+              ],
+              "anomalies": [
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Dining",
+              "totalCents": 4500,
+              "averageCents": 2250,
+              "months": [
+                0,
+                0,
+                2000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                2500,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Other",
+              "totalCents": 2500,
+              "averageCents": 1250,
+              "months": [
+                0,
+                0,
+                0,
+                1000,
+                0,
+                0,
+                1500,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "year": 2025,
+        "sources": null,
+        "type": "income",
+        "expected": {
+          "total": {
+            "totalCents": 4500000,
+            "months": [
+              400000,
+              410000,
+              400000,
+              410000,
+              450000,
+              0,
+              400000,
+              410000,
+              400000,
+              410000,
+              400000,
+              410000
+            ]
+          },
+          "rows": [
+            {
+              "category": "Salary",
+              "totalCents": 4450000,
+              "averageCents": 404545,
+              "months": [
+                400000,
+                410000,
+                400000,
+                410000,
+                400000,
+                0,
+                400000,
+                410000,
+                400000,
+                410000,
+                400000,
+                410000
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Other",
+              "totalCents": 50000,
+              "averageCents": 50000,
+              "months": [
+                0,
+                0,
+                0,
+                0,
+                50000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "year": 2026,
+        "sources": null,
+        "type": "expense",
+        "expected": {
+          "total": {
+            "totalCents": 621534,
+            "months": [
+              189000,
+              245534,
+              187000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "rows": [
+            {
+              "category": "Rent",
+              "totalCents": 450000,
+              "averageCents": 150000,
+              "months": [
+                150000,
+                150000,
+                150000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Groceries",
+              "totalCents": 153234,
+              "averageCents": 51078,
+              "months": [
+                30000,
+                91234,
+                32000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Dining",
+              "totalCents": 13300,
+              "averageCents": 6650,
+              "months": [
+                9000,
+                4300,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Books",
+              "totalCents": 5000,
+              "averageCents": 5000,
+              "months": [
+                0,
+                0,
+                5000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "year": 2026,
+        "sources": null,
+        "type": "income",
+        "expected": {
+          "total": {
+            "totalCents": 1210000,
+            "months": [
+              400000,
+              410000,
+              400000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "rows": [
+            {
+              "category": "Salary",
+              "totalCents": 1210000,
+              "averageCents": 403333,
+              "months": [
+                400000,
+                410000,
+                400000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "year": 2026,
+        "sources": [
+          "Bank A"
+        ],
+        "type": "expense",
+        "expected": {
+          "total": {
+            "totalCents": 602000,
+            "months": [
+              180000,
+              240000,
+              182000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "rows": [
+            {
+              "category": "Rent",
+              "totalCents": 450000,
+              "averageCents": 150000,
+              "months": [
+                150000,
+                150000,
+                150000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Groceries",
+              "totalCents": 152000,
+              "averageCents": 50667,
+              "months": [
+                30000,
+                90000,
+                32000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "year": 2026,
+        "sources": [
+          "Bank A"
+        ],
+        "type": "income",
+        "expected": {
+          "total": {
+            "totalCents": 1210000,
+            "months": [
+              400000,
+              410000,
+              400000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "rows": [
+            {
+              "category": "Salary",
+              "totalCents": 1210000,
+              "averageCents": 403333,
+              "months": [
+                400000,
+                410000,
+                400000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "year": 2026,
+        "sources": [
+          "Card"
+        ],
+        "type": "expense",
+        "expected": {
+          "total": {
+            "totalCents": 19534,
+            "months": [
+              9000,
+              5534,
+              5000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "rows": [
+            {
+              "category": "Dining",
+              "totalCents": 13300,
+              "averageCents": 6650,
+              "months": [
+                9000,
+                4300,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Books",
+              "totalCents": 5000,
+              "averageCents": 5000,
+              "months": [
+                0,
+                0,
+                5000,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "category": "Groceries",
+              "totalCents": 1234,
+              "averageCents": 1234,
+              "months": [
+                0,
+                1234,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "anomalies": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "year": 2026,
+        "sources": [
+          "Card"
+        ],
+        "type": "income",
+        "expected": null
+      }
+    ],
+    "merchants": [
+      {
+        "year": 2026,
+        "month": null,
+        "sources": null,
+        "type": "expense",
+        "expected": [
+          [
+            "Landlord",
+            "Rent",
+            450000
+          ],
+          [
+            "Tesco",
+            "Groceries",
+            153234
+          ],
+          [
+            "Cafe",
+            "Dining",
+            9000
+          ],
+          [
+            "Bookshop",
+            "Books",
+            5000
+          ],
+          [
+            "Bistro",
+            "Dining",
+            4300
+          ]
+        ]
+      },
+      {
+        "year": 2026,
+        "month": 2,
+        "sources": null,
+        "type": "expense",
+        "expected": [
+          [
+            "Landlord",
+            "Rent",
+            150000
+          ],
+          [
+            "Tesco",
+            "Groceries",
+            91234
+          ],
+          [
+            "Bistro",
+            "Dining",
+            4300
+          ]
+        ]
+      },
+      {
+        "year": 2025,
+        "month": null,
+        "sources": [
+          "Card"
+        ],
+        "type": "expense",
+        "expected": [
+          [
+            "Cafe",
+            "Dining",
+            4500
+          ],
+          [
+            "Mystery",
+            "Other",
+            2500
+          ]
+        ]
+      },
+      {
+        "year": 2025,
+        "month": null,
+        "sources": null,
+        "type": "income",
+        "expected": [
+          [
+            "Employer",
+            "Salary",
+            4450000
+          ],
+          [
+            "Refund Co",
+            "Other",
+            50000
+          ]
+        ]
+      },
+      {
+        "year": 2026,
+        "month": 3,
+        "sources": [
+          "Bank A"
+        ],
+        "type": "income",
+        "expected": [
+          [
+            "Employer",
+            "Salary",
+            400000
+          ]
+        ]
+      }
+    ]
   }
 }

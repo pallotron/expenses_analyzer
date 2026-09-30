@@ -137,6 +137,14 @@ Summary first — it is the biggest screen (1,694 lines) and the one whose numbe
 the cross-check already guarantees. Then Transactions (971), Import (406),
 Categorize (292), Payslips (229), Link Banks (674).
 
+- ~~Summary, core views.~~ Done: one Worker serves the app and the API
+  (`[assets]`, `run_worker_first`), `GET /api/summary` and `/periods`, and the
+  dashboard with tiles, spending split, monthly chart, breakdowns and the
+  monthly grid. The grid's anomaly flags and the merchant lists are held to
+  the Python by the `summary` section of `python_vectors.json`. Still to come
+  for Summary: the pension-aware savings rate, drill-down (with
+  Transactions), editing the exclusion patterns, the payslip-only month note.
+
 Payslips are parsed **client-side** with pdf.js and only the parsed numbers are
 POSTed. A Worker has no filesystem, so the folder scanner cannot survive — and
 keeping the PDF off Cloudflare keeps the employer name off third-party
@@ -249,9 +257,6 @@ Still to do:
   the seed) before cutover.
 - Secrets: `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`, `GEMINI_API_KEY`,
   `TOKEN_ENCRYPTION_KEY`, when bank sync and categorisation are ported.
-- **Deploy pipeline secrets.** `.github/workflows/deploy.yml` is in place but
-  cannot run until the repository has `CLOUDFLARE_API_TOKEN` and
-  `CLOUDFLARE_ACCOUNT_ID` (see `worker/README.md`, "Deploying").
 
 Done 2026-09-30:
 - **Tracked migrations.** `migrations_dir = "drizzle"` on the D1 binding.

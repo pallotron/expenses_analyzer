@@ -47,6 +47,30 @@ deployment. Then `curl http://localhost:8787/api/me` shows who you are acting
 as, and `curl http://localhost:8787/health` reports the live transaction count.
 Without it every request gets a 500, because Access is not configured.
 
+### With the frontend
+
+Run the Worker and Vite side by side; Vite proxies `/api` to the Worker:
+
+```sh
+npx wrangler dev          # in worker/, :8787
+npm run dev               # in frontend/, open the URL it prints
+```
+
+`wrangler dev` alone serves `../frontend/dist`, so run `npm run build` in
+`frontend/` first if you want to see the built app on :8787.
+
+For synthetic data instead of real data, build the seed from the cross-check
+fixture. The insert collides with rows already in local D1, so start from an
+empty local database (delete `.wrangler/state/` and redo step 2 above):
+
+```sh
+../.venv/bin/python ../tools/crosscheck/make_fixture.py /tmp/fixture
+EXPENSES_ANALYZER_CONFIG_DIR=/tmp/fixture PYTHONPATH=.. ../.venv/bin/python ../tools/migrate_to_sqlite.py \
+  --out /tmp/fixture/dev.db --tokens-plaintext --user you@example.com:You:self
+../tools/dump_for_d1.sh /tmp/fixture/dev.db > /tmp/d1_data.sql
+npx wrangler d1 execute expenses --local --file=/tmp/d1_data.sql
+```
+
 ## Tests
 
 ```sh

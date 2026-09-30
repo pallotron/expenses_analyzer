@@ -1,6 +1,6 @@
 name: Deploy
 
-# Ship the Worker when a change to it reaches main: test, migrate D1, deploy.
+# Ship the Worker and the frontend when a change to either reaches main: test, migrate D1, deploy.
 # Docs-only and Python-only merges leave production alone.
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - main
     paths:
       - "worker/**"
+      - "frontend/**"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
@@ -21,51 +22,72 @@ jobs:
     name: Deploy Worker
     runs-on: ubuntu-latest
     environment: production
-    defaults:
-      run:
-        working-directory: worker
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: worker/package-lock.json
+          cache-dependency-path: |
+            worker/package-lock.json
+            frontend/package-lock.json
 
       - run: npm ci
+        working-directory: worker
 
       # The same checks as the PR, re-run on exactly what is being shipped.
       - name: Typecheck
+        working-directory: worker
         run: npm run typecheck
 
       - name: Test
+        working-directory: worker
         run: npm test
 
       - name: Schema and migrations agree
+        working-directory: worker
         run: |
           npx drizzle-kit generate
           git diff --exit-code drizzle/
 
+      # The assets upload with the Worker, so the frontend is built and checked
+      # first. A failure here stops the deploy before any migration runs.
+      - name: Frontend install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
+
       # D1 Time Travel can restore any minute of the last 7 days (30 on paid).
       # Logging the bookmark first puts the exact undo command in this run.
       - name: Record the pre-deploy restore point
+        working-directory: worker
         run: npx wrangler d1 time-travel info expenses
 
       - name: Pending migrations
+        working-directory: worker
         run: npx wrangler d1 migrations list expenses --remote
 
       # Before the new code goes out, so it never runs against an old schema.
       # Migrations must therefore keep the previous Worker working too
       # (add columns and tables; drop them in a later deploy).
       - name: Apply migrations
+        working-directory: worker
         run: npx wrangler d1 migrations apply expenses --remote
 
       - name: Deploy Worker
+        working-directory: worker
         run: npx wrangler deploy
 
       # Access redirects an anonymous request to its login page, so a 302 to

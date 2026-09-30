@@ -35,10 +35,11 @@ import {
 } from "../db/schema";
 import type { Db } from "../db/types";
 import {
-  compileAliases, resolveMerchantName, type CompiledAlias,
+  compileAliases, resolveMerchantName, type AliasRule, type CompiledAlias,
 } from "../domain/merchants";
 import { epochDay } from "../domain/money";
 import { normalizeTags } from "../domain/tags";
+import { validateImportRows, ValidationError, type ValidationLimits } from "../domain/validation";
 
 export type TransactionType = "expense" | "income";
 
@@ -56,6 +57,8 @@ export interface ImportOptions {
   source: string;
   userId: number;
   filename?: string;
+  /** Override the date limits; tests pin them. */
+  limits?: ValidationLimits;
 }
 
 export interface ImportResult {
@@ -76,13 +79,18 @@ const keyOf = (date: number, merchant: string, cents: number) =>
 const json = (value: unknown) => JSON.stringify(value);
 const now = sql`unixepoch()`;
 
-/** Aliases in priority order, compiled. First match wins. */
-export async function loadAliases(db: Db): Promise<CompiledAlias[]> {
-  const rules = await db
+/** Alias rules in priority order: the order they are tried in. */
+export async function loadAliasRules(db: Db): Promise<AliasRule[]> {
+  return db
     .select({ pattern: merchantAliases.pattern, canonicalName: merchants.canonicalName })
     .from(merchantAliases)
     .innerJoin(merchants, eq(merchants.id, merchantAliases.merchantId))
     .orderBy(asc(merchantAliases.priority), asc(merchantAliases.id));
+}
+
+/** Aliases in priority order, compiled. First match wins. */
+export async function loadAliases(db: Db): Promise<CompiledAlias[]> {
+  const rules = await loadAliasRules(db);
   return compileAliases(rules, (pattern, error) =>
     console.warn(`skipping merchant alias ${JSON.stringify(pattern)}: ${String(error)}`));
 }
@@ -169,18 +177,24 @@ function attachTags(
 }
 
 
-/** append_transactions. */
+/**
+ * append_transactions. Throws ValidationError, writing nothing, if any row
+ * fails validate_transaction_dataframe's checks.
+ */
 export async function importTransactions(
   db: Db,
   rows: ImportRow[],
   options: ImportOptions,
 ): Promise<ImportResult> {
+  const errors = validateImportRows(rows, options.limits);
+  if (errors.length) throw new ValidationError(errors);
+
   const aliases = await loadAliases(db);
   const resolved = rows.map((row) => ({
     ...row,
     epoch: epochDay(row.date),
     canonical: resolveMerchantName(row.merchant, aliases),
-    type: row.type ?? "expense",
+    type: (row.type?.toLowerCase() ?? "expense") as TransactionType,
     tags: normalizeTags(row.tags ?? []),
   }));
 

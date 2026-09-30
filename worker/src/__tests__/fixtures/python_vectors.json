@@ -1244,5 +1244,656 @@
         }
       }
     ]
+  },
+  "filters": {
+    "rows": [
+      [
+        "2026-01-05",
+        "Tesco",
+        45.1,
+        "CSV Import",
+        "Groceries",
+        "expense",
+        "",
+        "essential"
+      ],
+      [
+        "2026-01-06",
+        "NS",
+        3.2,
+        "TrueLayer - AIB",
+        "Transport",
+        "expense",
+        "",
+        "discretionary"
+      ],
+      [
+        "2026-01-07",
+        "Bunsen",
+        18.0,
+        "CSV Import",
+        "Dining",
+        "expense",
+        "trip:paris",
+        "discretionary"
+      ],
+      [
+        "2026-02-01",
+        "Employer",
+        4000.0,
+        "CSV Import",
+        "Salary",
+        "income",
+        "",
+        "discretionary"
+      ],
+      [
+        "2026-02-10",
+        "Café Néro",
+        4.5,
+        "Manual",
+        "Dining",
+        "expense",
+        "gift,trip:rome",
+        "discretionary"
+      ],
+      [
+        "2026-02-28",
+        "tesco express",
+        12.0,
+        "TrueLayer - AIB",
+        "Groceries",
+        "expense",
+        "emergency",
+        "essential"
+      ],
+      [
+        "2026-03-01",
+        "Vet",
+        250.0,
+        "Manual",
+        "Other",
+        "expense",
+        "emergency",
+        "discretionary"
+      ]
+    ],
+    "cases": [
+      {
+        "filter": {},
+        "expected": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "filter": {
+          "dateFrom": "2026-01-06",
+          "dateTo": "2026-02-10"
+        },
+        "expected": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "filter": {
+          "dateFrom": "not a date"
+        },
+        "expected": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "filter": {
+          "merchant": "tesco"
+        },
+        "expected": [
+          0,
+          5
+        ]
+      },
+      {
+        "filter": {
+          "merchant": "\"NS\""
+        },
+        "expected": [
+          1
+        ]
+      },
+      {
+        "filter": {
+          "merchant": "\"ns\""
+        },
+        "expected": [
+          1
+        ]
+      },
+      {
+        "filter": {
+          "merchant": "ns"
+        },
+        "expected": [
+          1,
+          2
+        ]
+      },
+      {
+        "filter": {
+          "merchant": "CAFÉ"
+        },
+        "expected": [
+          4
+        ]
+      },
+      {
+        "filter": {
+          "merchant": ""
+        },
+        "expected": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "filter": {
+          "amountMin": "10",
+          "amountMax": "250"
+        },
+        "expected": [
+          0,
+          2,
+          5,
+          6
+        ]
+      },
+      {
+        "filter": {
+          "amountMin": "abc"
+        },
+        "expected": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "filter": {
+          "source": "truelayer"
+        },
+        "expected": [
+          1,
+          5
+        ]
+      },
+      {
+        "filter": {
+          "category": "din"
+        },
+        "expected": [
+          2,
+          4
+        ]
+      },
+      {
+        "filter": {
+          "category": "\"Dining\""
+        },
+        "expected": [
+          2,
+          4
+        ]
+      },
+      {
+        "filter": {
+          "type": "income"
+        },
+        "expected": [
+          3
+        ]
+      },
+      {
+        "filter": {
+          "tags": "trip"
+        },
+        "expected": [
+          2,
+          4
+        ]
+      },
+      {
+        "filter": {
+          "tags": "\"emergency\""
+        },
+        "expected": [
+          5,
+          6
+        ]
+      },
+      {
+        "filter": {
+          "tags": "\"gift\""
+        },
+        "expected": []
+      },
+      {
+        "filter": {
+          "budget": "essential"
+        },
+        "expected": [
+          0,
+          5
+        ]
+      },
+      {
+        "filter": {
+          "type": "expense",
+          "category": "groc",
+          "dateFrom": "2026-02-01"
+        },
+        "expected": [
+          5
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "maxDate": "2030-06-15",
+    "cases": [
+      {
+        "name": "valid rows",
+        "rows": [
+          [
+            "2026-01-05",
+            "Tesco",
+            45.1,
+            "expense"
+          ],
+          [
+            "2026-01-06",
+            "Employer",
+            -3.0,
+            "income"
+          ]
+        ],
+        "errors": []
+      },
+      {
+        "name": "no rows",
+        "rows": [],
+        "errors": []
+      },
+      {
+        "name": "blank merchants",
+        "rows": [
+          [
+            "2026-01-05",
+            "",
+            1.0,
+            "expense"
+          ],
+          [
+            "2026-01-05",
+            "   ",
+            1.0,
+            "expense"
+          ]
+        ],
+        "errors": [
+          "Found 2 row(s) with empty or missing merchant names"
+        ]
+      },
+      {
+        "name": "impossible date",
+        "rows": [
+          [
+            "2026-02-30",
+            "Tesco",
+            1.0,
+            "expense"
+          ]
+        ],
+        "errors": [
+          "Found 1 row(s) with invalid dates that cannot be parsed",
+          "Date column cannot be converted to datetime type"
+        ]
+      },
+      {
+        "name": "unparseable date",
+        "rows": [
+          [
+            "garbage",
+            "Tesco",
+            1.0,
+            "expense"
+          ]
+        ],
+        "errors": [
+          "Found 1 row(s) with invalid dates that cannot be parsed",
+          "Date column cannot be converted to datetime type"
+        ]
+      },
+      {
+        "name": "too old",
+        "rows": [
+          [
+            "1899-12-31",
+            "Tesco",
+            1.0,
+            "expense"
+          ]
+        ],
+        "errors": [
+          "Found 1 date(s) before minimum allowed date 1900-01-01"
+        ]
+      },
+      {
+        "name": "too new",
+        "rows": [
+          [
+            "2099-01-01",
+            "Tesco",
+            1.0,
+            "expense"
+          ]
+        ],
+        "errors": [
+          "Found 1 date(s) after maximum allowed date 2030-06-15"
+        ]
+      },
+      {
+        "name": "amount limits",
+        "rows": [
+          [
+            "2026-01-05",
+            "A",
+            1000000.0,
+            "expense"
+          ],
+          [
+            "2026-01-05",
+            "B",
+            1000000.01,
+            "expense"
+          ],
+          [
+            "2026-01-05",
+            "C",
+            -2000000.0,
+            "income"
+          ]
+        ],
+        "errors": [
+          "Found 2 row(s) with amounts (absolute value) exceeding 1,000,000.00"
+        ]
+      },
+      {
+        "name": "zero amount is allowed",
+        "rows": [
+          [
+            "2026-01-05",
+            "Tesco",
+            0.0,
+            "expense"
+          ]
+        ],
+        "errors": []
+      },
+      {
+        "name": "bad type",
+        "rows": [
+          [
+            "2026-01-05",
+            "Tesco",
+            1.0,
+            "refund"
+          ],
+          [
+            "2026-01-05",
+            "Tesco",
+            1.0,
+            "Expense"
+          ]
+        ],
+        "errors": [
+          "Found 1 row(s) with invalid Type values. Must be 'expense' or 'income'. Invalid values: ['refund']"
+        ]
+      },
+      {
+        "name": "several problems",
+        "rows": [
+          [
+            "1899-01-01",
+            "",
+            5000000.0,
+            "refund"
+          ],
+          [
+            "2026-01-05",
+            "Fine",
+            1.0,
+            "expense"
+          ]
+        ],
+        "errors": [
+          "Found 1 date(s) before minimum allowed date 1900-01-01",
+          "Found 1 row(s) with empty or missing merchant names",
+          "Found 1 row(s) with amounts (absolute value) exceeding 1,000,000.00",
+          "Found 1 row(s) with invalid Type values. Must be 'expense' or 'income'. Invalid values: ['refund']"
+        ]
+      }
+    ]
+  },
+  "merchantEditor": {
+    "rows": [
+      [
+        "STARBUCKS #1234",
+        4.5
+      ],
+      [
+        "Starbucks Coffee",
+        3.9
+      ],
+      [
+        "STARBUCKS RESERVE",
+        6.0
+      ],
+      [
+        "TESCO STORES 3021",
+        45.1
+      ],
+      [
+        "TESCO EXPRESS 12/04 1",
+        12.0
+      ],
+      [
+        "AMZN MKTP",
+        19.99
+      ],
+      [
+        "Amazon Prime Video",
+        8.99
+      ],
+      [
+        "Corner Shop 01/02 3",
+        2.5
+      ]
+    ],
+    "aliases": [
+      [
+        "STARBUCKS.*",
+        "Starbucks"
+      ],
+      [
+        "TESCO\\s+STORES\\s+\\d+",
+        "Tesco"
+      ],
+      [
+        "^AMZN|AMAZON",
+        "Amazon"
+      ]
+    ],
+    "categories": {
+      "Starbucks": "Dining",
+      "Tesco": "Groceries",
+      "Amazon": "Shopping",
+      "TESCO EXPRESS": "Groceries"
+    },
+    "previews": [
+      {
+        "pattern": "TESCO",
+        "alias": "Tesco",
+        "expected": {
+          "matched": 2,
+          "totalCents": 5710,
+          "currentCategories": {
+            "Groceries": 2
+          },
+          "merchants": {
+            "TESCO EXPRESS": 1,
+            "Tesco": 1
+          },
+          "error": false
+        }
+      },
+      {
+        "pattern": "STARBUCKS.*",
+        "alias": "Starbucks Coffee Co",
+        "expected": {
+          "matched": 3,
+          "totalCents": 1440,
+          "currentCategories": {
+            "Dining": 3
+          },
+          "merchants": {
+            "Starbucks": 3
+          },
+          "error": false
+        }
+      },
+      {
+        "pattern": "Starbucks Coffee",
+        "alias": "Starbucks",
+        "expected": {
+          "matched": 3,
+          "totalCents": 1440,
+          "currentCategories": {
+            "Dining": 3
+          },
+          "merchants": {
+            "Starbucks": 3
+          },
+          "error": false
+        }
+      },
+      {
+        "pattern": "PRIME",
+        "alias": "Amazon Prime",
+        "expected": {
+          "matched": 0,
+          "totalCents": 0,
+          "currentCategories": {},
+          "merchants": {},
+          "error": false
+        }
+      },
+      {
+        "pattern": "Corner",
+        "alias": "",
+        "expected": {
+          "matched": 1,
+          "totalCents": 250,
+          "currentCategories": {
+            "Other": 1
+          },
+          "merchants": {
+            "Corner Shop": 1
+          },
+          "error": false
+        }
+      },
+      {
+        "pattern": "",
+        "alias": "Anything",
+        "expected": {
+          "matched": 0,
+          "totalCents": 0,
+          "currentCategories": {},
+          "merchants": {},
+          "error": false
+        }
+      },
+      {
+        "pattern": "[bad",
+        "alias": "Broken",
+        "expected": {
+          "matched": 0,
+          "totalCents": 0,
+          "currentCategories": {},
+          "merchants": {},
+          "error": true
+        }
+      }
+    ],
+    "claiming": [
+      [
+        "STARBUCKS #1234",
+        "STARBUCKS.*"
+      ],
+      [
+        "Starbucks Coffee",
+        "STARBUCKS.*"
+      ],
+      [
+        "STARBUCKS RESERVE",
+        "STARBUCKS.*"
+      ],
+      [
+        "TESCO STORES 3021",
+        "TESCO\\s+STORES\\s+\\d+"
+      ],
+      [
+        "TESCO EXPRESS 12/04 1",
+        null
+      ],
+      [
+        "AMZN MKTP",
+        "^AMZN|AMAZON"
+      ],
+      [
+        "Amazon Prime Video",
+        "^AMZN|AMAZON"
+      ],
+      [
+        "Corner Shop 01/02 3",
+        null
+      ],
+      [
+        "nothing matches this",
+        null
+      ]
+    ]
   }
 }

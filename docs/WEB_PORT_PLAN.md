@@ -107,7 +107,20 @@ thing that was verified.
       alias, it must re-point the matching rows, as the Python re-derived
       display names on every load.
 - ~~`tags.py`~~ Done, in `worker/src/domain/tags.ts`, held to the same vectors.
-- `transaction_filter.py`, `validation.py`, `merchant_editor.py`.
+- ~~`transaction_filter.py`, `validation.py`, `merchant_editor.py`~~ Done.
+  - `domain/filters.ts` and `queries/transactions.ts` (`listTransactions`).
+    Quoted text matches the whole field, so a quoted tag only matches a row
+    with that one tag, as in the Python.
+  - `domain/validation.ts`: same limits and messages. `importTransactions`
+    validates first and writes nothing on failure.
+  - `services/merchants.ts`: `previewAliasChange` and `saveMerchantDecision`.
+    Saving re-points every row whose name the new table changes, which the
+    Python got for free by re-deriving names on each load. Only rows the
+    edited pattern matches are resolved: a full pass took ~140ms of CPU, too
+    much for a Worker.
+  - All held to the Python by new sections of `python_vectors.json`. On real
+    data, re-saving each of the 180 existing rules moves nothing, and the
+    list totals exactly what `v_live` totals.
 - ~~`getUser(request)` + Cloudflare Access JWT verification with `jose`.~~ Done:
   `worker/src/auth.ts`. Checks signature (RS256 only), issuer, audience and
   expiry, then maps the email claim to `users`. Unknown or missing email is a
@@ -240,7 +253,19 @@ Still to do:
   names, then use `wrangler d1 migrations apply`.
 - Secrets: `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`, `GEMINI_API_KEY`,
   `TOKEN_ENCRYPTION_KEY`, when bank sync and categorisation are ported.
-- `deploy.yml`: deploying from CI needs an API token secret in GitHub.
+- **Deploy pipeline**, like `~/code/audax_tracker`'s, plus a schema step:
+  1. Switch to tracked migrations (the item above) first.
+  2. `deploy.yml` on push to main: run the tests, then
+     `wrangler d1 migrations apply expenses --remote`, then `wrangler deploy`.
+  3. Before migrating, log the restore point
+     (`wrangler d1 time-travel info expenses`). D1 Time Travel restores to any
+     minute of the last 7 days on the free plan, so no snapshots are needed.
+  4. GitHub secrets `CLOUDFLARE_API_TOKEN` (Workers and D1 edit) and
+     `CLOUDFLARE_ACCOUNT_ID`.
+
+  CI never needs real data. Worker tests build in-memory SQLite from the
+  migrations, the Python cross-check runs on `make_fixture.py` output, and
+  `CROSSCHECK_DB` checks stay local and opt-in, since the repo is public.
 
 ## Known issue carried over
 

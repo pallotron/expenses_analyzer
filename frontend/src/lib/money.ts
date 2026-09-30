@@ -8,8 +8,9 @@ const compact = new Intl.NumberFormat("en-IE", {
   style: "currency", currency: "EUR", notation: "compact", maximumFractionDigits: 1,
 });
 
+/** Compact only from €1,000 up: below that, compact notation would show "€29.4". */
 export function formatCents(cents: number, opts: { compact?: boolean } = {}): string {
-  return (opts.compact ? compact : full).format(cents / 100);
+  return (opts.compact && Math.abs(cents) >= 100_000 ? compact : full).format(cents / 100);
 }
 
 /** get_cash_flow_totals' savings rate, in percent. Null when there is no income. */

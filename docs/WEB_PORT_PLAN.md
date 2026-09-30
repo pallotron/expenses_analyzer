@@ -264,7 +264,8 @@ Done 2026-09-30:
   the remote schema had their 13 tables and 4 views. `wrangler d1 migrations
   apply` now applies drizzle-kit's files, verified on a fresh local D1.
 - **Deploy pipeline**, like `~/code/audax_tracker`'s plus a schema step. On a
-  merge to main touching `worker/`: typecheck, tests and the drift check, then
+  merge to main touching `worker/` or `frontend/`: build and test the frontend,
+  typecheck, test and run the drift check on the Worker, then
   log the D1 Time Travel restore point, apply migrations, deploy, and confirm
   the hostname still redirects to Access. Migrations go before the code, so
   each must keep the previous Worker working. Time Travel (7 days on the free

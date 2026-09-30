@@ -54,11 +54,17 @@ export function createApp<B extends AppBindings>(makeDb: (env: B) => Db, auth: A
     if (!result.ok) {
       console.warn(`auth refused (${result.status}): ${result.reason}`);
       // The reason stays in the log; the client learns only the status.
-      return c.body(null, result.status);
+      return c.body(null, result.status, { "Cache-Control": "no-store" });
     }
     c.set("user", result.user);
     c.set("db", db);
     await next();
+  });
+
+  // Per-user data: never cached by the browser or an intermediary.
+  app.use("/api/*", async (c, next) => {
+    await next();
+    c.res.headers.set("Cache-Control", "no-store");
   });
 
   app.get("/health", async (c) => {

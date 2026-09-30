@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, NOT_SET_UP, getJson, page } from "../../lib/api";
+import { NOT_SET_UP, getJson, page } from "../../lib/api";
 
 // jsdom's window.location cannot be replaced, so the reload goes through `page`.
 let reload: ReturnType<typeof vi.spyOn>;
@@ -25,8 +25,8 @@ describe("getJson", () => {
 
   it("reloads once when Access redirects, and not again straight after", async () => {
     respond({ status: 0, type: "opaqueredirect" });
-    await expect(getJson("/api/x")).rejects.toBeInstanceOf(ApiError);
-    await expect(getJson("/api/x")).rejects.toBeInstanceOf(ApiError);
+    await expect(getJson("/api/x")).rejects.toThrow("Reloading to sign in again");
+    await expect(getJson("/api/x")).rejects.toThrow("Reload the page to sign in again");
     expect(reload).toHaveBeenCalledTimes(1);
   });
 

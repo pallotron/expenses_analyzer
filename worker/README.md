@@ -9,73 +9,59 @@ apply those files — so a seeded database cannot drift from the code. CI fails 
 
 ## Running locally
 
-No Cloudflare account needed. `wrangler dev` uses a local SQLite under
-`.wrangler/state/`, and the placeholder `database_id` in `wrangler.toml` is fine
-for local use.
+No Cloudflare account needed. Local D1 is a SQLite under `.wrangler/state/`, and
+the placeholder `database_id` in `wrangler.toml` is fine for local use. Run
+these from `worker/` (`make` lists the targets):
 
 ```sh
 npm install
-
-# 1. Build a database from the current parquet data (from the repo root).
-cd .. && PYTHONPATH=. .venv/bin/python tools/migrate_to_sqlite.py \
-    --out expenses.db \
-    --user you@example.com:"Your Name":self
-
-# 2. Apply the schema to the local D1. wrangler records what it applied in
-#    d1_migrations, so rerunning this only applies new migrations.
-cd worker && npx wrangler d1 migrations apply expenses --local
-
-# 3. Load the data.
-#    Use the script rather than `sqlite3 .dump`: that emits tables in CREATE
-#    order rather than foreign-key order, so the load fails partway through.
-../tools/dump_for_d1.sh ../expenses.db > /tmp/d1_data.sql
-npx wrangler d1 execute expenses --local --file=/tmp/d1_data.sql
-
-# 4. Run it.
-npx wrangler dev
+make seed-fixture   # synthetic data; or `make seed-real` for your own
+make dev            # builds the frontend if needed, serves on :8787
 ```
 
-Every route needs a user. There is no Access locally, so name one of the
-`users` emails in `worker/.dev.vars` (gitignored):
+- `seed-fixture` and `seed-real` both start with `reset-local`, which **wipes
+  the local D1**, real data included.
+- `seed-real` reads the parquet in your config dir and writes only to
+  `.wrangler/state/`; bank tokens are dropped. It seeds one user, from
+  `EMAIL` (default: `DEV_USER_EMAIL` in `.dev.vars`) and `NAME` (default `Me`).
+- `seed-fixture` creates `.dev.vars` if missing, naming `you@example.com`.
+
+Every route needs a user. There is no Access locally, so `DEV_USER_EMAIL` in
+`worker/.dev.vars` (gitignored) names one of the `users` emails, which must
+therefore equal the seeded user's. It is honoured only for requests to
+`localhost`, so it cannot open up a deployment. Without it every request gets a
+500, because Access is not configured.
+
+`make dev` runs `wrangler dev --local-upstream localhost:8787`. The
+`custom_domain` route otherwise makes the request URL the production hostname,
+so plain `wrangler dev` answers 401 to everything.
+
+`curl http://localhost:8787/api/me` shows who you are acting as, and
+`curl http://localhost:8787/health` reports the live transaction count.
+
+To seed from some other database, build it with
+`tools/migrate_to_sqlite.py --out x.db --user ...`, then:
 
 ```sh
-echo 'DEV_USER_EMAIL=you@example.com' > .dev.vars
+make reset-local
+../tools/dump_for_d1.sh x.db > /tmp/d1_data.sql   # not `sqlite3 .dump`: wrong table order
+npx wrangler d1 execute expenses --local --file=/tmp/d1_data.sql
 ```
-
-It is honoured only for requests to `localhost`, so it cannot open up a
-deployment. Then `curl http://localhost:8787/api/me` shows who you are acting
-as, and `curl http://localhost:8787/health` reports the live transaction count.
-Without it every request gets a 500, because Access is not configured.
 
 ### With the frontend
 
-Run the Worker and Vite side by side; Vite proxies `/api` to the Worker:
+`make dev` serves the built `../frontend/dist` on :8787. For hot reload, run
+Vite beside it; Vite proxies `/api` to the Worker:
 
 ```sh
-npx wrangler dev          # in worker/, :8787
+make dev                  # in worker/, :8787
 npm run dev               # in frontend/, open the URL it prints
-```
-
-`wrangler dev` alone serves `../frontend/dist`, so run `npm run build` in
-`frontend/` first if you want to see the built app on :8787.
-
-For synthetic data instead of real data, build the seed from the cross-check
-fixture. The insert collides with rows already in local D1, so start from an
-empty local database (delete `.wrangler/state/` and redo step 2 above):
-
-```sh
-../.venv/bin/python ../tools/crosscheck/make_fixture.py /tmp/fixture
-EXPENSES_ANALYZER_CONFIG_DIR=/tmp/fixture PYTHONPATH=.. ../.venv/bin/python ../tools/migrate_to_sqlite.py \
-  --out /tmp/fixture/dev.db --tokens-plaintext --user you@example.com:You:self
-../tools/dump_for_d1.sh /tmp/fixture/dev.db > /tmp/d1_data.sql
-npx wrangler d1 execute expenses --local --file=/tmp/d1_data.sql
 ```
 
 ## Tests
 
 ```sh
-npm run typecheck   # the Worker, and the tests under Node
-npm test
+make test           # typecheck (the Worker, and the tests under Node), then tests
 ```
 
 `src/__tests__/queries/` proves each query module equal to its SQL file in
@@ -110,7 +96,7 @@ Query the local database directly at any time:
 npx wrangler d1 execute expenses --local --command "SELECT COUNT(*) FROM transactions"
 ```
 
-To start over, delete `.wrangler/state/v3/d1` and repeat from step 2.
+To start over, `make reset-local`.
 
 ## Deploying
 
@@ -141,7 +127,7 @@ Not `sqlite3 .dump`, which emits tables in CREATE order and includes
 `sqlite_sequence`; D1 rejects both.
 
 **Deploy:** automatic. `.github/workflows/deploy.yml` runs on every merge to
-main that touches `worker/`. It re-runs the checks, logs a D1 Time Travel
+main that touches `worker/` or `frontend/`. It re-runs the checks, logs a D1 Time Travel
 restore point, applies pending migrations, deploys, and confirms the hostname
 still redirects to the Access login. Rerun it from the Actions tab
 (`workflow_dispatch`); `npx wrangler deploy` by hand still works.

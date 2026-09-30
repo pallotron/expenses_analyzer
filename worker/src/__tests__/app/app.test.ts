@@ -29,6 +29,15 @@ describe("authentication", () => {
     expect(assets).not.toHaveBeenCalled();
   });
 
+  it("marks API responses and refusals no-store", async () => {
+    const { get } = setup();
+    expect((await get("/api/me")).headers.get("cache-control")).toBe("no-store");
+    expect((await get("/api/nope")).headers.get("cache-control")).toBe("no-store");
+    const refused = await get("/api/me", "https://expenses.example.com");
+    expect(refused.status).toBe(401);
+    expect(refused.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("refuses a logged-in email that is not a household user", async () => {
     const { get } = setup("stranger@example.com");
     expect((await get("/api/me")).status).toBe(403);

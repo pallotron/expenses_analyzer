@@ -7,7 +7,7 @@
     "build": "tsc -b",
     "db:generate": "drizzle-kit generate",
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --local-upstream localhost:8787",
     "test": "vitest run",
     "typecheck": "tsc -b && tsc -p tsconfig.test.json"
   },

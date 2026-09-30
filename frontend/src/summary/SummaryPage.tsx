@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
-import { NOT_SET_UP } from "../lib/api";
+import { ApiError } from "../lib/api";
 import { BreakdownList } from "./BreakdownList";
 import { CashFlowTiles } from "./CashFlowTiles";
 import { FiltersBar } from "./FiltersBar";
@@ -25,7 +25,7 @@ function ErrorCard(props: { error: Error; onRetry: () => void }) {
   return (
     <Card>
       <p className="mb-3">{props.error.message}</p>
-      {props.error.message !== NOT_SET_UP && (
+      {!(props.error instanceof ApiError && props.error.status === 403) && (
         <button type="button" onClick={props.onRetry} className="rounded-md border px-3 py-1">Retry</button>
       )}
     </Card>
@@ -56,7 +56,7 @@ export function SummaryPage() {
   if (year === null) {
     return (
       <main className="mx-auto max-w-6xl p-4">
-        <Card><p>No transactions yet. Import some from the Transactions screen, or link a bank.</p></Card>
+        <Card><p>No transactions yet. For now, data is added from the terminal app.</p></Card>
       </main>
     );
   }

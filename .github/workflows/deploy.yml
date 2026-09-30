@@ -94,8 +94,10 @@ jobs:
       # cloudflareaccess.com proves the hostname is up and still protected.
       - name: Still behind Access
         run: |
-          location=$(curl -s -o /dev/null -w '%{redirect_url}' https://expenses.angelofailla.com/api/me)
-          case "$location" in
-            https://pallotron.cloudflareaccess.com/*) echo "protected by Access" ;;
-            *) echo "expected an Access login redirect, got: '$location'"; exit 1 ;;
-          esac
+          for path in / /api/me; do
+            location=$(curl -s -o /dev/null -w '%{redirect_url}' "https://expenses.angelofailla.com$path")
+            case "$location" in
+              https://pallotron.cloudflareaccess.com/*) echo "$path protected by Access" ;;
+              *) echo "$path: expected an Access login redirect, got: '$location'"; exit 1 ;;
+            esac
+          done

@@ -9,7 +9,12 @@ describe("formatCents", () => {
   });
   it("has a compact form for small tiles", () => {
     expect(formatCents(6_140_000, { compact: true })).toBe("€61.4K");
-    expect(formatCents(95_000, { compact: true })).toBe("€950");
+    expect(formatCents(100_000, { compact: true })).toBe("€1K");
+    expect(formatCents(-6_140_000, { compact: true })).toBe("-€61.4K");
+  });
+  it("keeps cents under a thousand even when compact", () => {
+    expect(formatCents(2_940, { compact: true })).toBe("€29.40");
+    expect(formatCents(95_050, { compact: true })).toBe("€950.50");
   });
 });
 

@@ -22,19 +22,22 @@ export class ApiError extends Error {
 /** Indirection so tests can observe a reload; jsdom's location is not replaceable. */
 export const page = { reload: () => window.location.reload() };
 
-function reauthenticate(): void {
+/** Reloads the page to sign in again; false when it just tried, to avoid a loop. */
+function reauthenticate(): boolean {
   let last = 0;
   try { last = Number(sessionStorage.getItem(REAUTH_KEY) ?? 0); } catch { /* storage blocked */ }
-  if (Date.now() - last < REAUTH_WINDOW_MS) return; // just tried; don't loop
+  if (Date.now() - last < REAUTH_WINDOW_MS) return false;
   try { sessionStorage.setItem(REAUTH_KEY, String(Date.now())); } catch { /* storage blocked */ }
   page.reload();
+  return true;
 }
 
 export async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path, { redirect: "manual", headers: { Accept: "application/json" } });
   if (res.type === "opaqueredirect" || res.status === 401) {
-    reauthenticate();
-    throw new ApiError(401, "Your session has expired. Reloading to sign in again…");
+    throw new ApiError(401, reauthenticate()
+      ? "Your session has expired. Reloading to sign in again…"
+      : "Your session has expired. Reload the page to sign in again.");
   }
   if (res.status === 403) throw new ApiError(403, NOT_SET_UP);
   if (!res.ok) {

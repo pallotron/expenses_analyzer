@@ -67,7 +67,7 @@ export function BreakdownList(props: {
               </div>
               <div className="mt-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
                 <div className={`h-1.5 rounded-full ${props.tone === "income" ? "bg-income" : "bg-expense"}`}
-                  style={{ width: `${(item.amountCents / max) * 100}%` }} />
+                  style={{ width: `${Math.min(100, Math.max(0, (item.amountCents / max) * 100))}%` }} />
               </div>
             </li>
           ))}

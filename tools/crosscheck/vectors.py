@@ -9,7 +9,8 @@ value is whatever the Python returns today.
 Covers merchant normalisation and aliasing, amount parsing as the import
 pipeline stores it, the tag helpers, whole append_transactions scenarios
 (deduplication and soft-delete suppression), the Transactions screen's
-filters, import validation, and the merchant editor's preview.
+filters, import validation, the merchant editor's preview, and the Summary
+screen's monthly grid, anomaly flags and merchant lists.
 
 Usage:
     PYTHONPATH=. python3 tools/crosscheck/vectors.py          # rewrite the file
@@ -20,12 +21,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from types import MethodType, SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
+from rich.style import Style
 
 from expenses import tags as tag_helpers
 from expenses.data_handler import (
@@ -35,6 +39,7 @@ from expenses.data_handler import (
     normalize_merchant_name,
 )
 from expenses.merchant_editor import pattern_claiming, preview_alias_change
+from expenses.screens.summary_screen import SummaryScreen
 from expenses.transaction_filter import apply_filters
 from expenses.validation import ValidationError, validate_transaction_dataframe
 
@@ -381,6 +386,167 @@ def run_preview(pattern: str, alias: str) -> dict:
     }
 
 
+# ---------------------------------------------------------------- summary
+
+SUMMARY_CATEGORY_TYPES = {
+    "essential": {"categories": ["Groceries", "Rent"]},
+    "discretionary": {"categories": ["Dining"]},
+}
+
+
+def _months(first: str, last: str) -> list:
+    return [p.strftime("%Y-%m") for p in pd.period_range(first, last, freq="M")]
+
+
+def summary_rows() -> list:
+    """Fifteen months of invented household data, shaped to hit every rule.
+
+    - Groceries: steady with a spike in 2026-02 (an anomaly).
+    - Rent: constant, so its std is 0 and it can never be an anomaly.
+    - Dining: sparse, so most of its window is zeros.
+    - Other: an expense category that also has an income row in its window,
+      because the historical stats pivot income and expenses together.
+    - Books: first appears in 2026-03, so its mean is undefined.
+    - No rows at all in 2025-06, to pin down whether the month index has gaps.
+    """
+    rows = []
+    for i, month in enumerate(_months("2025-01", "2026-03")):
+        if month == "2025-06":
+            continue
+        groceries = 90_000 if month == "2026-02" else 30_000 + (i % 3) * 1_000
+        rows.append((f"{month}-03", "Tesco", groceries, "expense", "Groceries", "Bank A"))
+        rows.append((f"{month}-01", "Landlord", 150_000, "expense", "Rent", "Bank A"))
+        rows.append((f"{month}-25", "Employer", 400_000 + (i % 2) * 10_000, "income", "Salary", "Bank A"))
+    rows += [
+        ("2025-03-14", "Cafe", 2_000, "expense", "Dining", "Card"),
+        ("2025-09-20", "Cafe", 2_500, "expense", "Dining", "Card"),
+        ("2026-01-10", "Cafe", 9_000, "expense", "Dining", "Card"),
+        ("2026-02-11", "Bistro", 4_300, "expense", "Dining", "Card"),
+        ("2025-04-02", "Mystery", 1_000, "expense", "Other", "Card"),
+        ("2025-05-09", "Refund Co", 50_000, "income", "Other", "Bank A"),
+        ("2025-07-12", "Mystery", 1_500, "expense", "Other", "Card"),
+        ("2026-03-05", "Bookshop", 5_000, "expense", "Books", "Card"),
+        ("2026-02-15", "Tesco", 1_234, "expense", "Groceries", "Card"),
+    ]
+    rows += _boundary_rows()
+    return rows
+
+
+def _boundary_rows() -> list:
+    """Gifts, whose 2026-02 cell (4,750) sits between plausible formulas.
+
+    Across all sources it is unflagged; flagged if the window were 11 months or
+    the std were the population's. Card-only it is flagged, because pandas drops
+    the empty 2025-06 from the month index, so the window holds fewer, steadier
+    months; a calendar-filled index would leave it unflagged.
+    """
+    rows = []
+    gift_months = _months("2025-02", "2026-01")
+    for month, cents in zip(gift_months, [3000, 3400, 2800, 3100, 0, 3500, 2900, 3300, 3000, 3600, 3200, 3100]):
+        if cents:
+            rows.append((f"{month}-12", "Gift Shop", cents, "expense", "Gifts", "Card"))
+    rows.append(("2026-02-12", "Gift Shop", 4_750, "expense", "Gifts", "Card"))
+    return rows
+
+
+def summary_frame(rows: list, sources) -> pd.DataFrame:
+    """The frame SummaryScreen.transactions returns, source filter applied."""
+    df = pd.DataFrame(
+        [
+            {"Date": pd.Timestamp(d), "Merchant": m, "DisplayMerchant": m, "Amount": c / 100,
+             "Type": t, "Category": cat, "Source": s}
+            for d, m, c, t, cat, s in rows
+        ]
+    )
+    if sources is not None:
+        df = df[df["Source"].isin(sources)].copy()
+    return df
+
+
+class _Table:
+    """Stands in for a DataTable: keeps the rows the screen adds."""
+
+    def __init__(self):
+        self.rows = []
+
+    def clear(self, columns=False):
+        self.rows = []
+
+    def add_columns(self, *columns):
+        pass
+
+    def add_row(self, *cells, key=None):
+        self.rows.append(cells)
+
+
+def _screen(df: pd.DataFrame, table: _Table):
+    """Just enough of a SummaryScreen for its table-filling methods to run."""
+    screen = SimpleNamespace(
+        transactions=df, selected_rows=set(), category_types=SUMMARY_CATEGORY_TYPES,
+        query_one=lambda *_a, **_k: table,
+    )
+    for name in ("_prepare_monthly_summary", "_calculate_historical_stats", "_create_monthly_cell"):
+        setattr(screen, name, MethodType(getattr(SummaryScreen, name), screen))
+    return screen
+
+
+def _plain(cell) -> str:
+    return cell.plain if hasattr(cell, "plain") else re.sub(r"\[/?bold\]", "", str(cell))
+
+
+def _cents(cell) -> int:
+    token = _plain(cell).split()[0]
+    return 0 if token == "-" else to_cents(token.replace(",", ""))
+
+
+def _anomaly(cell) -> bool:
+    style = getattr(cell, "style", None)
+    return isinstance(style, Style) and style.bgcolor is not None and style.bgcolor.name == "dark_red"
+
+
+def run_grid(rows: list, year: int, sources, income: bool):
+    table = _Table()
+    fill = (
+        SummaryScreen._populate_monthly_income_breakdown if income
+        else SummaryScreen._populate_monthly_breakdown
+    )
+    fill(_screen(summary_frame(rows, sources), table), table, year)
+    if not table.rows:
+        return None
+    total, *body = table.rows
+    return {
+        "total": {"totalCents": _cents(total[1]), "months": [_cents(c) for c in total[3:]]},
+        "rows": [
+            {
+                "category": _plain(r[0]),
+                "totalCents": _cents(r[1]),
+                "averageCents": _cents(r[2]),
+                "months": [_cents(c) for c in r[3:]],
+                "anomalies": [_anomaly(c) for c in r[3:]],
+            }
+            for r in body
+        ],
+    }
+
+
+def run_merchants(rows: list, year: int, month, sources, income: bool) -> list:
+    table = _Table()
+    screen = _screen(summary_frame(rows, sources), table)
+    view = SummaryScreen.update_top_income_view if income else SummaryScreen.update_top_merchants_view
+    view(screen, year, month)
+    return [[r[0], r[1], _cents(r[-1])] for r in table.rows]
+
+
+GRID_CASES = [(2025, None), (2026, None), (2026, ["Bank A"]), (2026, ["Card"])]
+MERCHANT_CASES = [
+    (2026, None, None, False),
+    (2026, 2, None, False),
+    (2025, None, ["Card"], False),
+    (2025, None, None, True),
+    (2026, 3, ["Bank A"], True),
+]
+
+
 # ------------------------------------------------------------------ build
 
 
@@ -436,6 +602,21 @@ def build() -> dict:
                 {"pattern": p, "alias": a, "expected": run_preview(p, a)} for p, a in PREVIEW_CASES
             ],
             "claiming": [[m, pattern_claiming(m, EDITOR_ALIASES)] for m in CLAIMING_INPUTS],
+        },
+        "summary": {
+            "categoryTypes": SUMMARY_CATEGORY_TYPES,
+            "rows": [list(r) for r in summary_rows()],
+            "grids": [
+                {"year": y, "sources": s, "type": t,
+                 "expected": run_grid(summary_rows(), y, s, income=(t == "income"))}
+                for y, s in GRID_CASES
+                for t in ("expense", "income")
+            ],
+            "merchants": [
+                {"year": y, "month": m, "sources": s, "type": "income" if inc else "expense",
+                 "expected": run_merchants(summary_rows(), y, m, s, inc)}
+                for y, m, s, inc in MERCHANT_CASES
+            ],
         },
     }
 

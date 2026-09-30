@@ -12,6 +12,15 @@ routes = [
   { pattern = "expenses.angelofailla.com", custom_domain = true }
 ]
 
+# The frontend build, served by this Worker on the same origin. run_worker_first
+# sends every request, static files included, through getUser; an unknown path
+# gets index.html so client-side routes survive a reload.
+[assets]
+directory = "../frontend/dist"
+binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "single-page-application"
+
 # Created with `npx wrangler d1 create expenses`. Apply drizzle/*.sql in order,
 # then seed with tools/dump_for_d1.sh (not `sqlite3 .dump`, which D1 rejects).
 [[d1_databases]]

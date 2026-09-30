@@ -4,15 +4,32 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc -b",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "jsdom": "^28.1.0",
+    "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
-    "vitest": "^4.1.11"
+    "vite": "^7.3.1",
+    "vitest": "^5.0.2"
   },
   "dependencies": {
-    "pdfjs-dist": "^6.3.289"
+    "@tanstack/react-query": "^5.90.0",
+    "pdfjs-dist": "^6.3.289",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.13.0",
+    "recharts": "^3.3.0"
   }
 }

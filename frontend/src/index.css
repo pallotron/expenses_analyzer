@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+/* Colour meaning, used everywhere a figure is shown. */
+@theme {
+  --color-income: oklch(0.62 0.15 155);
+  --color-expense: oklch(0.6 0.19 25);
+  --color-essential: oklch(0.75 0.15 75);
+  --color-discretionary: oklch(0.62 0.19 25);
+  --color-anomaly: oklch(0.6 0.21 25);
+}
+
+html { font-feature-settings: "tnum"; } /* figures line up in columns */
+body { @apply bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased; }

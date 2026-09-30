@@ -87,6 +87,11 @@ export interface SummaryResponse {
   monthlyTotals: MonthTotals[] | null;
   /** Year view only. */
   monthly: { expense: Grid; income: Grid } | null;
+  /**
+   * Month view only: the per-month average over the up-to-12 months before the
+   * selected one that have rows in scope. Null in a year view, or with none.
+   */
+  monthAverage: { incomeCents: number; expensesCents: number; months: number } | null;
   /** Expense total the tag exclusion hides in this period and these sources. */
   hiddenCents: number;
   excludedPatterns: string[];

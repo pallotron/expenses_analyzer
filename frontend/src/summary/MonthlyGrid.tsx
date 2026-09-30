@@ -14,14 +14,14 @@ function Amount(props: { cell: GridCell }) {
     : <>{text}</>;
 }
 
-function DesktopTable(props: { grid: Grid }) {
+function DesktopTable(props: { grid: Grid; lastMonth: number }) {
   const row = (r: GridRow, isTotal = false) => (
     <tr key={r.category} className={isTotal ? "font-semibold" : "border-t border-slate-100 dark:border-slate-800"}>
       <th scope="row" className="sticky left-0 bg-white py-1.5 pr-3 text-left font-medium dark:bg-slate-950">{r.category}</th>
-      {r.months.map((c, i) => <td key={i} className="px-2 text-right whitespace-nowrap"><Amount cell={c} /></td>)}
       <td className="px-2 text-right whitespace-nowrap">{formatCents(r.totalCents)}</td>
       <td className="px-2 text-right whitespace-nowrap">{formatCents(averageCents(r, isTotal))}</td>
-      <td className="pl-2">{!isTotal && <Sparkline values={r.months} label={`${r.category} by month`} />}</td>
+      <td className="px-2">{!isTotal && <Sparkline values={r.months.slice(0, props.lastMonth)} label={`${r.category} by month`} />}</td>
+      {r.months.slice(0, props.lastMonth).map((c, i) => <td key={i} className="px-2 text-right whitespace-nowrap"><Amount cell={c} /></td>)}
     </tr>
   );
   return (
@@ -30,10 +30,10 @@ function DesktopTable(props: { grid: Grid }) {
         <thead>
           <tr className="text-xs text-slate-500">
             <th className="sticky left-0 bg-white text-left dark:bg-slate-950">Category</th>
-            {MONTHS.map((m) => <th key={m} className="px-2 text-right font-normal">{m}</th>)}
             <th className="px-2 text-right font-normal">Total</th>
             <th className="px-2 text-right font-normal">Average</th>
-            <th className="pl-2 text-left font-normal">Trend</th>
+            <th className="px-2 text-left font-normal">Trend</th>
+            {MONTHS.slice(0, props.lastMonth).map((m) => <th key={m} className="px-2 text-right font-normal">{m}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -45,7 +45,7 @@ function DesktopTable(props: { grid: Grid }) {
   );
 }
 
-function PhoneRows(props: { grid: Grid }) {
+function PhoneRows(props: { grid: Grid; lastMonth: number }) {
   const [open, setOpen] = useState<string | null>(null);
   return (
     <ul className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -58,11 +58,11 @@ function PhoneRows(props: { grid: Grid }) {
               <span className="block truncate font-medium">{r.category}</span>
               <span className="text-xs text-slate-500">{formatCents(r.totalCents)} · avg {formatCents(averageCents(r))}</span>
             </span>
-            <Sparkline values={r.months} label={`${r.category} by month`} />
+            <Sparkline values={r.months.slice(0, props.lastMonth)} label={`${r.category} by month`} />
           </button>
           {open === r.category && (
             <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-              {r.months.map((c, i) => (
+              {r.months.slice(0, props.lastMonth).map((c, i) => (
                 <div key={i} className="flex justify-between">
                   <dt className="text-slate-500">{MONTHS[i]}</dt>
                   <dd><Amount cell={c} /></dd>
@@ -76,14 +76,15 @@ function PhoneRows(props: { grid: Grid }) {
   );
 }
 
-export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" | "expense" }) {
+/** `lastMonth` is the latest month with data (1–12): later months would be empty columns. */
+export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" | "expense"; lastMonth: number }) {
   const desktop = useMediaQuery(DESKTOP);
   return (
     <section aria-label={props.title} className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
       <h2 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-400">{props.title}</h2>
       {props.grid.rows.length === 0
         ? <p className="text-sm text-slate-500">Nothing this year.</p>
-        : desktop ? <DesktopTable grid={props.grid} /> : <PhoneRows grid={props.grid} />}
+        : desktop ? <DesktopTable grid={props.grid} lastMonth={props.lastMonth} /> : <PhoneRows grid={props.grid} lastMonth={props.lastMonth} />}
     </section>
   );
 }

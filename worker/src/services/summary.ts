@@ -49,6 +49,17 @@ function kindOf(types: Map<string, SpendingKind | null>, category: string, type:
   return types.get(category) === "essential" ? "essential" : "discretionary";
 }
 
+/** Average month before `month` ("YYYY-MM"), over the last twelve calendar months that have rows. */
+async function averageBefore(db: Db, month: string, scope: Scope): Promise<SummaryResponse["monthAverage"]> {
+  const index = (m: string) => Number(m.slice(0, 4)) * 12 + Number(m.slice(5, 7));
+  const flows = await netCashFlow(db, "month", { ...scope, year: undefined, month: undefined });
+  const prior = flows.filter((f) => index(month) - index(f.period) >= 1 && index(month) - index(f.period) <= 12);
+  if (prior.length === 0) return null;
+  const mean = (pick: (f: (typeof prior)[number]) => number) =>
+    Math.round(prior.reduce((a, f) => a + pick(f), 0) / prior.length);
+  return { incomeCents: mean((f) => f.incomeCents), expensesCents: mean((f) => f.expensesCents), months: prior.length };
+}
+
 export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResponse> {
   const scope: Scope = {
     includeHidden: q.includeHidden,
@@ -109,6 +120,8 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
     };
   }
 
+  const monthAverage = scope.month === undefined ? null : await averageBefore(db, scope.month, scope);
+
   return {
     year: q.year,
     month: q.month,
@@ -125,6 +138,7 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
     topIncome: merchantItems(incomeMerchants, "income"),
     monthlyTotals,
     monthly,
+    monthAverage,
     hiddenCents,
     excludedPatterns: patternRows.map((p) => p.pattern),
   };

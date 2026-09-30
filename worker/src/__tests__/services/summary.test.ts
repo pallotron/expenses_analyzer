@@ -80,6 +80,28 @@ describe("buildSummary", () => {
     expect(s.monthly).toBeNull();
   });
 
+  it("averages the twelve months before a month view, skipping months with no rows", async () => {
+    const s = await buildSummary(db, { year: 2026, month: 2, includeHidden: false });
+    // 2025-02 to 2026-01 is twelve calendar months, but June 2025 has no rows.
+    expect(s.monthAverage).toEqual({ incomeCents: 409_091, expensesCents: 185_536, months: 11 });
+  });
+
+  it("has no month average in a year view, or for the first month on record", async () => {
+    expect((await buildSummary(db, { year: 2026, month: null, includeHidden: false })).monthAverage).toBeNull();
+    expect((await buildSummary(db, { year: 2025, month: 1, includeHidden: false })).monthAverage).toBeNull();
+  });
+
+  it("does not look further back than twelve months", async () => {
+    // 2025-02 is thirteen months before 2026-03, so it is not in the average.
+    const s = await buildSummary(db, { year: 2026, month: 3, includeHidden: false });
+    expect(s.monthAverage).toEqual({ incomeCents: 409_091, expensesCents: 191_562, months: 11 });
+  });
+
+  it("averages only the selected sources", async () => {
+    const s = await buildSummary(db, { year: 2026, month: 2, sources: ["Card"], includeHidden: false });
+    expect(s.monthAverage).toEqual({ incomeCents: 0, expensesCents: 4_627, months: 11 });
+  });
+
   it("returns zeros, not an error, for a source filter that matches nothing", async () => {
     const s = await buildSummary(db, { year: 2026, month: null, sources: [], includeHidden: false });
     expect(s.cashFlow).toEqual({ incomeCents: 0, expensesCents: 0 });

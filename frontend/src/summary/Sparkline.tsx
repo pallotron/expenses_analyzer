@@ -1,11 +1,11 @@
 import type { GridCell } from "../lib/types";
 
-/** Twelve bars, anomalies in the anomaly colour. Inline SVG: there are dozens. */
+/** One bar per month, anomalies in the anomaly colour. Inline SVG: there are dozens. */
 export function Sparkline(props: { values: GridCell[]; label: string }) {
   const max = Math.max(1, ...props.values.map((v) => v.amountCents));
   const w = 4, gap = 2, h = 24;
   return (
-    <svg role="img" aria-label={props.label} width={12 * (w + gap)} height={h} className="shrink-0">
+    <svg role="img" aria-label={props.label} width={props.values.length * (w + gap)} height={h} className="shrink-0">
       {props.values.map((v, i) => {
         const bh = v.amountCents > 0 ? Math.max(1.5, (v.amountCents / max) * h) : 1;
         return (

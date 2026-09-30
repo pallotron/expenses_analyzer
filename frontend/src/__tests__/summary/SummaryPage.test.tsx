@@ -142,6 +142,15 @@ describe("SummaryPage", () => {
       vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
     });
 
+    it("starts the monthly detail collapsed until it is opened", async () => {
+      renderAt("/?year=2026");
+      await screen.findByRole("region", { name: "Cash flow" });
+      const summaryEl = screen.getByText("Monthly detail");
+      expect(summaryEl.closest("details")).not.toHaveAttribute("open");
+      await userEvent.click(summaryEl);
+      expect(summaryEl.closest("details")).toHaveAttribute("open");
+    });
+
     it("puts the filters behind one button with a count", async () => {
       const api = renderAt("/?year=2026&sources=Card");
       await screen.findByRole("region", { name: "Cash flow" }); // amounts are compact on a phone
@@ -160,6 +169,17 @@ describe("SummaryPage", () => {
     expect(within(merchants).getAllByRole("listitem")).toHaveLength(10);
     await userEvent.click(within(merchants).getByRole("button", { name: /show all 12/i }));
     expect(within(merchants).getAllByRole("listitem")).toHaveLength(12);
+  });
+
+  it("lists ten expense categories and reveals the rest on request", async () => {
+    const expenseCategories = Array.from({ length: 12 }, (_, i) => ({
+      category: `Category ${i + 1}`, spendingType: "essential" as const, amountCents: 100_000 - i * 1_000,
+    }));
+    renderAt("/?year=2026", mockApi({ summary: () => summary({ expenseCategories }) }));
+    const list = await screen.findByRole("region", { name: "Expense categories" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(10);
+    await userEvent.click(within(list).getByRole("button", { name: /show all 12/i }));
+    expect(within(list).getAllByRole("listitem")).toHaveLength(12);
   });
 
   it("shows the budget used, prorated to a month in a month view", async () => {

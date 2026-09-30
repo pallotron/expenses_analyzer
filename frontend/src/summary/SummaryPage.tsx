@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
+import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 import { BreakdownList } from "./BreakdownList";
 import { CashFlowTiles } from "./CashFlowTiles";
 import { FiltersBar } from "./FiltersBar";
@@ -34,6 +35,7 @@ function ErrorCard(props: { error: Error; onRetry: () => void }) {
 
 export function SummaryPage() {
   const [search, setSearch] = useSearchParams();
+  const desktop = useMediaQuery(DESKTOP);
   const params = parseParams(search);
   const periods = usePeriods();
   // The URL is only checked for syntax; what exists is known here.
@@ -44,6 +46,8 @@ export function SummaryPage() {
   const month = params.month !== null && known?.find((y) => y.year === year)?.months.includes(params.month)
     ? params.month
     : null;
+  // Later months of the year are empty, and would only pad the chart and grids.
+  const lastMonth = Math.max(1, ...(known?.find((y) => y.year === year)?.months ?? []));
   const view: SummaryParams = { ...params, year, month };
   const summary = useSummary(view);
   // Survives a load or an error, so the tag filter does not flicker or vanish.
@@ -77,29 +81,29 @@ export function SummaryPage() {
       {!data && !summary.error && <div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900" aria-busy="true" />}
       {data && (
         <div className={`flex flex-col gap-4 transition-opacity ${summary.isPlaceholderData ? "opacity-60" : ""}`}>
-          <CashFlowTiles cashFlow={data.cashFlow} />
+          <CashFlowTiles cashFlow={data.cashFlow} monthAverage={data.monthAverage} />
           <SpendingSplit split={data.spendingType} monthView={data.month !== null} />
-          {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} />}
+          {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} lastMonth={lastMonth} />}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-4">
-              <BreakdownList title="Expense categories" tone="expense" showShare
-                items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents }))} />
+              <BreakdownList title="Expense categories" tone="expense" showShare limit={10}
+                items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined }))} />
               <BreakdownList title="Top expense merchants" tone="expense" limit={10} collapsible
-                items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount }))} />
+                items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: m.spendingType ?? undefined }))} />
             </div>
             <div className="flex flex-col gap-4">
-              <BreakdownList title="Income categories" tone="income" showShare collapsible
-                items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents }))} />
+              <BreakdownList title="Income categories" tone="income" showShare limit={10} collapsible
+                items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents, kind: "income" as const }))} />
               <BreakdownList title="Top income sources" tone="income" limit={10} collapsible
-                items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount }))} />
+                items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: "income" as const }))} />
             </div>
           </div>
           {data.monthly && (
-            <details open className="group">
+            <details open={desktop} className="group">
               <summary className="cursor-pointer select-none py-1 text-sm font-semibold">Monthly detail</summary>
               <div className="mt-2 flex flex-col gap-4">
-                <MonthlyGrid title="Monthly expenses" grid={data.monthly.expense} tone="expense" />
-                <MonthlyGrid title="Monthly income" grid={data.monthly.income} tone="income" />
+                <MonthlyGrid title="Monthly expenses" grid={data.monthly.expense} tone="expense" lastMonth={lastMonth} />
+                <MonthlyGrid title="Monthly income" grid={data.monthly.income} tone="income" lastMonth={lastMonth} />
               </div>
             </details>
           )}

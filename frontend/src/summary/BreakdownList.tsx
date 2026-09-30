@@ -7,7 +7,11 @@ export interface BreakdownItem {
   sublabel?: string;
   amountCents: number;
   count?: number;
+  /** Colours the bar: what the money was. Without it the list's tone is used. */
+  kind?: "essential" | "discretionary" | "income";
 }
+
+const BAR_COLOUR = { essential: "bg-essential", discretionary: "bg-discretionary", income: "bg-income" };
 
 /** A ranked list with proportional bars: categories, merchants, income sources. */
 export function BreakdownList(props: {
@@ -65,10 +69,13 @@ export function BreakdownList(props: {
                   {item.count !== undefined && <span className="ml-1.5 text-xs text-slate-500">×{item.count}</span>}
                 </span>
               </div>
-              <div className="mt-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
-                <div className={`h-1.5 rounded-full ${props.tone === "income" ? "bg-income" : "bg-expense"}`}
-                  style={{ width: `${Math.min(100, Math.max(0, (item.amountCents / max) * 100))}%` }} />
-              </div>
+              {!(item.kind === "income" && item.amountCents < total / 100) && (
+                <div className="mt-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+                  <div data-testid="bar"
+                    className={`h-1.5 rounded-full ${item.kind ? BAR_COLOUR[item.kind] : props.tone === "income" ? "bg-income" : "bg-expense"}`}
+                    style={{ width: `${Math.min(100, Math.max(0, (item.amountCents / max) * 100))}%` }} />
+                </div>
+              )}
             </li>
           ))}
         </ul>

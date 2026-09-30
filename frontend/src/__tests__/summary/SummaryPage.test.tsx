@@ -74,11 +74,22 @@ describe("SummaryPage", () => {
   it("filters sources, including selecting none", async () => {
     const api = renderAt("/?year=2026", mockApi({ summary: () => summary() }));
     await screen.findByText("€61,400.00");
-    await userEvent.click(screen.getByRole("button", { name: /sources/i }));
+    // On desktop the sources are inline checkboxes: nothing to open first.
     await userEvent.click(within(screen.getByRole("group", { name: /sources/i })).getByRole("button", { name: "None" }));
     await waitFor(() => expect(api.calls.some((u) =>
       u.searchParams.has("sources") && u.searchParams.getAll("sources").join() === "")).toBe(true));
     expect(location).toContain("sources=");
+  });
+
+  it("narrows to the remaining sources when one is unticked", async () => {
+    const api = renderAt("/?year=2026", mockApi({ summary: () => summary() }));
+    await screen.findByText("€61,400.00");
+    const sources = screen.getByRole("group", { name: /sources/i });
+    expect(within(sources).getAllByRole("checkbox")).toHaveLength(2);
+    await userEvent.click(within(sources).getByRole("checkbox", { name: "Card" }));
+    await waitFor(() => expect(api.calls.some((u) =>
+      u.searchParams.getAll("sources").join() === "Bank A")).toBe(true));
+    expect(within(sources).getByRole("checkbox", { name: "Card" })).not.toBeChecked();
   });
 
   it("falls back to the newest year and the whole year for an unknown period", async () => {

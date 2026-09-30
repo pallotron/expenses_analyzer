@@ -4,8 +4,9 @@ import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 
 /**
  * Sources and the hidden-tags switch. On a phone both sit behind one
- * "Filters (n)" button that opens a panel; on desktop the sources open as a
- * small popover beside the switch. Undefined patterns: not loaded yet.
+ * "Filters (n)" button that opens a panel; on desktop every source is an
+ * inline checkbox, with the switch on the line below. Undefined patterns: not
+ * loaded yet.
  */
 export function FiltersBar(props: {
   sources: string[];
@@ -23,7 +24,6 @@ export function FiltersBar(props: {
     const next = chosen.includes(s) ? chosen.filter((x) => x !== s) : [...chosen, s];
     props.onSources(next.length === props.sources.length ? undefined : next);
   };
-  const label = props.selected === undefined ? "all" : `${props.selected.length} of ${props.sources.length}`;
   const patterns = props.excludedPatterns ?? [];
   const list = patterns.join(", ");
   // The switch stays while it is on, so it can always be turned off.
@@ -38,21 +38,32 @@ export function FiltersBar(props: {
         ? `Including all (${list} not applied)`
         : `Excluding ${list} · ${formatCents(props.hiddenCents)} hidden`;
 
-  const sourceList = (
-    <div role="group" aria-label="Sources"
-      className={desktop
-        ? "absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-        : "w-full"}>
-      <div className="mb-2 flex gap-2">
-        <button type="button" className="underline" onClick={() => props.onSources(undefined)}>All</button>
-        <button type="button" className="underline" onClick={() => props.onSources([])}>None</button>
-      </div>
-      {props.sources.map((s) => (
-        <label key={s} className="flex items-center gap-2 py-0.5">
-          <input type="checkbox" checked={chosen.includes(s)} onChange={() => toggle(s)} />
-          {s}
-        </label>
-      ))}
+  const allNone = (
+    <span className="flex gap-2">
+      <button type="button" className="underline" onClick={() => props.onSources(undefined)}>All</button>
+      <button type="button" className="underline" onClick={() => props.onSources([])}>None</button>
+    </span>
+  );
+  const boxes = props.sources.map((s) => (
+    <label key={s} className={desktop
+      ? `flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 ${chosen.includes(s)
+        ? "border-slate-400 dark:border-slate-500"
+        : "border-slate-200 text-slate-400 dark:border-slate-800 dark:text-slate-500"}`
+      : "flex items-center gap-2 py-0.5"}>
+      <input type="checkbox" checked={chosen.includes(s)} onChange={() => toggle(s)} />
+      {s}
+    </label>
+  ));
+  const sourceList = desktop ? (
+    <div role="group" aria-label="Sources" className="flex flex-wrap items-center gap-2">
+      <span className="text-slate-600 dark:text-slate-400">Sources:</span>
+      {boxes}
+      {allNone}
+    </div>
+  ) : (
+    <div role="group" aria-label="Sources" className="w-full">
+      <div className="mb-2">{allNone}</div>
+      {boxes}
     </div>
   );
 
@@ -86,14 +97,12 @@ export function FiltersBar(props: {
   }
 
   return (
-    <div className="relative flex flex-wrap items-center gap-2 text-sm">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
-        className="rounded-md border border-slate-300 px-2 py-1 dark:border-slate-700">
-        Sources: {label} ▾
-      </button>
-      {open && sourceList}
-      {hiddenSwitch}
-      {status}
+    <div className="flex flex-col gap-2 text-sm">
+      {sourceList}
+      <div className="flex flex-wrap items-center gap-2">
+        {hiddenSwitch}
+        {status}
+      </div>
     </div>
   );
 }

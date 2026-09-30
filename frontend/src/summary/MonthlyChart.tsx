@@ -2,7 +2,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { formatAxisCents, formatCents } from "../lib/money";
 import type { MonthTotals } from "../lib/types";
 
-const MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function MonthlyChart(props: { totals: MonthTotals[] }) {
   const data = props.totals.map((t) => ({ ...t, label: MONTHS[t.month - 1] }));

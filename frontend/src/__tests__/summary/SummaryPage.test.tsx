@@ -133,7 +133,7 @@ describe("SummaryPage", () => {
 
     it("puts the filters behind one button with a count", async () => {
       const api = renderAt("/?year=2026&sources=Card");
-      await screen.findByText("€61,400.00");
+      await screen.findByRole("region", { name: "Cash flow" }); // amounts are compact on a phone
       expect(screen.queryByRole("switch")).not.toBeInTheDocument();
       await userEvent.click(screen.getByRole("button", { name: "Filters (1)" }));
       await userEvent.click(screen.getByRole("switch", { name: /include hidden tags/i }));
@@ -141,5 +141,28 @@ describe("SummaryPage", () => {
       expect(location).toContain("hidden=1");
       expect(screen.getByRole("button", { name: "Filters (2)" })).toBeInTheDocument();
     });
+  });
+
+  it("lists ten merchants and reveals the rest on request", async () => {
+    renderAt("/?year=2026");
+    const merchants = await screen.findByRole("region", { name: "Top expense merchants" });
+    expect(within(merchants).getAllByRole("listitem")).toHaveLength(10);
+    await userEvent.click(within(merchants).getByRole("button", { name: /show all 12/i }));
+    expect(within(merchants).getAllByRole("listitem")).toHaveLength(12);
+  });
+
+  it("shows the budget used, prorated to a month in a month view", async () => {
+    renderAt("/?year=2026&month=2", mockApi({ summary: () => summary({ month: 2, monthlyTotals: null, monthly: null }) }));
+    // 3,400,000 / 12 = 283,333.33 cents budget; 2,410,000 essential -> 851% used
+    expect(await screen.findByText(/851% of €2,833\.33\/mo/)).toBeInTheDocument();
+  });
+
+  it("collapses the merchant list on a phone until it is tapped", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
+    renderAt("/?year=2026");
+    const merchants = await screen.findByRole("region", { name: "Top expense merchants" });
+    expect(within(merchants).queryAllByRole("listitem")).toHaveLength(0);
+    await userEvent.click(within(merchants).getByRole("button", { name: /top expense merchants/i }));
+    expect(within(merchants).getAllByRole("listitem")).toHaveLength(10);
   });
 });

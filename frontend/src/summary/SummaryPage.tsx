@@ -2,11 +2,14 @@ import { useRef, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import { NOT_SET_UP } from "../lib/api";
-import { formatCents } from "../lib/money";
+import { BreakdownList } from "./BreakdownList";
+import { CashFlowTiles } from "./CashFlowTiles";
 import { FiltersBar } from "./FiltersBar";
+import { MonthlyChart } from "./MonthlyChart";
 import { parseParams, toSearchParams, type SummaryParams } from "./params";
 import { PeriodPicker } from "./PeriodPicker";
 import { usePeriods, useSummary } from "./queries";
+import { SpendingSplit } from "./SpendingSplit";
 
 function Card(props: { title?: string; children: ReactNode }) {
   return (
@@ -72,8 +75,23 @@ export function SummaryPage() {
       {!data && !summary.error && <div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900" aria-busy="true" />}
       {data && (
         <div className={`flex flex-col gap-4 transition-opacity ${summary.isPlaceholderData ? "opacity-60" : ""}`}>
-          {/* Task 9 replaces this line with CashFlowTiles, SpendingSplit, MonthlyChart and the breakdown columns. */}
-          <p>Income <span>{formatCents(data.cashFlow.incomeCents)}</span></p>
+          <CashFlowTiles cashFlow={data.cashFlow} />
+          <SpendingSplit split={data.spendingType} monthView={data.month !== null} />
+          {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} />}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="flex flex-col gap-4">
+              <BreakdownList title="Expense categories" tone="expense" showShare
+                items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents }))} />
+              <BreakdownList title="Top expense merchants" tone="expense" limit={10} collapsible
+                items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount }))} />
+            </div>
+            <div className="flex flex-col gap-4">
+              <BreakdownList title="Income categories" tone="income" showShare collapsible
+                items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents }))} />
+              <BreakdownList title="Top income sources" tone="income" limit={10} collapsible
+                items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount }))} />
+            </div>
+          </div>
           {/* Task 10 adds the monthly grids here. */}
         </div>
       )}

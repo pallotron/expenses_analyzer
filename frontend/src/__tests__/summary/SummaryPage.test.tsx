@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SummaryPage } from "../../summary/SummaryPage";
+import { NOT_SET_UP } from "../../lib/api";
 import { mockApi, summary } from "./fixtures";
 
 let location = "";
@@ -78,5 +79,67 @@ describe("SummaryPage", () => {
     await waitFor(() => expect(api.calls.some((u) =>
       u.searchParams.has("sources") && u.searchParams.getAll("sources").join() === "")).toBe(true));
     expect(location).toContain("sources=");
+  });
+
+  it("falls back to the newest year and the whole year for an unknown period", async () => {
+    const api = renderAt("/?year=1999&month=6");
+    await screen.findByText("€61,400.00");
+    const asked = api.calls.filter((u) => u.pathname === "/api/summary");
+    expect(asked.length).toBeGreaterThan(0);
+    for (const u of asked) {
+      expect(u.searchParams.get("year")).toBe("2026");
+      expect(u.searchParams.has("month")).toBe(false);
+    }
+  });
+
+  it("drops a month the year has no data for", async () => {
+    const api = renderAt("/?year=2026&month=6");
+    await screen.findByText("€61,400.00");
+    expect(api.calls.filter((u) => u.pathname === "/api/summary").every((u) => !u.searchParams.has("month"))).toBe(true);
+  });
+
+  it("clears the month when the year changes", async () => {
+    renderAt("/?year=2026&month=2");
+    await screen.findByText("€61,400.00");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Year" }), "2025");
+    await waitFor(() => expect(location).toContain("year=2025"));
+    expect(location).not.toContain("month");
+  });
+
+  it("reports an account that is not set up, without a retry", async () => {
+    renderAt("/?year=2026", mockApi({ status: 403 }));
+    expect(await screen.findByText(NOT_SET_UP)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the hidden-tags switch reachable when the summary errors", async () => {
+    const api = mockApi();
+    renderAt("/?year=2026&hidden=1", {
+      calls: api.calls,
+      fetch: async (input: RequestInfo | URL) =>
+        String(input).startsWith("/api/summary?")
+          ? new Response(JSON.stringify({ error: "boom" }), { status: 500 })
+          : api.fetch(input),
+    });
+    expect(await screen.findByRole("button", { name: /retry/i })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /include hidden tags/i })).toBeInTheDocument();
+    expect(screen.queryByText(/no tags excluded/i)).not.toBeInTheDocument();
+  });
+
+  describe("on a phone", () => {
+    beforeEach(() => {
+      vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
+    });
+
+    it("puts the filters behind one button with a count", async () => {
+      const api = renderAt("/?year=2026&sources=Card");
+      await screen.findByText("€61,400.00");
+      expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Filters (1)" }));
+      await userEvent.click(screen.getByRole("switch", { name: /include hidden tags/i }));
+      await waitFor(() => expect(api.calls.some((u) => u.searchParams.get("hidden") === "1")).toBe(true));
+      expect(location).toContain("hidden=1");
+      expect(screen.getByRole("button", { name: "Filters (2)" })).toBeInTheDocument();
+    });
   });
 });

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import { NOT_SET_UP } from "../lib/api";
@@ -32,9 +32,19 @@ export function SummaryPage() {
   const [search, setSearch] = useSearchParams();
   const params = parseParams(search);
   const periods = usePeriods();
-  const year = params.year ?? periods.data?.years[0]?.year ?? null;
-  const view: SummaryParams = { ...params, year };
+  // The URL is only checked for syntax; what exists is known here.
+  const known = periods.data?.years;
+  const year = params.year !== null && known?.some((y) => y.year === params.year)
+    ? params.year
+    : known?.[0]?.year ?? null;
+  const month = params.month !== null && known?.find((y) => y.year === year)?.months.includes(params.month)
+    ? params.month
+    : null;
+  const view: SummaryParams = { ...params, year, month };
   const summary = useSummary(view);
+  // Survives a load or an error, so the tag filter does not flicker or vanish.
+  const tags = useRef<{ patterns: string[]; hiddenCents: number } | undefined>(undefined);
+  if (summary.data) tags.current = { patterns: summary.data.excludedPatterns, hiddenCents: summary.data.hiddenCents };
   const update = (patch: Partial<SummaryParams>) => setSearch(toSearchParams({ ...view, ...patch }));
 
   if (periods.error) return <main className="mx-auto max-w-6xl p-4"><ErrorCard error={periods.error} onRetry={() => periods.refetch()} /></main>;
@@ -54,7 +64,7 @@ export function SummaryPage() {
         <PeriodPicker periods={periods.data} year={year} month={view.month}
           onChange={(y, m) => update({ year: y, month: m })} />
         <FiltersBar sources={periods.data.sources} selected={view.sources} hidden={view.hidden}
-          hiddenCents={data?.hiddenCents ?? 0} excludedPatterns={data?.excludedPatterns ?? []}
+          hiddenCents={tags.current?.hiddenCents ?? 0} excludedPatterns={tags.current?.patterns}
           onSources={(s) => update({ sources: s })} onHidden={(h) => update({ hidden: h })} />
       </header>
 

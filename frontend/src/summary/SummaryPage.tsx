@@ -6,6 +6,7 @@ import { BreakdownList } from "./BreakdownList";
 import { CashFlowTiles } from "./CashFlowTiles";
 import { FiltersBar } from "./FiltersBar";
 import { MonthlyChart } from "./MonthlyChart";
+import { MonthlyGrid } from "./MonthlyGrid";
 import { parseParams, toSearchParams, type SummaryParams } from "./params";
 import { PeriodPicker } from "./PeriodPicker";
 import { usePeriods, useSummary } from "./queries";
@@ -92,7 +93,15 @@ export function SummaryPage() {
                 items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount }))} />
             </div>
           </div>
-          {/* Task 10 adds the monthly grids here. */}
+          {data.monthly && (
+            <details open className="group">
+              <summary className="cursor-pointer select-none py-1 text-sm font-semibold">Monthly detail</summary>
+              <div className="mt-2 flex flex-col gap-4">
+                <MonthlyGrid title="Monthly expenses" grid={data.monthly.expense} tone="expense" />
+                <MonthlyGrid title="Monthly income" grid={data.monthly.income} tone="income" />
+              </div>
+            </details>
+          )}
         </div>
       )}
     </main>

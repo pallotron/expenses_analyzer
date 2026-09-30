@@ -26,12 +26,17 @@ export interface AppBindings {
 
 export type AppEnv<B extends AppBindings> = { Bindings: B; Variables: { user: User; db: Db } };
 
-/** Hashed build output can be cached forever; anything else must be revalidated. */
+/**
+ * Hashed build output can be cached forever; anything else must be revalidated.
+ * With single-page-application fallback, a missing /assets/ file comes back as
+ * 200 index.html, so an HTML body is never treated as immutable build output.
+ */
 export function withCacheHeaders(res: Response, path: string): Response {
   const out = new Response(res.body, res);
+  const html = (res.headers.get("content-type") ?? "").includes("text/html");
   out.headers.set(
     "Cache-Control",
-    res.ok && path.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-store",
+    res.ok && path.startsWith("/assets/") && !html ? "public, max-age=31536000, immutable" : "no-store",
   );
   return out;
 }

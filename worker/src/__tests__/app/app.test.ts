@@ -7,7 +7,9 @@ const { db } = vectorStore();
 
 function setup(email = "a@example.com") {
   const assets = vi.fn(async (req: Request) =>
-    new Response(`asset ${new URL(req.url).pathname}`, { headers: { "content-type": "text/html" } }));
+    new Response(`asset ${new URL(req.url).pathname}`, {
+      headers: { "content-type": req.url.endsWith(".js") && !req.url.includes("missing") ? "text/javascript" : "text/html" },
+    }));
   const env: AppBindings = {
     CF_ACCESS_TEAM_DOMAIN: "household.cloudflareaccess.com",
     CF_ACCESS_AUD: "test-aud",
@@ -63,15 +65,15 @@ describe("/api/summary", () => {
   });
 
   it.each([
-    ["missing year", "/api/summary"],
-    ["bad year", "/api/summary?year=26"],
-    ["month 13", "/api/summary?year=2026&month=13"],
-    ["month 0", "/api/summary?year=2026&month=0"],
-    ["bad hidden", "/api/summary?year=2026&hidden=yes"],
-  ])("rejects %s with a 400 and a message", async (_name, path) => {
+    ["missing year", "/api/summary", "year is required"],
+    ["bad year", "/api/summary?year=26", "year must be four digits"],
+    ["month 13", "/api/summary?year=2026&month=13", "month must be 1–12"],
+    ["month 0", "/api/summary?year=2026&month=0", "month must be 1–12"],
+    ["bad hidden", "/api/summary?year=2026&hidden=yes", "hidden must be 0 or 1"],
+  ])("rejects %s with a 400 and a message", async (_name, path, message) => {
     const res = await setup().get(path);
     expect(res.status).toBe(400);
-    expect(await res.json()).toHaveProperty("error");
+    expect(await res.json()).toEqual({ error: message });
   });
 });
 
@@ -91,6 +93,12 @@ describe("routing", () => {
     expect(page.headers.get("cache-control")).toBe("no-store");
     const bundle = await get("/assets/index-abc123.js");
     expect(bundle.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+  });
+
+  it("does not mark the SPA fallback for a missing hashed asset immutable", async () => {
+    const res = await setup().get("/assets/missing.js"); // mock answers 200 text/html, as the SPA fallback does
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
   it("does not mark a failed asset response immutable", () => {

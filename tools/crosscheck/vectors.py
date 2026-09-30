@@ -428,6 +428,24 @@ def summary_rows() -> list:
         ("2026-03-05", "Bookshop", 5_000, "expense", "Books", "Card"),
         ("2026-02-15", "Tesco", 1_234, "expense", "Groceries", "Card"),
     ]
+    rows += _boundary_rows()
+    return rows
+
+
+def _boundary_rows() -> list:
+    """Gifts, whose 2026-02 cell (4,750) sits between plausible formulas.
+
+    Across all sources it is unflagged; flagged if the window were 11 months or
+    the std were the population's. Card-only it is flagged, because pandas drops
+    the empty 2025-06 from the month index, so the window holds fewer, steadier
+    months; a calendar-filled index would leave it unflagged.
+    """
+    rows = []
+    gift_months = _months("2025-02", "2026-01")
+    for month, cents in zip(gift_months, [3000, 3400, 2800, 3100, 0, 3500, 2900, 3300, 3000, 3600, 3200, 3100]):
+        if cents:
+            rows.append((f"{month}-12", "Gift Shop", cents, "expense", "Gifts", "Card"))
+    rows.append(("2026-02-12", "Gift Shop", 4_750, "expense", "Gifts", "Card"))
     return rows
 
 

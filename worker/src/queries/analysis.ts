@@ -197,3 +197,20 @@ export async function hiddenTagTotal(db: Db, scope: Omit<Scope, "includeHidden">
     );
   return row.hiddenCents;
 }
+
+/**
+ * Category totals per month over every year and both types: the frame
+ * _calculate_historical_stats pivots. Income is included because the Python
+ * pivots the whole filtered frame, so a category with both kinds (e.g. "Other")
+ * mixes them in its history. The period in the scope is ignored, since the
+ * rolling window reaches back across years.
+ */
+export async function categoryMonthTotalsAllTypes(db: Db, scope: Scope = {}): Promise<CategoryRow[]> {
+  const v = source(scope);
+  return db
+    .select({ period: v.month, category: v.category, amountCents: sumCents(v) })
+    .from(v)
+    .where(and(...scopeTerms(v, { sources: scope.sources })))
+    .groupBy(v.month, v.category)
+    .orderBy(v.month, v.category);
+}

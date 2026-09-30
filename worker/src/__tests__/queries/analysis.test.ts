@@ -17,7 +17,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { Db } from "../../db/types";
 import * as schema from "../../db/schema";
-import { WORKER, emptyDatabase } from "../helpers/db";
+import { WORKER, emptyDatabase, inMemoryCopy } from "../helpers/db";
 import {
   cashFlowTotals,
   categoryBreakdown,
@@ -98,6 +98,9 @@ function seed(sqlite: Database.Database): void {
     INSERT INTO transaction_tags (transaction_id, tag_id) VALUES
       (10, 1), (10, 5), (11, 2), (12, 4), (13, 3), (14, 1), (15, 1), (3, 5);
   `);
+
+  // Two sources, so the source filter has something to split.
+  sqlite.exec(`UPDATE transactions SET source = 'Card' WHERE id IN (3, 7, 11, 15)`);
 }
 
 function fixture(): Database.Database {
@@ -112,17 +115,56 @@ type Row = unknown[];
 
 /** The verified SQL, run exactly as the cross-check runs it. */
 function reference(sqlite: Database.Database, file: string, view: string, params?: object): Row[] {
-  const text = readFileSync(resolve(QUERIES, file), "utf8").replaceAll("{view}", view);
+  let text = readFileSync(resolve(QUERIES, file), "utf8").replaceAll("{view}", view);
+  // hidden_tag_total.sql names v_live itself rather than taking {view}.
+  if (view.startsWith("scoped_")) text = text.replaceAll("FROM v_live", `FROM ${view}`);
   const stmt = sqlite.prepare(text).raw();
   return (params ? stmt.all(params) : stmt.all()) as Row[];
+}
+
+const lit = (s: string) => `'${s.replaceAll("'", "''")}'`;
+
+/**
+ * A temp view holding only the rows a scope keeps. Running a verified SQL file
+ * over it answers "the same query, filtered", which is what a scoped query
+ * module must return.
+ */
+function scopedView(sqlite: Database.Database, base: "v_summary" | "v_live", scope: Scope): string {
+  const terms: string[] = [];
+  if (scope.sources) {
+    terms.push(scope.sources.length ? `source IN (${scope.sources.map(lit).join(", ")})` : "0");
+  }
+  if (scope.year) terms.push(`year = ${lit(scope.year)}`);
+  if (scope.month) terms.push(`month = ${lit(scope.month)}`);
+  const name = `scoped_${base}`;
+  sqlite.exec(`DROP VIEW IF EXISTS temp.${name}`);
+  sqlite.exec(`CREATE TEMP VIEW ${name} AS SELECT * FROM ${base} ${terms.length ? `WHERE ${terms.join(" AND ")}` : ""}`);
+  return name;
+}
+
+/** Scopes worth checking on a database: its own newest year, month and a source. */
+function scopesFor(sqlite: Database.Database): Scope[] {
+  const [year, month] = sqlite.prepare(`SELECT MAX(year), MAX(month) FROM v_live`).raw().get() as [string, string];
+  const sources = (sqlite.prepare(`SELECT DISTINCT source FROM v_live ORDER BY source`).raw().all() as [string][])
+    .map(([s]) => s);
+  return [
+    { year },
+    { month },
+    { sources: [sources[0]] },
+    { sources: [sources[0]], year },
+    { sources: [] },
+    { sources },
+  ];
 }
 
 interface Case {
   name: string;
   file: string;
-  view: "v_summary" | "v_live";
+  view: string;
   params?: object;
+  scope?: Scope;
   run: (db: Db) => Promise<Row[]>;
+  runScoped?: (db: Db, scope: Scope) => Promise<Row[]>;
 }
 
 const values = (rows: object[]): Row[] => rows.map((r) => Object.values(r));
@@ -140,24 +182,28 @@ function cases(): Case[] {
         file: "cash_flow_totals.sql",
         view,
         run: async (db) => values([await cashFlowTotals(db, scope)]),
+        runScoped: async (db, s) => values([await cashFlowTotals(db, s)]),
       },
       {
         name: `cash flow by month${tag}`,
         file: "net_cash_flow_by_month.sql",
         view,
         run: async (db) => values(await netCashFlow(db, "month", scope)),
+        runScoped: async (db, s) => values(await netCashFlow(db, "month", s)),
       },
       {
         name: `cash flow by year${tag}`,
         file: "net_cash_flow_by_year.sql",
         view,
         run: async (db) => values(await netCashFlow(db, "year", scope)),
+        runScoped: async (db, s) => values(await netCashFlow(db, "year", s)),
       },
       {
         name: `essential vs discretionary by year${tag}`,
         file: "spending_type_by_year.sql",
         view,
         run: async (db) => values(await spendingTypeByYear(db, scope)),
+        runScoped: async (db, s) => values(await spendingTypeByYear(db, s)),
       },
     );
 
@@ -169,6 +215,7 @@ function cases(): Case[] {
           view,
           params: { type },
           run: async (db) => values(await categoryBreakdown(db, "year", type, scope)),
+          runScoped: async (db, s) => values(await categoryBreakdown(db, "year", type, s)),
         },
         {
           name: `category breakdown by month, ${type}${tag}`,
@@ -176,6 +223,7 @@ function cases(): Case[] {
           view,
           params: { type },
           run: async (db) => values(await categoryBreakdown(db, "month", type, scope)),
+          runScoped: async (db, s) => values(await categoryBreakdown(db, "month", type, s)),
         },
         {
           name: `merchants by year, ${type}${tag}`,
@@ -183,6 +231,7 @@ function cases(): Case[] {
           view,
           params: { type },
           run: async (db) => values(await merchantsByYear(db, type, scope)),
+          runScoped: async (db, s) => values(await merchantsByYear(db, type, s)),
         },
       );
     }
@@ -197,12 +246,35 @@ function cases(): Case[] {
   return out;
 }
 
+/** Every unscoped case again under each scope, compared with the scoped view. */
+function scopedCases(scopes: Scope[]): Case[] {
+  const out: Case[] = [];
+  for (const scope of scopes) {
+    const label = JSON.stringify(scope);
+    for (const includeHidden of [false, true]) {
+      const full: Scope = { ...scope, includeHidden };
+      const base = includeHidden ? "v_live" : "v_summary";
+      for (const c of cases().filter((c) => c.file !== "hidden_tag_total.sql" && c.view === base)) {
+        out.push({ ...c, name: `${c.name} ${label}`, scope: full, run: (db) => c.runScoped!(db, full) });
+      }
+    }
+    out.push({
+      name: `hidden tag total ${label}`,
+      file: "hidden_tag_total.sql",
+      view: "v_live",
+      scope,
+      run: async (db) => [[await hiddenTagTotal(db, scope)]],
+    });
+  }
+  return out;
+}
+
 /* ---------------------------------------------------------------- suites */
 
 const databases: [string, () => Database.Database][] = [["synthetic fixture", fixture]];
 if (process.env.CROSSCHECK_DB) {
   const path = process.env.CROSSCHECK_DB;
-  databases.push([`CROSSCHECK_DB`, () => new Database(path, { readonly: true, fileMustExist: true })]);
+  databases.push([`CROSSCHECK_DB`, () => inMemoryCopy(path)]);
 }
 
 describe.each(databases)("analysis queries match the cross-check SQL: %s", (_label, open) => {
@@ -210,8 +282,10 @@ describe.each(databases)("analysis queries match the cross-check SQL: %s", (_lab
   const db = drizzle(sqlite, { schema }) as unknown as Db;
   afterAll(() => sqlite.close());
 
-  it.each(cases().map((c) => [c.name, c] as const))("%s", async (_name, c) => {
-    const expected = reference(sqlite, c.file, c.view, c.params);
+  const all = [...cases(), ...scopedCases(scopesFor(sqlite))];
+  it.each(all.map((c) => [c.name, c] as const))("%s", async (_name, c) => {
+    const view = c.scope ? scopedView(sqlite, c.view as "v_summary" | "v_live", c.scope) : c.view;
+    const expected = reference(sqlite, c.file, view, c.params);
     expect(await c.run(db)).toEqual(expected);
   });
 });

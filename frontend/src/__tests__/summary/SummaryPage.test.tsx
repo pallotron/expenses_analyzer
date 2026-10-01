@@ -142,15 +142,6 @@ describe("SummaryPage", () => {
       vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
     });
 
-    it("starts the monthly detail collapsed until it is opened", async () => {
-      renderAt("/?year=2026");
-      await screen.findByRole("region", { name: "Cash flow" });
-      const summaryEl = screen.getByText("Monthly detail");
-      expect(summaryEl.closest("details")).not.toHaveAttribute("open");
-      await userEvent.click(summaryEl);
-      expect(summaryEl.closest("details")).toHaveAttribute("open");
-    });
-
     it("puts the filters behind one button with a count", async () => {
       const api = renderAt("/?year=2026&sources=Card");
       await screen.findByRole("region", { name: "Cash flow" }); // amounts are compact on a phone
@@ -161,6 +152,45 @@ describe("SummaryPage", () => {
       expect(location).toContain("hidden=1");
       expect(screen.getByRole("button", { name: "Filters (2)" })).toBeInTheDocument();
     });
+  });
+
+  it("splits the dashboard into tabs kept in the URL", async () => {
+    renderAt("/?year=2026");
+    await screen.findByText("€61,400.00");
+    expect(screen.getByRole("tab", { name: "Expenses" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("region", { name: "Expense categories" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Monthly expenses" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    await waitFor(() => expect(location).toContain("tab=monthly"));
+    expect(screen.getByRole("region", { name: "Monthly expenses" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Expense categories" })).not.toBeInTheDocument();
+    await userEvent.keyboard("{ArrowLeft}");
+    await waitFor(() => expect(location).toContain("tab=income"));
+    expect(screen.getByRole("region", { name: "Income categories" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Income" })).toHaveFocus();
+  });
+
+  it("keeps the tiles above the tabs whichever is open", async () => {
+    renderAt("/?year=2026&tab=income");
+    await screen.findByText("€61,400.00");
+    expect(screen.getByRole("region", { name: "Cash flow" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Income" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("has no Monthly tab in a month view, and falls back to Expenses", async () => {
+    renderAt("/?year=2026&month=2&tab=monthly", mockApi({ summary: () => summary({ month: 2, monthlyTotals: null, monthly: null }) }));
+    await screen.findByRole("region", { name: "Cash flow" });
+    expect(screen.queryByRole("tab", { name: "Monthly" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Expenses" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("does not refetch when only the tab changes", async () => {
+    const api = renderAt("/?year=2026");
+    await screen.findByText("€61,400.00");
+    const before = api.calls.filter((u) => u.pathname === "/api/summary").length;
+    await userEvent.click(screen.getByRole("tab", { name: "Income" }));
+    await screen.findByRole("region", { name: "Income categories" });
+    expect(api.calls.filter((u) => u.pathname === "/api/summary").length).toBe(before);
   });
 
   it("lists ten merchants and reveals the rest on request", async () => {

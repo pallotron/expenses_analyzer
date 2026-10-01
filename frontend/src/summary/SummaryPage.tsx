@@ -2,16 +2,16 @@ import { useRef, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
-import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 import { BreakdownList } from "./BreakdownList";
 import { CashFlowTiles } from "./CashFlowTiles";
 import { FiltersBar } from "./FiltersBar";
 import { MonthlyChart } from "./MonthlyChart";
 import { MonthlyGrid } from "./MonthlyGrid";
-import { parseParams, toSearchParams, type SummaryParams } from "./params";
+import { parseParams, toSearchParams, type SummaryParams, type Tab } from "./params";
 import { PeriodPicker } from "./PeriodPicker";
 import { usePeriods, useSummary } from "./queries";
 import { SpendingSplit } from "./SpendingSplit";
+import { SummaryTabs } from "./SummaryTabs";
 
 function Card(props: { title?: string; children: ReactNode }) {
   return (
@@ -35,7 +35,6 @@ function ErrorCard(props: { error: Error; onRetry: () => void }) {
 
 export function SummaryPage() {
   const [search, setSearch] = useSearchParams();
-  const desktop = useMediaQuery(DESKTOP);
   const params = parseParams(search);
   const periods = usePeriods();
   // The URL is only checked for syntax; what exists is known here.
@@ -49,6 +48,13 @@ export function SummaryPage() {
   // Later months of the year are empty, and would only pad the chart and grids.
   const lastMonth = Math.max(1, ...(known?.find((y) => y.year === year)?.months ?? []));
   const view: SummaryParams = { ...params, year, month };
+  // A month view has no grids, so no Monthly tab.
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "expenses", label: "Expenses" },
+    { id: "income", label: "Income" },
+    ...(month === null ? [{ id: "monthly" as const, label: "Monthly" }] : []),
+  ];
+  const tab: Tab = tabs.some((t) => t.id === view.tab) ? view.tab : "expenses";
   const summary = useSummary(view);
   // Survives a load or an error, so the tag filter does not flicker or vanish.
   const tags = useRef<{ patterns: string[]; hiddenCents: number } | undefined>(undefined);
@@ -83,29 +89,34 @@ export function SummaryPage() {
         <div className={`flex flex-col gap-4 transition-opacity ${summary.isPlaceholderData ? "opacity-60" : ""}`}>
           <CashFlowTiles cashFlow={data.cashFlow} monthAverage={data.monthAverage} />
           <SpendingSplit split={data.spendingType} monthView={data.month !== null} />
-          {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} lastMonth={lastMonth} />}
-          {/* Expenses first, side by side at the same length; income, mostly one salary, below and shorter. */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <BreakdownList title="Expense categories" tone="expense" showShare limit={10}
-              items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined }))} />
-            <BreakdownList title="Top expense merchants" tone="expense" limit={10} collapsible
-              items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: m.spendingType ?? undefined }))} />
-          </div>
-          <div className="grid items-start gap-4 md:grid-cols-2">
-            <BreakdownList title="Income categories" tone="income" showShare limit={5} collapsible foldBelow={0.01}
-              items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents, kind: "income" as const }))} />
-            <BreakdownList title="Top income sources" tone="income" limit={5} collapsible
-              items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: "income" as const }))} />
-          </div>
-          {data.monthly && (
-            <details open={desktop} className="group">
-              <summary className="cursor-pointer select-none py-1 text-sm font-semibold">Monthly detail</summary>
-              <div className="mt-2 flex flex-col gap-4">
+          <SummaryTabs tabs={tabs} current={tab} onChange={(t) => update({ tab: t })} />
+          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-4">
+            {tab === "expenses" && (
+              <>
+                {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} lastMonth={lastMonth} />}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <BreakdownList title="Expense categories" tone="expense" showShare limit={10} foldBelow={0.01}
+                    items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined }))} />
+                  <BreakdownList title="Top expense merchants" tone="expense" limit={10} collapsible foldBelow={0.01}
+                    items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: m.spendingType ?? undefined }))} />
+                </div>
+              </>
+            )}
+            {tab === "income" && (
+              <div className="grid items-start gap-4 md:grid-cols-2">
+                <BreakdownList title="Income categories" tone="income" showShare limit={5} foldBelow={0.01}
+                  items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents, kind: "income" as const }))} />
+                <BreakdownList title="Top income sources" tone="income" limit={5} foldBelow={0.01}
+                  items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: "income" as const }))} />
+              </div>
+            )}
+            {tab === "monthly" && data.monthly && (
+              <>
                 <MonthlyGrid title="Monthly expenses" grid={data.monthly.expense} tone="expense" lastMonth={lastMonth} />
                 <MonthlyGrid title="Monthly income" grid={data.monthly.income} tone="income" lastMonth={lastMonth} />
-              </div>
-            </details>
-          )}
+              </>
+            )}
+          </div>
         </div>
       )}
     </main>

@@ -4,6 +4,9 @@
  * that makes no sense falls back to its default rather than failing.
  */
 
+export const TABS = ["expenses", "income", "monthly"] as const;
+export type Tab = (typeof TABS)[number];
+
 export interface SummaryParams {
   /** Null: the newest year with data. */
   year: number | null;
@@ -12,6 +15,8 @@ export interface SummaryParams {
   /** Undefined: every source. []: none. */
   sources: string[] | undefined;
   hidden: boolean;
+  /** Which part of the dashboard is shown. Not sent to the API. */
+  tab: Tab;
 }
 
 export function parseParams(sp: URLSearchParams): SummaryParams {
@@ -23,6 +28,7 @@ export function parseParams(sp: URLSearchParams): SummaryParams {
     month: Number.isInteger(month) && month >= 1 && month <= 12 ? month : null,
     sources: raw.length === 0 ? undefined : raw.filter((s) => s !== ""),
     hidden: sp.get("hidden") === "1",
+    tab: (TABS as readonly string[]).includes(sp.get("tab") ?? "") ? sp.get("tab") as Tab : "expenses",
   };
 }
 
@@ -35,9 +41,10 @@ export function toSearchParams(p: SummaryParams): URLSearchParams {
     for (const s of p.sources) sp.append("sources", s);
   }
   if (p.hidden) sp.set("hidden", "1");
+  if (p.tab !== "expenses") sp.set("tab", p.tab);
   return sp;
 }
 
 export function summaryApiPath(p: SummaryParams & { year: number }): string {
-  return `/api/summary?${toSearchParams(p)}`;
+  return `/api/summary?${toSearchParams({ ...p, tab: "expenses" })}`;
 }

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -39,6 +39,19 @@ describe("MonthlyGrid on desktop", () => {
     expect(headers).toHaveLength(16);
   });
 
+  it("freezes Category, Total, Average and Trend while the months scroll", () => {
+    screenIs(true);
+    render(<MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={12} />);
+    const table = screen.getByRole("table");
+    const [category, total, average, trend, jan] = within(table).getAllByRole("columnheader");
+    expect([category, total, average, trend].map((h) => h.style.left)).toEqual(["0rem", "9rem", "16rem", "23rem"]);
+    for (const h of [category, total, average, trend]) expect(h).toHaveClass("sticky");
+    expect(jan).not.toHaveClass("sticky");
+    const cells = within(within(table).getByRole("row", { name: /Groceries/ })).getAllByRole("cell");
+    expect(cells.slice(0, 3).every((c) => c.classList.contains("sticky"))).toBe(true);
+    expect(cells[3]).not.toHaveClass("sticky");
+  });
+
   it("stops at the last month with data", () => {
     screenIs(true);
     render(<MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={3} />);
@@ -54,6 +67,83 @@ describe("MonthlyGrid on desktop", () => {
     screenIs(true);
     render(<MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={12} />);
     expect(screen.getByTitle(/unusually high/i)).toHaveTextContent("€200.00");
+  });
+});
+
+describe("MonthlyGrid trend arrows", () => {
+  it("marks each month with spend against the month before, as the TUI does", () => {
+    screenIs(true);
+    render(<MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={12} />);
+    const table = screen.getByRole("table");
+    const groceries = within(table).getByRole("row", { name: /Groceries/ });
+    // Jan has no month before it; Mar went up from nothing in Feb.
+    expect(within(groceries).getAllByLabelText(/month before/)).toHaveLength(1);
+    expect(within(groceries).getByLabelText("up on the month before")).toHaveTextContent("↑");
+    const total = within(table).getByRole("row", { name: /^Total/ });
+    expect(within(total).queryAllByLabelText(/month before/)).toHaveLength(0);
+  });
+
+  it("draws no arrows in the income grid", () => {
+    screenIs(true);
+    render(<MonthlyGrid title="Monthly income" grid={grid} tone="income" lastMonth={12} />);
+    expect(screen.queryAllByLabelText(/month before/)).toHaveLength(0);
+  });
+
+  it("shows the arrows in a phone row's months", async () => {
+    screenIs(false);
+    render(<MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={12} />);
+    await userEvent.click(screen.getByRole("button", { name: /Groceries/ }));
+    expect(screen.getByLabelText("up on the month before")).toBeInTheDocument();
+  });
+});
+
+describe("MonthlyGrid scrolling sideways", () => {
+  // jsdom lays nothing out: give the scroll box a size, and a working scrollLeft.
+  function layout(scrollWidth: number, clientWidth: number) {
+    let left = 0;
+    const box = HTMLDivElement.prototype;
+    const props = {
+      scrollWidth: { configurable: true, get: () => scrollWidth },
+      clientWidth: { configurable: true, get: () => clientWidth },
+      scrollLeft: { configurable: true, get: () => left, set: (v: number) => { left = Math.max(0, Math.min(v, scrollWidth - clientWidth)); } },
+    };
+    Object.defineProperties(box, props);
+    box.scrollBy = function (this: HTMLElement, opts?: ScrollToOptions | number) {
+      this.scrollLeft += typeof opts === "number" ? opts : opts?.left ?? 0;
+      this.dispatchEvent(new Event("scroll"));
+    } as typeof box.scrollBy;
+    return () => {
+      for (const k of Object.keys(props)) delete (box as unknown as Record<string, unknown>)[k];
+      delete (box as unknown as Record<string, unknown>).scrollBy;
+    };
+  }
+
+  it("opens on the latest months, with a fade and a button back to earlier ones", () => {
+    screenIs(true);
+    const undo = layout(1200, 800);
+    try {
+      render(<MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={12} />);
+      expect(screen.getByTestId("fade-left")).toBeInTheDocument();
+      expect(screen.queryByTestId("fade-right")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Later months" })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: "Earlier months" }));
+      expect(screen.getByTestId("fade-right")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Later months" })).toBeEnabled();
+    } finally {
+      undo();
+    }
+  });
+
+  it("shows no buttons or fades when everything fits", () => {
+    screenIs(true);
+    const undo = layout(800, 800);
+    try {
+      render(<MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={12} />);
+      expect(screen.queryByRole("button", { name: /months/ })).not.toBeInTheDocument();
+      expect(screen.queryByTestId(/fade/)).not.toBeInTheDocument();
+    } finally {
+      undo();
+    }
   });
 });
 

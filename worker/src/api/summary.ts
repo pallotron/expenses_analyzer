@@ -37,6 +37,23 @@ export function averageCents(row: GridRow, isTotal = false): number {
   return active ? row.totalCents / active : 0;
 }
 
+/** calculate_trends' marks: up, down, unchanged, and "-" for January, which has no month before it. */
+export type Trend = "↑" | "↓" | "=" | "-";
+
+/**
+ * The arrow the expense grid draws after each month: that month against the
+ * one before it (calculate_trends), shown only for months with spend, as
+ * _create_monthly_cell does. Null: no arrow.
+ */
+export function monthTrends(row: GridRow): (Trend | null)[] {
+  return row.months.map((cell, i) => {
+    if (cell.amountCents <= 0) return null;
+    if (i === 0) return "-";
+    const previous = row.months[i - 1].amountCents;
+    return cell.amountCents > previous ? "↑" : cell.amountCents < previous ? "↓" : "=";
+  });
+}
+
 export type SpendingKind = "essential" | "discretionary";
 
 export interface PeriodsResponse {

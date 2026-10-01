@@ -84,19 +84,18 @@ export function SummaryPage() {
           <CashFlowTiles cashFlow={data.cashFlow} monthAverage={data.monthAverage} />
           <SpendingSplit split={data.spendingType} monthView={data.month !== null} />
           {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} lastMonth={lastMonth} />}
+          {/* Expenses first, side by side at the same length; income, mostly one salary, below and shorter. */}
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-4">
-              <BreakdownList title="Expense categories" tone="expense" showShare limit={10}
-                items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined }))} />
-              <BreakdownList title="Top expense merchants" tone="expense" limit={10} collapsible
-                items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: m.spendingType ?? undefined }))} />
-            </div>
-            <div className="flex flex-col gap-4">
-              <BreakdownList title="Income categories" tone="income" showShare limit={10} collapsible
-                items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents, kind: "income" as const }))} />
-              <BreakdownList title="Top income sources" tone="income" limit={10} collapsible
-                items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: "income" as const }))} />
-            </div>
+            <BreakdownList title="Expense categories" tone="expense" showShare limit={10}
+              items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined }))} />
+            <BreakdownList title="Top expense merchants" tone="expense" limit={10} collapsible
+              items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: m.spendingType ?? undefined }))} />
+          </div>
+          <div className="grid items-start gap-4 md:grid-cols-2">
+            <BreakdownList title="Income categories" tone="income" showShare limit={5} collapsible foldBelow={0.01}
+              items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents, kind: "income" as const }))} />
+            <BreakdownList title="Top income sources" tone="income" limit={5} collapsible
+              items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: "income" as const }))} />
           </div>
           {data.monthly && (
             <details open={desktop} className="group">

@@ -2471,6 +2471,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "=",
+                "=",
+                "=",
+                "=",
+                null,
+                "↑",
+                "=",
+                "=",
+                "=",
+                "=",
+                "="
               ]
             },
             {
@@ -2504,6 +2518,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "↑",
+                "↑",
+                "↓",
+                "↑",
+                null,
+                "↑",
+                "↑",
+                "↑",
+                "↓",
+                "↑",
+                "↑"
               ]
             },
             {
@@ -2537,6 +2565,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                "↑",
+                "↑",
+                "↓",
+                "↑",
+                null,
+                "↑",
+                "↓",
+                "↑",
+                "↓",
+                "↑",
+                "↓"
               ]
             },
             {
@@ -2570,6 +2612,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                null,
+                "↑",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "↑",
+                null,
+                null,
+                null
               ]
             },
             {
@@ -2603,6 +2659,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                null,
+                null,
+                "↑",
+                null,
+                null,
+                "↑",
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             }
           ]
@@ -2662,6 +2732,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             },
             {
@@ -2695,6 +2779,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             }
           ]
@@ -2754,6 +2852,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "=",
+                "=",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             },
             {
@@ -2787,6 +2899,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "↑",
+                "↓",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             },
             {
@@ -2820,6 +2946,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "↓",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             },
             {
@@ -2853,6 +2993,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "↑",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             },
             {
@@ -2886,6 +3040,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                null,
+                "↑",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             }
           ]
@@ -2945,6 +3113,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             }
           ]
@@ -3006,6 +3188,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "=",
+                "=",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             },
             {
@@ -3039,6 +3235,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "↑",
+                "↓",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             }
           ]
@@ -3100,6 +3310,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             }
           ]
@@ -3161,6 +3385,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "↓",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             },
             {
@@ -3194,6 +3432,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                "-",
+                "↑",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             },
             {
@@ -3227,6 +3479,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                null,
+                "↑",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             },
             {
@@ -3260,6 +3526,20 @@
                 false,
                 false,
                 false
+              ],
+              "trends": [
+                null,
+                "↑",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
               ]
             }
           ]

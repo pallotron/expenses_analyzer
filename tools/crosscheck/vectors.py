@@ -504,6 +504,12 @@ def _anomaly(cell) -> bool:
     return isinstance(style, Style) and style.bgcolor is not None and style.bgcolor.name == "dark_red"
 
 
+def _trend(cell):
+    """The arrow after the amount (calculate_trends), or None when none is drawn."""
+    parts = _plain(cell).split()
+    return parts[1] if len(parts) > 1 else None
+
+
 def run_grid(rows: list, year: int, sources, income: bool):
     table = _Table()
     fill = (
@@ -523,6 +529,7 @@ def run_grid(rows: list, year: int, sources, income: bool):
                 "averageCents": _cents(r[2]),
                 "months": [_cents(c) for c in r[3:]],
                 "anomalies": [_anomaly(c) for c in r[3:]],
+                "trends": [_trend(c) for c in r[3:]],
             }
             for r in body
         ],

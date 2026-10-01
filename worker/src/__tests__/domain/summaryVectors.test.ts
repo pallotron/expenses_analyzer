@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { averageCents } from "../../api/summary";
+import { averageCents, monthTrends } from "../../api/summary";
 import { historicalStats, isAnomaly } from "../../domain/anomalies";
 import { buildGrid } from "../../domain/grid";
 import { categoryBreakdown, categoryMonthTotalsAllTypes, type Scope } from "../../queries/analysis";
@@ -34,13 +34,28 @@ describe("the monthly grid matches the Python", () => {
         totalCents: r.totalCents,
         months: r.months.map((m) => m.amountCents),
         anomalies: r.months.map((m) => m.anomaly),
-      }))).toEqual(g.expected.rows.map(({ averageCents: _a, ...rest }) => rest));
+      }))).toEqual(g.expected.rows.map(({ averageCents: _a, trends: _t, ...rest }) => rest));
+
+      // Arrows: the expense grid's calculate_trends marks; the income grid draws none.
+      expect(grid.rows.map((r) => (g.type === "expense" ? monthTrends(r) : r.months.map(() => null))))
+        .toEqual(g.expected.rows.map((r) => r.trends));
 
       // The TUI shows the average to the cent; ours is exact, so within half a cent.
       grid.rows.forEach((r, i) =>
         expect(Math.abs(averageCents(r) - g.expected!.rows[i].averageCents)).toBeLessThanOrEqual(0.5));
     },
   );
+
+  it("the fixture's arrows cover up, down, unchanged and January", () => {
+    const marks = new Set(summaryVectors.grids.flatMap((g) => g.expected?.rows.flatMap((r) => r.trends) ?? []));
+    for (const mark of ["↑", "↓", "=", "-", null]) expect(marks).toContain(mark);
+  });
+
+  it("monthTrends compares with the month before, zero included", () => {
+    const row = (cents: number[]) => ({ category: "x", totalCents: 0, months: cents.map((amountCents) => ({ amountCents, anomaly: false })) });
+    expect(monthTrends(row([0, 500, 500, 0, -20, 300]))).toEqual([null, "↑", "=", null, null, "↑"]);
+    expect(monthTrends(row([700, 300]))).toEqual(["-", "↓"]);
+  });
 
   it("the fixture really has an anomaly and a zero-std category", () => {
     const g2026 = summaryVectors.grids.find((g) => g.year === 2026 && g.sources === null && g.type === "expense")!;

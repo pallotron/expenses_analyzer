@@ -18,7 +18,7 @@ export type SummaryRow = [
 
 export interface ExpectedGrid {
   total: { totalCents: number; months: number[] };
-  rows: { category: string; totalCents: number; averageCents: number; months: number[]; anomalies: boolean[] }[];
+  rows: { category: string; totalCents: number; averageCents: number; months: number[]; anomalies: boolean[]; trends: (string | null)[] }[];
 }
 
 /** The "summary" section of python_vectors.json (tools/crosscheck/vectors.py). */

@@ -54,8 +54,19 @@ describe("TransactionTable stripes", () => {
     expect(body.length).toBeGreaterThan(0);
     for (const tr of body) {
       expect(tr.className).toContain("odd:bg-white");
-      expect(tr.className).toContain("even:bg-slate-50");
-      expect(tr.className).toContain("even:hover:bg-slate-200/70");
+      for (const c of ["even:bg-slate-100", "dark:even:bg-slate-900", "odd:hover:bg-slate-200", "even:hover:bg-slate-200", "dark:odd:hover:bg-slate-800", "dark:even:hover:bg-slate-800"]) {
+        expect(tr.className.split(" ")).toContain(c);
+      }
+    }
+  });
+});
+
+describe("DayList stripes", () => {
+  it("uses the darker stripe colours", () => {
+    render(<DayList rows={rows} />);
+    for (const li of screen.getAllByRole("listitem").filter((l) => l.className.includes("odd:bg-white"))) {
+      expect(li.className.split(" ")).toContain("even:bg-slate-100");
+      expect(li.className.split(" ")).toContain("dark:even:bg-slate-900");
     }
   });
 });

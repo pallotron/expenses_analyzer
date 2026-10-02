@@ -50,7 +50,7 @@ export function TransactionTable(props: {
         </thead>
         <tbody>
           {props.rows.map((r) => (
-            <tr key={r.id} className="odd:bg-white even:bg-slate-50 odd:hover:bg-slate-200/70 even:hover:bg-slate-200/70 dark:odd:bg-slate-950 dark:even:bg-slate-900/60 dark:odd:hover:bg-slate-800 dark:even:hover:bg-slate-800">
+            <tr key={r.id} className="odd:bg-white even:bg-slate-100 odd:hover:bg-slate-200 even:hover:bg-slate-200 dark:odd:bg-slate-950 dark:even:bg-slate-900 dark:odd:hover:bg-slate-800 dark:even:hover:bg-slate-800">
               <td className="px-2 py-2 whitespace-nowrap">{r.date}</td>
               <td className="max-w-64 truncate px-2 py-2" title={r.merchantRaw}>{r.merchant}</td>
               <AmountCell row={r} />

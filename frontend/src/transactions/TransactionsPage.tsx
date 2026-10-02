@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
-import { formatCents } from "../lib/money";
 import { Chevron } from "../lib/Chevron";
 import { monthRange } from "../lib/types";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
@@ -11,6 +10,7 @@ import { DayList } from "./DayList";
 import { defaultMonth } from "./defaultMonth";
 import { parseTxParams, shiftMonth, toTxSearch, transactionsApiPath, wholeMonth, type TxParams } from "./params";
 import { useLookups, useTransactions } from "./queries";
+import { TotalsStrip } from "./TotalsStrip";
 import { TransactionFilters } from "./TransactionFilters";
 import { sortRows, TransactionTable } from "./TransactionTable";
 
@@ -63,11 +63,6 @@ export function TransactionsPage() {
   const month = wholeMonth(params);
   const data = list.data;
   const badRequest = list.error instanceof ApiError && list.error.status === 400 ? list.error.message : null;
-  const totals = data && (params.type === "income"
-    ? `Income ${formatCents(data.incomeCents)}`
-    : params.type === "expense"
-      ? `Expenses ${formatCents(data.expensesCents)}`
-      : `Income ${formatCents(data.incomeCents)} · Expenses ${formatCents(data.expensesCents)}`);
   const rows = data ? (desktop ? sortRows(data.rows, params.sort, params.dir) : data.rows) : [];
 
   return (
@@ -95,9 +90,9 @@ export function TransactionsPage() {
       {!data && !list.error && <div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900" aria-busy="true" />}
       {data && (
         <section aria-label="Transactions list" className={`flex flex-col gap-3 transition-opacity ${list.isPlaceholderData ? "opacity-60" : ""}`}>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            {data.count} {data.count === 1 ? "transaction" : "transactions"}{data.count > 0 && ` · ${totals}`}
-          </p>
+          {data.count > 0 && (
+            <TotalsStrip count={data.count} incomeCents={data.incomeCents} expensesCents={data.expensesCents} type={params.type} />
+          )}
           {data.count === 0 ? (
             <p className="text-sm">
               No transactions match these filters.{" "}

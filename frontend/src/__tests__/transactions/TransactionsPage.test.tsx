@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -72,8 +72,10 @@ describe("TransactionsPage", () => {
 
   it("shows the count and both totals, and steps months", async () => {
     renderAt("/transactions?from=2026-09-01&to=2026-09-30");
-    expect(await screen.findByText(/2 transactions/)).toBeInTheDocument();
-    expect(screen.getByText(/Income €5,000\.00 · Expenses €54\.20/)).toBeInTheDocument();
+    const totals = within(await screen.findByRole("region", { name: "Totals" }));
+    expect(totals.getByText("2 transactions")).toBeInTheDocument();
+    expect(totals.getByText("€5,000.00")).toBeInTheDocument();
+    expect(totals.getByText("€54.20")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Previous month" }));
     await waitFor(() => expect(location).toBe("?from=2026-08-01&to=2026-08-31"));
   });
@@ -127,6 +129,6 @@ describe("TransactionsPage", () => {
 
   it("says transaction for a single row", async () => {
     renderAt("/transactions?from=2026-09-01&to=2026-09-30", api({ rows: [row(1, "2026-09-10", 100)] }));
-    expect(await screen.findByText(/^1 transaction( |$)/)).toBeInTheDocument();
+    expect(within(await screen.findByRole("region", { name: "Totals" })).getByText("1 transaction")).toBeInTheDocument();
   });
 });

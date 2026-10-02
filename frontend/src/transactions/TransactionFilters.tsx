@@ -89,20 +89,27 @@ export function TransactionFilters(props: {
   const { params: p, onChange } = props;
   const [open, setOpen] = useState(false);
 
+  const amountInputs = (
+    <>
+      <DebouncedInput label="Amount min" name="min" inputMode="decimal" placeholder="0.00" value={p.min} onChange={onChange} />
+      <DebouncedInput label="Amount max" name="max" inputMode="decimal" placeholder="0.00" value={p.max} onChange={onChange} />
+    </>
+  );
+
   const controls = (
     <div className={props.desktop ? "flex flex-col gap-3" : "flex flex-col gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-700"}>
-      <div className={props.desktop ? "grid grid-cols-4 gap-3" : "grid grid-cols-2 gap-3"}>
+      <div className={props.desktop ? "grid grid-cols-3 gap-3 lg:grid-cols-5" : "grid grid-cols-2 gap-3"}>
         <DebouncedInput label="From" name="from" type="date" value={p.from} onChange={onChange} />
         <DebouncedInput label="To" name="to" type="date" value={p.to} onChange={onChange} />
-        <DebouncedInput label="Amount min" name="min" inputMode="decimal" placeholder="0.00" value={p.min} onChange={onChange} />
-        <DebouncedInput label="Amount max" name="max" inputMode="decimal" placeholder="0.00" value={p.max} onChange={onChange} />
         <DebouncedInput label="Merchant" name="merchant" placeholder='contains… ("exact")' value={p.merchant} onChange={onChange} />
         <DebouncedInput label="Category" name="category" list="tx-categories" placeholder='contains… ("exact")' value={p.category} onChange={onChange} />
         <DebouncedInput label="Tags" name="tags" list="tx-tags" placeholder="contains…" value={p.tags} onChange={onChange} />
+        {!props.desktop && amountInputs}
       </div>
       <datalist id="tx-categories">{props.lookups?.categories.map((c) => <option key={c} value={`"${c}"`} />)}</datalist>
       <datalist id="tx-tags">{props.lookups?.tags.map((t) => <option key={t} value={t} />)}</datalist>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        {props.desktop && <div className="flex w-60 gap-2 [&_label]:w-28">{amountInputs}</div>}
         <Segmented label="Type" value={p.type} onChange={(type) => onChange({ type })}
           options={[[undefined, "All"], ["expense", "Expense"], ["income", "Income"]]} />
         <Segmented label="Budget" value={p.budget} onChange={(budget) => onChange({ budget })}

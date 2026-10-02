@@ -117,4 +117,18 @@ describe("TransactionFilters", () => {
     act(() => { vi.advanceTimersByTime(DEBOUNCE_MS); });
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("shows compact amount min and max inputs next to the type and budget groups", () => {
+    setup(params(""));
+    const min = screen.getByLabelText("Amount min");
+    expect(screen.getByLabelText("Amount max")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Amount/ })).not.toBeInTheDocument();
+    expect(min.closest("div")?.parentElement).toBe(screen.getByRole("group", { name: "Type" }).parentElement);
+  });
+
+  it("keeps the other desktop filters visible", () => {
+    setup(params("min=10"));
+    expect(screen.getByLabelText("Amount min")).toHaveValue("10");
+    for (const l of ["From", "To", "Merchant", "Category", "Tags"]) expect(screen.getByLabelText(l)).toBeInTheDocument();
+  });
 });

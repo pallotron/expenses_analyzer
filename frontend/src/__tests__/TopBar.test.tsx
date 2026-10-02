@@ -11,7 +11,7 @@ function renderBar(hostname: string, me: object | null = { email: "a@example.com
     ? new Response(JSON.stringify(me), { status: 200, headers: { "content-type": "application/json" } })
     : new Response(JSON.stringify({ error: "boom" }), { status: 500 })));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><TopBar hostname={hostname} /></MemoryRouter></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><TopBar hostname={hostname} /></MemoryRouter></QueryClientProvider>);
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -52,7 +52,10 @@ describe("TopBar", () => {
       observe() { this.cb([{ borderBoxSize: [{ blockSize: 68 }] }]); }
       disconnect = disconnect;
     });
-    renderBar("localhost");
+    const { unmount } = renderBar("localhost");
     expect(document.documentElement.style.getPropertyValue("--topbar-h")).toBe("68px");
+    unmount();
+    expect(disconnect).toHaveBeenCalled();
+    expect(document.documentElement.style.getPropertyValue("--topbar-h")).toBe("");
   });
 });

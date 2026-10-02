@@ -94,3 +94,23 @@ describe("DayList", () => {
     expect(screen.getByText("\u2212€54.20")).not.toHaveClass("text-income");
   });
 });
+
+describe("TransactionTable sticky header", () => {
+  it("pins every header cell under the top bar and the frozen controls from md up", () => {
+    render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={vi.fn()} />);
+    const heads = screen.getAllByRole("columnheader");
+    expect(heads).toHaveLength(7);
+    for (const th of heads) {
+      const c = th.className.split(" ");
+      expect(c).toContain("md:sticky");
+      expect(c).toContain("md:top-[calc(var(--topbar-h,0px)+var(--controls-h,0px))]");
+      expect(c).toContain("md:z-10");
+      expect(c).toContain("bg-white");
+      expect(c).toContain("dark:bg-slate-950");
+    }
+  });
+  it("does not clip the sticky header with a scroll wrapper at md", () => {
+    const { container } = render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={vi.fn()} />);
+    expect((container.firstElementChild as HTMLElement).className).toContain("md:overflow-visible");
+  });
+});

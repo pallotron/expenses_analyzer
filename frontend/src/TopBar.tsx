@@ -36,7 +36,10 @@ export function TopBar(props: { hostname?: string }) {
       document.documentElement.style.setProperty("--topbar-h", `${height}px`);
     });
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--topbar-h");
+    };
   }, []);
 
   return (

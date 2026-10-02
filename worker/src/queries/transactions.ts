@@ -8,22 +8,12 @@
  */
 
 import { and, desc, eq, gte, lte, type SQL } from "drizzle-orm";
+import type { TransactionRow } from "../api/transactions";
 import { vTransactions } from "../db/schema";
 import type { Db } from "../db/types";
 import { applyFilters, type TransactionFilter } from "../domain/filters";
 
-export interface TransactionRow {
-  id: number;
-  date: string;
-  merchant: string;
-  merchantRaw: string;
-  amountCents: number;
-  type: "expense" | "income";
-  category: string;
-  budget: "essential" | "discretionary";
-  tags: string;
-  source: string;
-}
+export type { TransactionRow };
 
 export interface TransactionList {
   rows: TransactionRow[];

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Chevron } from "../lib/Chevron";
 import { formatCents } from "../lib/money";
 import { averageCents, monthTrends, type Grid, type GridCell, type GridRow, type Trend } from "../lib/types";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
@@ -129,7 +130,7 @@ export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" |
   const overflows = desktop && (scroll.canLeft || scroll.canRight);
   // Three month columns per press.
   const step = () => 3 * (scroll.ref.current?.querySelector<HTMLElement>("th[data-month]")?.offsetWidth || 90);
-  const arrow = "rounded-md border border-slate-300 px-2.5 py-0.5 text-base leading-none hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent dark:border-slate-700 dark:hover:bg-slate-800";
+  const arrow = "inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent";
   return (
     <section aria-label={props.title} className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -137,9 +138,9 @@ export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" |
         {overflows && (
           <div className="flex gap-1 text-sm">
             <button type="button" aria-label="Earlier months" disabled={!scroll.canLeft}
-              onClick={() => scroll.scrollBy(-step())} className={arrow}>◂</button>
+              onClick={() => scroll.scrollBy(-step())} className={arrow}><Chevron dir="left" size={20} /></button>
             <button type="button" aria-label="Later months" disabled={!scroll.canRight}
-              onClick={() => scroll.scrollBy(step())} className={arrow}>▸</button>
+              onClick={() => scroll.scrollBy(step())} className={arrow}><Chevron dir="right" size={20} /></button>
           </div>
         )}
       </div>

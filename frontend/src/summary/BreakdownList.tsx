@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Chevron } from "../lib/Chevron";
 import { formatCents } from "../lib/money";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 
@@ -84,7 +85,7 @@ export function BreakdownList(props: {
           <button type="button" aria-expanded={expanded} onClick={() => setExpanded((e) => !e)}
             className="flex w-full justify-between">
             <span>{props.title}</span>
-            <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+            <Chevron dir={expanded ? "down" : "right"} size={14} />
           </button>
         ) : props.title}
       </h2>
@@ -97,7 +98,7 @@ export function BreakdownList(props: {
             <li className="text-sm">
               <button type="button" aria-expanded={smallOpen} onClick={() => setSmallOpen((o) => !o)}
                 className="flex w-full justify-between gap-3 text-slate-600 dark:text-slate-400">
-                <span>{smallOpen ? "▾" : "▸"} Smaller items ({small.length})</span>
+                <span className="inline-flex items-center gap-1"><Chevron dir={smallOpen ? "down" : "right"} size={14} /> Smaller items ({small.length})</span>
                 <span>{formatCents(small.reduce((a, i) => a + i.amountCents, 0))}</span>
               </button>
               {smallOpen && <ul className="mt-2 flex flex-col gap-2 pl-4">{small.map(row)}</ul>}

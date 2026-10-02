@@ -40,10 +40,23 @@ describe("TransactionTable", () => {
     }
     expect(screen.queryByRole("columnheader", { name: /Type/ })).toBeNull();
     expect(screen.getByRole("columnheader", { name: /Date/ })).toHaveAttribute("aria-sort", "descending");
-    fireEvent.click(screen.getByRole("button", { name: /Date/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Date" }));
     expect(onSort).toHaveBeenLastCalledWith("date", "asc");
     fireEvent.click(screen.getByRole("button", { name: /Amount/ }));
     expect(onSort).toHaveBeenLastCalledWith("amount", "asc");
+  });
+});
+
+describe("TransactionTable stripes", () => {
+  it("alternates row backgrounds and strengthens hover over the stripe", () => {
+    render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={vi.fn()} />);
+    const body = screen.getAllByRole("row").slice(1);
+    expect(body.length).toBeGreaterThan(0);
+    for (const tr of body) {
+      expect(tr.className).toContain("odd:bg-white");
+      expect(tr.className).toContain("even:bg-slate-50");
+      expect(tr.className).toContain("even:hover:bg-slate-200/70");
+    }
   });
 });
 

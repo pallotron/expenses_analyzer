@@ -26,9 +26,9 @@ export function DayList(props: { rows: TransactionRow[] }) {
         return (
           <section key={day.date}>
             <h3 className="mb-1 border-b border-slate-200 pb-0.5 text-xs font-semibold text-slate-500 dark:border-slate-800">{label}</h3>
-            <ul aria-label={label} className="flex flex-col gap-2">
+            <ul aria-label={label} className="flex flex-col">
               {day.rows.map((r) => (
-                <li key={r.id} className="text-sm">
+                <li key={r.id} className="px-2 py-1.5 text-sm odd:bg-white even:bg-slate-50 dark:odd:bg-slate-950 dark:even:bg-slate-900/60">
                   <div className="flex justify-between gap-3">
                     <span className="min-w-0 truncate">{r.merchant}</span>
                     <span className={`shrink-0 ${signedAmount(r).className}`.trimEnd()}>{signedAmount(r).text}</span>

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
 import { formatCents } from "../lib/money";
+import { Chevron } from "../lib/Chevron";
 import { monthRange } from "../lib/types";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 import { usePeriods } from "../summary/queries";
@@ -74,9 +75,11 @@ export function TransactionsPage() {
       <header className="flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold">Transactions</h1>
         <div className="flex items-center gap-2 text-sm">
-          {month && <button type="button" aria-label="Previous month" onClick={() => setSearch(toTxSearch(shiftMonth(params, -1)))}>◂</button>}
-          <span>{rangeLabel(params)}</span>
-          {month && <button type="button" aria-label="Next month" onClick={() => setSearch(toTxSearch(shiftMonth(params, 1)))}>▸</button>}
+          {month && <button type="button" aria-label="Previous month" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800"
+            onClick={() => setSearch(toTxSearch(shiftMonth(params, -1)))}><Chevron dir="left" size={20} /></button>}
+          <span className="text-base font-medium">{rangeLabel(params)}</span>
+          {month && <button type="button" aria-label="Next month" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800"
+            onClick={() => setSearch(toTxSearch(shiftMonth(params, 1)))}><Chevron dir="right" size={20} /></button>}
         </div>
       </header>
 

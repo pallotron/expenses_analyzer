@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getJson } from "./lib/api";
+import { Logo } from "./Logo";
 
 /**
  * Cloudflare Access serves this on every protected hostname: it ends the Access
@@ -26,7 +27,7 @@ export function TopBar(props: { hostname?: string }) {
   return (
     <nav className="border-b border-slate-200 dark:border-slate-800">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 text-sm">
-        <span className="font-semibold">Expenses</span>
+        <span className="flex items-center gap-2 font-semibold"><Logo />Expenses</span>
         <span className="flex min-w-0 items-center gap-3">
           {me.data && (
             <span className="truncate text-slate-600 dark:text-slate-400" title={me.data.email}>

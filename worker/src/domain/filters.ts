@@ -25,6 +25,13 @@ export interface TransactionFilter {
   amountMaxCents?: number;
   type?: "expense" | "income";
   budget?: "essential" | "discretionary";
+  /**
+   * Applied in SQL by listTransactions, not by applyFilters: the Summary's
+   * rules, which are not the TUI screen's. Undefined is every source; [] none.
+   */
+  sources?: string[];
+  /** Hide the rows v_summary hides (tag exclusion patterns). */
+  excludeHidden?: boolean;
 }
 
 export interface FilterableRow {

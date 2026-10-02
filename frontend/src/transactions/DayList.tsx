@@ -1,0 +1,47 @@
+import { formatCents } from "../lib/money";
+import type { TransactionRow } from "../lib/types";
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Tue 29 Sep". Built by hand: Intl's short month differs by ICU ("Sept"). */
+export function dayLabel(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return `${WEEKDAYS[weekday]} ${d} ${MONTHS[m - 1]}`;
+}
+
+/** Phone list: rows in the order given, under a heading per day. */
+export function DayList(props: { rows: TransactionRow[] }) {
+  const days: { date: string; rows: TransactionRow[] }[] = [];
+  for (const r of props.rows) {
+    const last = days[days.length - 1];
+    if (last?.date === r.date) last.rows.push(r);
+    else days.push({ date: r.date, rows: [r] });
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      {days.map((day) => {
+        const label = dayLabel(day.date);
+        return (
+          <section key={day.date}>
+            <h3 className="mb-1 border-b border-slate-200 pb-0.5 text-xs font-semibold text-slate-500 dark:border-slate-800">{label}</h3>
+            <ul aria-label={label} className="flex flex-col gap-2">
+              {day.rows.map((r) => (
+                <li key={r.id} className="text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="min-w-0 truncate">{r.merchant}</span>
+                    <span className={`shrink-0 ${r.type === "income" ? "text-income" : ""}`}>{formatCents(r.amountCents)}</span>
+                  </div>
+                  <div className="truncate text-xs text-slate-500">
+                    {[r.category, r.source, r.tags].filter(Boolean).join(" · ")}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}

@@ -1,0 +1,62 @@
+import { formatCents } from "../lib/money";
+import type { TransactionRow } from "../lib/types";
+import type { SortKey } from "./params";
+
+const COLUMNS: [SortKey, string][] = [
+  ["date", "Date"], ["merchant", "Merchant"], ["amount", "Amount"], ["type", "Type"],
+  ["source", "Source"], ["category", "Category"], ["budget", "Budget"], ["tags", "Tags"],
+];
+
+function compare(a: TransactionRow, b: TransactionRow, sort: SortKey): number {
+  if (sort === "amount") return a.amountCents - b.amountCents;
+  return String(a[sort]).localeCompare(String(b[sort]), undefined, { sensitivity: "base" });
+}
+
+/** Client-side, as the TUI's header click was. Ties stay newest first. */
+export function sortRows(rows: TransactionRow[], sort: SortKey, dir: "asc" | "desc"): TransactionRow[] {
+  const sign = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) =>
+    sign * compare(a, b, sort) || b.date.localeCompare(a.date) || b.id - a.id);
+}
+
+export function TransactionTable(props: {
+  rows: TransactionRow[];
+  sort: SortKey;
+  dir: "asc" | "desc";
+  onSort: (sort: SortKey, dir: "asc" | "desc") => void;
+}) {
+  const click = (key: SortKey) => props.onSort(key,
+    key === props.sort ? (props.dir === "asc" ? "desc" : "asc") : key === "date" ? "desc" : "asc");
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-slate-500">
+            {COLUMNS.map(([key, label]) => (
+              <th key={key} scope="col" className={`px-2 py-1 font-normal ${key === "amount" ? "text-right" : ""}`}
+                aria-sort={props.sort === key ? (props.dir === "asc" ? "ascending" : "descending") : undefined}>
+                <button type="button" onClick={() => click(key)} className="whitespace-nowrap">
+                  {label}{props.sort === key ? (props.dir === "asc" ? " ▴" : " ▾") : ""}
+                </button>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {props.rows.map((r) => (
+            <tr key={r.id} className="border-t border-slate-100 dark:border-slate-800">
+              <td className="px-2 py-1.5 whitespace-nowrap">{r.date}</td>
+              <td className="max-w-64 truncate px-2" title={r.merchantRaw}>{r.merchant}</td>
+              <td className={`px-2 text-right whitespace-nowrap ${r.type === "income" ? "text-income" : ""}`}>{formatCents(r.amountCents)}</td>
+              <td className="px-2">{r.type}</td>
+              <td className="px-2 whitespace-nowrap">{r.source}</td>
+              <td className="px-2 whitespace-nowrap">{r.category}</td>
+              <td className="px-2">{r.type === "expense" ? r.budget : ""}</td>
+              <td className="px-2 text-xs text-slate-500">{r.tags}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

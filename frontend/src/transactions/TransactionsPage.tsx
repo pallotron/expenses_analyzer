@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
 import { Chevron } from "../lib/Chevron";
+import { StickyPanel } from "../lib/StickyPanel";
 import { monthRange } from "../lib/types";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 import { usePeriods } from "../summary/queries";
@@ -67,18 +68,25 @@ export function TransactionsPage() {
 
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
-      <header className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Transactions</h1>
-        <div className="flex items-center gap-2 text-sm">
-          {month && <button type="button" aria-label="Previous month" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800"
-            onClick={() => setSearch(toTxSearch(shiftMonth(params, -1)))}><Chevron dir="left" size={20} /></button>}
-          <span className="text-base font-medium">{rangeLabel(params)}</span>
-          {month && <button type="button" aria-label="Next month" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800"
-            onClick={() => setSearch(toTxSearch(shiftMonth(params, 1)))}><Chevron dir="right" size={20} /></button>}
-        </div>
-      </header>
+      <StickyPanel label="Transaction controls">
+        <header className="flex items-center justify-between gap-3">
+          <h1 className="text-lg font-semibold">Transactions</h1>
+          <div className="flex items-center gap-2 text-sm">
+            {month && <button type="button" aria-label="Previous month" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800"
+              onClick={() => setSearch(toTxSearch(shiftMonth(params, -1)))}><Chevron dir="left" size={20} /></button>}
+            <span className="text-base font-medium">{rangeLabel(params)}</span>
+            {month && <button type="button" aria-label="Next month" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800"
+              onClick={() => setSearch(toTxSearch(shiftMonth(params, 1)))}><Chevron dir="right" size={20} /></button>}
+          </div>
+        </header>
 
-      <TransactionFilters params={params} lookups={lookups.data} onChange={update} onClear={clear} desktop={desktop} />
+        <TransactionFilters params={params} lookups={lookups.data} onChange={update} onClear={clear} desktop={desktop} />
+        {data && data.count > 0 && (
+          <div className={`transition-opacity ${list.isPlaceholderData ? "opacity-60" : ""}`}>
+            <TotalsStrip count={data.count} incomeCents={data.incomeCents} expensesCents={data.expensesCents} type={params.type} />
+          </div>
+        )}
+      </StickyPanel>
       {badRequest && <p role="alert" className="text-sm text-expense">{badRequest}</p>}
       {list.error && !badRequest && (
         <div className="text-sm">
@@ -90,9 +98,6 @@ export function TransactionsPage() {
       {!data && !list.error && <div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900" aria-busy="true" />}
       {data && (
         <section aria-label="Transactions list" className={`flex flex-col gap-3 transition-opacity ${list.isPlaceholderData ? "opacity-60" : ""}`}>
-          {data.count > 0 && (
-            <TotalsStrip count={data.count} incomeCents={data.incomeCents} expensesCents={data.expensesCents} type={params.type} />
-          )}
           {data.count === 0 ? (
             <p className="text-sm">
               No transactions match these filters.{" "}

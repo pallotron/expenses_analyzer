@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router";
 import { getJson } from "./lib/api";
@@ -25,8 +26,21 @@ export function TopBar(props: { hostname?: string }) {
   const hostname = props.hostname ?? window.location.hostname;
   const me = useQuery({ queryKey: ["me"], queryFn: () => getJson<Me>("/api/me"), staleTime: Infinity });
 
+  const nav = useRef<HTMLElement>(null);
+  // Sticky panels below sit directly under the bar, whose height varies.
+  useEffect(() => {
+    const el = nav.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const height = entry.borderBoxSize?.[0]?.blockSize ?? el.offsetHeight;
+      document.documentElement.style.setProperty("--topbar-h", `${height}px`);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <nav className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+    <nav ref={nav} className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 text-sm sm:py-5">
         <span className="flex items-center gap-4">
           <span className="flex items-center gap-3 text-lg font-semibold"><Logo size={32} /><span className="hidden sm:inline">Expenses</span></span>

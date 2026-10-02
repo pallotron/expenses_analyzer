@@ -43,4 +43,16 @@ describe("TopBar", () => {
     expect(screen.getByRole("link", { name: "Summary" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("aria-current", "page");
   });
+
+  it("publishes the measured bar height as --topbar-h", () => {
+    const disconnect = vi.fn();
+    vi.stubGlobal("ResizeObserver", class {
+      cb: (e: unknown[]) => void;
+      constructor(cb: (e: unknown[]) => void) { this.cb = cb; }
+      observe() { this.cb([{ borderBoxSize: [{ blockSize: 68 }] }]); }
+      disconnect = disconnect;
+    });
+    renderBar("localhost");
+    expect(document.documentElement.style.getPropertyValue("--topbar-h")).toBe("68px");
+  });
 });

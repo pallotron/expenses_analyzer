@@ -131,4 +131,14 @@ describe("TransactionsPage", () => {
     renderAt("/transactions?from=2026-09-01&to=2026-09-30", api({ rows: [row(1, "2026-09-10", 100)] }));
     expect(within(await screen.findByRole("region", { name: "Totals" })).getByText("1 transaction")).toBeInTheDocument();
   });
+
+  it("freezes the header, filters and totals, but not the table", async () => {
+    renderAt("/transactions?from=2026-09-01&to=2026-09-30");
+    await screen.findByRole("region", { name: "Totals" });
+    const controls = screen.getByRole("region", { name: "Transaction controls" });
+    expect(within(controls).getByRole("heading", { name: "Transactions" })).toBeInTheDocument();
+    expect(within(controls).getByRole("region", { name: "Totals" })).toBeInTheDocument();
+    expect(within(controls).getByRole("button", { name: "Previous month" })).toBeInTheDocument();
+    expect(within(controls).queryByRole("table")).not.toBeInTheDocument();
+  });
 });

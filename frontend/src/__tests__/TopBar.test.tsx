@@ -1,16 +1,17 @@
 /** @vitest-environment jsdom */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGOUT_PATH, TopBar } from "../TopBar";
 
-function renderBar(hostname: string, me: object | null = { email: "a@example.com", displayName: "Alex" }) {
+function renderBar(hostname: string, me: object | null = { email: "a@example.com", displayName: "Alex" }, path = "/") {
   vi.stubGlobal("fetch", vi.fn(async () => me
     ? new Response(JSON.stringify(me), { status: 200, headers: { "content-type": "application/json" } })
     : new Response(JSON.stringify({ error: "boom" }), { status: 500 })));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={client}><TopBar hostname={hostname} /></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><TopBar hostname={hostname} /></MemoryRouter></QueryClientProvider>);
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -35,5 +36,26 @@ describe("TopBar", () => {
   it("still offers sign-out when /api/me fails", async () => {
     renderBar("expenses.example.com", null);
     expect(await screen.findByRole("link", { name: /sign out/i })).toBeInTheDocument();
+  });
+
+  it("links to both screens and marks the current one", async () => {
+    renderBar("expenses.example.com", undefined, "/transactions");
+    expect(screen.getByRole("link", { name: "Summary" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("publishes the measured bar height as --topbar-h", () => {
+    const disconnect = vi.fn();
+    vi.stubGlobal("ResizeObserver", class {
+      cb: (e: unknown[]) => void;
+      constructor(cb: (e: unknown[]) => void) { this.cb = cb; }
+      observe() { this.cb([{ borderBoxSize: [{ blockSize: 68 }] }]); }
+      disconnect = disconnect;
+    });
+    const { unmount } = renderBar("localhost");
+    expect(document.documentElement.style.getPropertyValue("--topbar-h")).toBe("68px");
+    unmount();
+    expect(disconnect).toHaveBeenCalled();
+    expect(document.documentElement.style.getPropertyValue("--topbar-h")).toBe("");
   });
 });

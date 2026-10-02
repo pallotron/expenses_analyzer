@@ -15,6 +15,7 @@ import { getUser, type AuthDeps, type User } from "./auth";
 import { transactions } from "./db/schema";
 import type { Db } from "./db/types";
 import { summaryRoutes } from "./routes/summary";
+import { transactionRoutes } from "./routes/transactions";
 
 export interface AppBindings {
   CF_ACCESS_TEAM_DOMAIN: string;
@@ -79,6 +80,7 @@ export function createApp<B extends AppBindings>(makeDb: (env: B) => Db, auth: A
   app.get("/api/me", (c) => c.json(c.get("user")));
 
   app.route("/api/summary", summaryRoutes<B>());
+  app.route("/api", transactionRoutes<B>());
 
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 

@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
+import { StickyPanel } from "../lib/StickyPanel";
 import { BreakdownList } from "./BreakdownList";
 import { CashFlowTiles } from "./CashFlowTiles";
 import { FiltersBar } from "./FiltersBar";
@@ -74,21 +75,27 @@ export function SummaryPage() {
   const data = summary.data;
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
-      {/* Two rows at every width: up to twelve month chips need the whole line. */}
-      <header className="flex flex-col gap-2">
-        <PeriodPicker periods={periods.data} year={year} month={view.month}
-          onChange={(y, m) => update({ year: y, month: m })} />
-        <FiltersBar sources={periods.data.sources} selected={view.sources} hidden={view.hidden}
-          hiddenCents={tags.current?.hiddenCents ?? 0} excludedPatterns={tags.current?.patterns}
-          onSources={(s) => update({ sources: s })} onHidden={(h) => update({ hidden: h })} />
-      </header>
+      <StickyPanel label="Summary controls">
+        {/* Two rows at every width: up to twelve month chips need the whole line. */}
+        <header className="flex flex-col gap-2">
+          <PeriodPicker periods={periods.data} year={year} month={view.month}
+            onChange={(y, m) => update({ year: y, month: m })} />
+          <FiltersBar sources={periods.data.sources} selected={view.sources} hidden={view.hidden}
+            hiddenCents={tags.current?.hiddenCents ?? 0} excludedPatterns={tags.current?.patterns}
+            onSources={(s) => update({ sources: s })} onHidden={(h) => update({ hidden: h })} />
+        </header>
+        {data && (
+          <div className={`flex flex-col gap-4 transition-opacity ${summary.isPlaceholderData ? "opacity-60" : ""}`}>
+            <CashFlowTiles cashFlow={data.cashFlow} monthAverage={data.monthAverage} />
+            <SpendingSplit split={data.spendingType} monthView={data.month !== null} />
+          </div>
+        )}
+      </StickyPanel>
 
       {summary.error && <ErrorCard error={summary.error} onRetry={() => summary.refetch()} />}
       {!data && !summary.error && <div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900" aria-busy="true" />}
       {data && (
         <div className={`flex flex-col gap-4 transition-opacity ${summary.isPlaceholderData ? "opacity-60" : ""}`}>
-          <CashFlowTiles cashFlow={data.cashFlow} monthAverage={data.monthAverage} />
-          <SpendingSplit split={data.spendingType} monthView={data.month !== null} />
           <SummaryTabs tabs={tabs} current={tab} onChange={(t) => update({ tab: t })} />
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-4">
             {tab === "expenses" && (

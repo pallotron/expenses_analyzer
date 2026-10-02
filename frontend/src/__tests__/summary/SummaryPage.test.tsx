@@ -226,4 +226,15 @@ describe("SummaryPage", () => {
     await userEvent.click(within(merchants).getByRole("button", { name: /top expense merchants/i }));
     expect(within(merchants).getAllByRole("listitem")).toHaveLength(10);
   });
+
+  it("freezes the pickers, filters, tiles and split, but not the tabs", async () => {
+    renderAt("/?year=2026");
+    await screen.findByText("€61,400.00");
+    const controls = within(screen.getByRole("region", { name: "Summary controls" }));
+    expect(controls.getByLabelText("Year")).toBeInTheDocument();
+    expect(controls.getByRole("switch", { name: /include hidden tags/i })).toBeInTheDocument();
+    expect(controls.getByText("€61,400.00")).toBeInTheDocument();
+    expect(controls.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+  });
 });

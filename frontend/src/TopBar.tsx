@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { NavLink } from "react-router";
 import { getJson } from "./lib/api";
 import { Logo } from "./Logo";
 
@@ -27,7 +28,15 @@ export function TopBar(props: { hostname?: string }) {
   return (
     <nav className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 text-sm sm:py-5">
-        <span className="flex items-center gap-3 text-lg font-semibold"><Logo size={32} />Expenses</span>
+        <span className="flex items-center gap-4">
+          <span className="flex items-center gap-3 text-lg font-semibold"><Logo size={32} /><span className="hidden sm:inline">Expenses</span></span>
+          {([["/", "Summary"], ["/transactions", "Transactions"]] as const).map(([to, label]) => (
+            <NavLink key={to} to={to} end={to === "/"}
+              className={({ isActive }) => (isActive ? "font-semibold underline" : "text-slate-600 dark:text-slate-400")}>
+              {label}
+            </NavLink>
+          ))}
+        </span>
         <span className="flex min-w-0 items-center gap-3">
           {me.data && (
             <span className="truncate text-slate-600 dark:text-slate-400" title={me.data.email}>

@@ -1,9 +1,9 @@
-import { formatCents } from "../lib/money";
 import type { TransactionRow } from "../lib/types";
+import { signedAmount } from "./amount";
 import type { SortKey } from "./params";
 
 const COLUMNS: [SortKey, string][] = [
-  ["date", "Date"], ["merchant", "Merchant"], ["amount", "Amount"], ["type", "Type"],
+  ["date", "Date"], ["merchant", "Merchant"], ["amount", "Amount"],
   ["source", "Source"], ["category", "Category"], ["budget", "Budget"], ["tags", "Tags"],
 ];
 
@@ -17,6 +17,11 @@ export function sortRows(rows: TransactionRow[], sort: SortKey, dir: "asc" | "de
   const sign = dir === "asc" ? 1 : -1;
   return [...rows].sort((a, b) =>
     sign * compare(a, b, sort) || b.date.localeCompare(a.date) || b.id - a.id);
+}
+
+function AmountCell({ row }: { row: TransactionRow }) {
+  const { text, className } = signedAmount(row);
+  return <td className={`px-2 text-right whitespace-nowrap ${className}`.trimEnd()}>{text}</td>;
 }
 
 export function TransactionTable(props: {
@@ -47,8 +52,7 @@ export function TransactionTable(props: {
             <tr key={r.id} className="border-t border-slate-100 dark:border-slate-800">
               <td className="px-2 py-1.5 whitespace-nowrap">{r.date}</td>
               <td className="max-w-64 truncate px-2" title={r.merchantRaw}>{r.merchant}</td>
-              <td className={`px-2 text-right whitespace-nowrap ${r.type === "income" ? "text-income" : ""}`}>{formatCents(r.amountCents)}</td>
-              <td className="px-2">{r.type}</td>
+              <AmountCell row={r} />
               <td className="px-2 whitespace-nowrap">{r.source}</td>
               <td className="px-2 whitespace-nowrap">{r.category}</td>
               <td className="px-2">{r.type === "expense" ? r.budget : ""}</td>

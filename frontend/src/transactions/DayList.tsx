@@ -1,5 +1,5 @@
-import { formatCents } from "../lib/money";
 import type { TransactionRow } from "../lib/types";
+import { signedAmount } from "./amount";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -31,7 +31,7 @@ export function DayList(props: { rows: TransactionRow[] }) {
                 <li key={r.id} className="text-sm">
                   <div className="flex justify-between gap-3">
                     <span className="min-w-0 truncate">{r.merchant}</span>
-                    <span className={`shrink-0 ${r.type === "income" ? "text-income" : ""}`}>{formatCents(r.amountCents)}</span>
+                    <span className={`shrink-0 ${signedAmount(r).className}`.trimEnd()}>{signedAmount(r).text}</span>
                   </div>
                   <div className="truncate text-xs text-slate-500">
                     {[r.category, r.source, r.tags].filter(Boolean).join(" · ")}

@@ -5,7 +5,7 @@
  */
 import { monthRange, toTransactionsSearch, type TransactionsQuery } from "../lib/types";
 
-export const SORT_KEYS = ["date", "merchant", "amount", "type", "source", "category", "budget", "tags"] as const;
+export const SORT_KEYS = ["date", "merchant", "amount", "source", "category", "budget", "tags"] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 
 export interface TxParams extends TransactionsQuery {

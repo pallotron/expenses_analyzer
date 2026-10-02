@@ -35,14 +35,27 @@ describe("TransactionTable", () => {
   it("shows every column and flips the sort on the current header", () => {
     const onSort = vi.fn();
     render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={onSort} />);
-    for (const h of ["Date", "Merchant", "Amount", "Type", "Source", "Category", "Budget", "Tags"]) {
+    for (const h of ["Date", "Merchant", "Amount", "Source", "Category", "Budget", "Tags"]) {
       expect(screen.getByRole("columnheader", { name: new RegExp(h) })).toBeInTheDocument();
     }
+    expect(screen.queryByRole("columnheader", { name: /Type/ })).toBeNull();
     expect(screen.getByRole("columnheader", { name: /Date/ })).toHaveAttribute("aria-sort", "descending");
     fireEvent.click(screen.getByRole("button", { name: /Date/ }));
     expect(onSort).toHaveBeenLastCalledWith("date", "asc");
     fireEvent.click(screen.getByRole("button", { name: /Amount/ }));
     expect(onSort).toHaveBeenLastCalledWith("amount", "asc");
+  });
+});
+
+describe("TransactionTable amounts", () => {
+  it("signs and colours the amount by type", () => {
+    render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={vi.fn()} />);
+    const income = screen.getByText("+€5,000.00");
+    expect(income.tagName).toBe("TD");
+    expect(income).toHaveClass("text-income", "text-right", "whitespace-nowrap");
+    const expense = screen.getByText("\u2212€54.20");
+    expect(expense).toHaveClass("text-right", "whitespace-nowrap");
+    expect(expense).not.toHaveClass("text-income");
   });
 });
 
@@ -53,6 +66,7 @@ describe("DayList", () => {
     expect(days).toEqual(["Tue 29 Sep", "Sun 27 Sep"]);
     const first = screen.getByRole("list", { name: "Tue 29 Sep" });
     expect(within(first).getAllByRole("listitem")).toHaveLength(2);
-    expect(screen.getByText("€5,000.00")).toHaveClass("text-income");
+    expect(screen.getByText("+€5,000.00")).toHaveClass("text-income");
+    expect(screen.getByText("\u2212€54.20")).not.toHaveClass("text-income");
   });
 });

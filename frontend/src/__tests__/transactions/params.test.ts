@@ -14,6 +14,9 @@ describe("parseTxParams", () => {
     expect(parse("from=soon&min=ten&type=refund&budget=x&sort=colour&dir=up"))
       .toEqual({ excludeHidden: false, sort: "date", dir: "desc" });
   });
+  it("ignores a stale sort=type now that the column is gone", () => {
+    expect(parse("sort=type").sort).toBe("date");
+  });
   it("keeps an explicit empty source list", () => {
     expect(parse("sources=").sources).toEqual([]);
   });

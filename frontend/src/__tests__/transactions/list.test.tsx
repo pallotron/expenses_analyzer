@@ -7,9 +7,11 @@ import { sortRows, TransactionTable } from "../../transactions/TransactionTable"
 import type { TransactionRow } from "../../lib/types";
 
 const row = (id: number, date: string, merchant: string, amountCents: number, type: "expense" | "income" = "expense"): TransactionRow => ({
-  id, date, merchant, merchantRaw: merchant.toUpperCase(), amountCents, type, category: "Groceries", budget: "essential", tags: "", source: "Card",
+  id, date, merchant, merchantRaw: merchant.toUpperCase(), amountCents, type, category: "Groceries", merchantCategory: "Groceries", categoryOverridden: false, budget: "essential", tags: "", source: "Card",
 });
 const rows = [row(3, "2026-09-29", "tesco", 5420), row(2, "2026-09-29", "Lidl", 3110), row(1, "2026-09-27", "Employer", 500000, "income")];
+
+const sel = { selected: new Set<number>(), onToggle: vi.fn(), onOpen: vi.fn() };
 
 describe("sortRows", () => {
   it("sorts text without regard to case, ties newest first", () => {
@@ -34,7 +36,7 @@ describe("dayLabel", () => {
 describe("TransactionTable", () => {
   it("shows every column and flips the sort on the current header", () => {
     const onSort = vi.fn();
-    render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={onSort} />);
+    render(<TransactionTable rows={rows} {...sel} onToggleShown={vi.fn()} sort="date" dir="desc" onSort={onSort} />);
     for (const h of ["Date", "Merchant", "Amount", "Source", "Category", "Budget", "Tags"]) {
       expect(screen.getByRole("columnheader", { name: new RegExp(h) })).toBeInTheDocument();
     }
@@ -49,7 +51,7 @@ describe("TransactionTable", () => {
 
 describe("TransactionTable stripes", () => {
   it("alternates row backgrounds and strengthens hover over the stripe", () => {
-    render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={vi.fn()} />);
+    render(<TransactionTable rows={rows} {...sel} onToggleShown={vi.fn()} sort="date" dir="desc" onSort={vi.fn()} />);
     const body = screen.getAllByRole("row").slice(1);
     expect(body.length).toBeGreaterThan(0);
     for (const tr of body) {
@@ -63,7 +65,7 @@ describe("TransactionTable stripes", () => {
 
 describe("DayList stripes", () => {
   it("uses the darker stripe colours", () => {
-    render(<DayList rows={rows} />);
+    render(<DayList rows={rows} {...sel} />);
     for (const li of screen.getAllByRole("listitem").filter((l) => l.className.includes("odd:bg-white"))) {
       expect(li.className.split(" ")).toContain("even:bg-slate-100");
       expect(li.className.split(" ")).toContain("dark:even:bg-slate-900");
@@ -73,7 +75,7 @@ describe("DayList stripes", () => {
 
 describe("TransactionTable amounts", () => {
   it("signs and colours the amount by type", () => {
-    render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={vi.fn()} />);
+    render(<TransactionTable rows={rows} {...sel} onToggleShown={vi.fn()} sort="date" dir="desc" onSort={vi.fn()} />);
     const income = screen.getByText("+€5,000.00");
     expect(income.tagName).toBe("TD");
     expect(income).toHaveClass("text-income", "text-right", "whitespace-nowrap");
@@ -85,7 +87,7 @@ describe("TransactionTable amounts", () => {
 
 describe("DayList", () => {
   it("groups rows under their day", () => {
-    render(<DayList rows={rows} />);
+    render(<DayList rows={rows} {...sel} />);
     const days = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
     expect(days).toEqual(["Tue 29 Sep", "Sun 27 Sep"]);
     const first = screen.getByRole("list", { name: "Tue 29 Sep" });
@@ -97,9 +99,9 @@ describe("DayList", () => {
 
 describe("TransactionTable sticky header", () => {
   it("pins every header cell under the top bar and the frozen controls from md up", () => {
-    render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={vi.fn()} />);
+    render(<TransactionTable rows={rows} {...sel} onToggleShown={vi.fn()} sort="date" dir="desc" onSort={vi.fn()} />);
     const heads = screen.getAllByRole("columnheader");
-    expect(heads).toHaveLength(7);
+    expect(heads).toHaveLength(8);
     for (const th of heads) {
       const c = th.className.split(" ");
       expect(c).toContain("md:sticky");
@@ -110,7 +112,7 @@ describe("TransactionTable sticky header", () => {
     }
   });
   it("does not clip the sticky header with a scroll wrapper at md", () => {
-    const { container } = render(<TransactionTable rows={rows} sort="date" dir="desc" onSort={vi.fn()} />);
+    const { container } = render(<TransactionTable rows={rows} {...sel} onToggleShown={vi.fn()} sort="date" dir="desc" onSort={vi.fn()} />);
     expect((container.firstElementChild as HTMLElement).className).toContain("md:overflow-visible");
   });
 });

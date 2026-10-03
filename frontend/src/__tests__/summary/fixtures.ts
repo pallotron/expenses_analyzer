@@ -43,6 +43,8 @@ export function mockApi(opts: { periods?: PeriodsResponse; summary?: (url: URL) 
   const fetch = async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "http://localhost");
     calls.push(url);
+    // Access's own 403 has no JSON body; the Worker's errors do.
+    if (opts.status === 403) return new Response("", { status: 403 });
     if (opts.status) return new Response(JSON.stringify({ error: "boom" }), { status: opts.status });
     const body = url.pathname === "/api/summary/periods"
       ? (opts.periods ?? periods)

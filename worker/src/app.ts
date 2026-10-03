@@ -16,6 +16,7 @@ import { transactions } from "./db/schema";
 import type { Db } from "./db/types";
 import { summaryRoutes } from "./routes/summary";
 import { transactionRoutes } from "./routes/transactions";
+import { transactionEditRoutes } from "./routes/transactionEdits";
 
 export interface AppBindings {
   CF_ACCESS_TEAM_DOMAIN: string;
@@ -40,6 +41,25 @@ export function withCacheHeaders(res: Response, path: string): Response {
     res.ok && path.startsWith("/assets/") && !html ? "public, max-age=31536000, immutable" : "no-store",
   );
   return out;
+}
+
+const LOCAL = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * Writes must come from the app's own pages. Access authenticates by cookie,
+ * which a browser also sends with a form posted from another site; that
+ * site cannot set Origin to ours. Browsers send Origin on every non-GET
+ * fetch, so a missing one is refused too. Locally, the Vite dev server on
+ * another port proxies to the Worker, so any local origin may write to a
+ * local Worker.
+ */
+export function sameOrigin(origin: string | null, requestUrl: string): boolean {
+  if (!origin) return false;
+  let from: URL;
+  try { from = new URL(origin); } catch { return false; }
+  const to = new URL(requestUrl);
+  if (from.origin === to.origin) return true;
+  return LOCAL.has(from.hostname) && LOCAL.has(to.hostname);
 }
 
 export function createApp<B extends AppBindings>(makeDb: (env: B) => Db, auth: AuthDeps = {}) {
@@ -68,6 +88,13 @@ export function createApp<B extends AppBindings>(makeDb: (env: B) => Db, auth: A
     c.res.headers.set("Cache-Control", "no-store");
   });
 
+  app.use("/api/*", async (c, next) => {
+    if (c.req.method !== "GET" && c.req.method !== "HEAD" && !sameOrigin(c.req.header("origin") ?? null, c.req.url)) {
+      return c.json({ error: "Cross-site request refused" }, 403);
+    }
+    await next();
+  });
+
   app.get("/health", async (c) => {
     const [row] = await c.get("db")
       .select({ transactions: count() })
@@ -81,6 +108,7 @@ export function createApp<B extends AppBindings>(makeDb: (env: B) => Db, auth: A
 
   app.route("/api/summary", summaryRoutes<B>());
   app.route("/api", transactionRoutes<B>());
+  app.route("/api", transactionEditRoutes<B>());
 
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 

@@ -58,3 +58,40 @@ describe("listLookups", () => {
     expect((await listLookups(db)).sources).toEqual(["Bank A"]);
   });
 });
+
+describe("listTransactions category override", () => {
+  it("reports the merchant's own category and whether the row overrides it", async () => {
+    const { db, sqlite } = store();
+    sqlite.exec(`INSERT INTO categories (name) VALUES ('Zz Unused')`);
+    sqlite.exec(`UPDATE transactions SET category_override_id = NULL`);
+    sqlite.exec(
+      `UPDATE transactions SET category_override_id = (SELECT id FROM categories WHERE name = 'Zz Unused')
+       WHERE id = (SELECT MIN(id) FROM transactions WHERE deleted_at IS NULL)`,
+    );
+    const target = sqlite.prepare(`
+      SELECT t.id, mc.name AS own FROM transactions t
+      JOIN merchants m ON m.id = t.merchant_id LEFT JOIN categories mc ON mc.id = m.category_id
+      WHERE t.category_override_id IS NOT NULL
+    `).get() as { id: number; own: string | null };
+    const rows = (await listTransactions(db)).rows;
+    const row = rows.find((r) => r.id === target.id)!;
+    expect(row.categoryOverridden).toBe(true);
+    expect(row.category).toBe("Zz Unused");
+    expect(row.merchantCategory).toBe(target.own ?? "Other");
+    const plain = rows.find((r) => !r.categoryOverridden)!;
+    expect(plain.merchantCategory).toBe(plain.category);
+    sqlite.exec(`UPDATE transactions SET category_override_id = NULL`);
+    expect((await listTransactions(db)).rows.every((r) => !r.categoryOverridden && r.merchantCategory === r.category)).toBe(true);
+  });
+});
+
+describe("listLookups categories", () => {
+  it("includes a category no live row uses yet", async () => {
+    const { db, sqlite } = store();
+    sqlite.exec(`INSERT INTO categories (name) VALUES ('Zz Unused')`);
+    const l = await listLookups(db);
+    expect(l.categories).toContain("Zz Unused");
+    expect(l.categories).toEqual([...new Set(l.categories)]);
+    expect(l.categories).toEqual([...l.categories].sort());
+  });
+});

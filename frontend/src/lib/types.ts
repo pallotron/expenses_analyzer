@@ -8,3 +8,8 @@ export type {
   BudgetKind, DrillTarget, LookupsResponse, TransactionRow, TransactionsQuery, TransactionsResponse, TransactionType,
 } from "../../../worker/src/api/transactions";
 export { drillDown, monthRange, quote, toTransactionsSearch } from "../../../worker/src/api/transactions";
+export type {
+  BulkEdit, BulkEditRequest, DeletedResponse, RestoredResponse, TaggedResponse, TagRequest, TransactionEdit, UpdatedResponse,
+} from "../../../worker/src/api/transactions";
+// The tag sheet applies the Worker's exact tag rule; the module is pure.
+export { normalizeTags } from "../../../worker/src/domain/tags";

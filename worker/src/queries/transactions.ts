@@ -9,7 +9,8 @@
 
 import { and, asc, desc, eq, gte, inArray, lte, notInArray, sql, type SQL } from "drizzle-orm";
 import type { LookupsResponse, TransactionRow } from "../api/transactions";
-import { tags, transactionTags, vExcludedIds, vLive, vTransactions } from "../db/schema";
+import { alias } from "drizzle-orm/sqlite-core";
+import { categories, merchants, tags, transactionTags, transactions, vExcludedIds, vLive, vTransactions } from "../db/schema";
 import type { Db } from "../db/types";
 import { applyFilters, type TransactionFilter } from "../domain/filters";
 
@@ -37,6 +38,7 @@ export async function listTransactions(db: Db, filter: TransactionFilter = {}): 
   // The same rule as v_summary, so a drill-down lists what the Summary counted.
   if (filter.excludeHidden) where.push(notInArray(v.id, db.select({ id: vExcludedIds.id }).from(vExcludedIds)));
 
+  const own = alias(categories, "own_category");
   const fetched = await db
     .select({
       id: v.id,
@@ -49,8 +51,13 @@ export async function listTransactions(db: Db, filter: TransactionFilter = {}): 
       spendingType: v.spendingType,
       tags: v.tags,
       source: v.source,
+      merchantCategory: sql<string>`COALESCE(${own.name}, 'Other')`,
+      categoryOverridden: sql<number>`${transactions.categoryOverrideId} IS NOT NULL`.mapWith(Boolean),
     })
     .from(v)
+    .innerJoin(transactions, eq(transactions.id, v.id))
+    .leftJoin(merchants, eq(merchants.id, transactions.merchantId))
+    .leftJoin(own, eq(own.id, merchants.categoryId))
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(v.date), desc(v.id));
 
@@ -70,14 +77,16 @@ export async function listTransactions(db: Db, filter: TransactionFilter = {}): 
 
 /** Values the filter boxes suggest: what live (not deleted) rows carry. */
 export async function listLookups(db: Db): Promise<LookupsResponse> {
-  const categories = await db.selectDistinct({ name: vLive.category }).from(vLive).orderBy(asc(vLive.category));
+  const live = await db.selectDistinct({ name: vLive.category }).from(vLive);
+  const stored = await db.select({ name: categories.name }).from(categories);
+  const categoryNames = [...new Set([...live, ...stored].map((r) => r.name))].sort();
   const sources = await db.selectDistinct({ name: vLive.source }).from(vLive).orderBy(asc(vLive.source));
   const tagNames = await db.selectDistinct({ name: tags.name }).from(tags)
     .innerJoin(transactionTags, eq(transactionTags.tagId, tags.id))
     .innerJoin(vLive, eq(vLive.id, transactionTags.transactionId))
     .orderBy(asc(tags.name));
   return {
-    categories: categories.map((r) => r.name),
+    categories: categoryNames,
     tags: tagNames.map((r) => r.name),
     sources: sources.map((r) => r.name),
   };

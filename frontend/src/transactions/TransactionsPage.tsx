@@ -4,9 +4,10 @@ import { useSearchParams } from "react-router";
 import { ApiError } from "../lib/api";
 import { Chevron } from "../lib/Chevron";
 import { StickyPanel } from "../lib/StickyPanel";
-import { monthRange } from "../lib/types";
+import { monthRange, type TransactionRow } from "../lib/types";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 import { usePeriods } from "../summary/queries";
+import { Editing } from "./edit/Editing";
 import { DayList } from "./DayList";
 import { defaultMonth } from "./defaultMonth";
 import { parseTxParams, shiftMonth, toTxSearch, transactionsApiPath, wholeMonth, type TxParams } from "./params";
@@ -38,7 +39,9 @@ export function TransactionsPage() {
   const list = useTransactions(params, !unset);
   const path = transactionsApiPath(params);
   const [shown, setShown] = useState(PAGE_SIZE);
-  useEffect(() => setShown(PAGE_SIZE), [path]);
+  const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
+  const [open, setOpen] = useState<TransactionRow | null>(null);
+  useEffect(() => { setShown(PAGE_SIZE); setSelected(new Set()); }, [path]);
 
   const start = unset && periods.data ? defaultMonth(periods.data, new Date()) : null;
   useEffect(() => {
@@ -66,8 +69,18 @@ export function TransactionsPage() {
   const badRequest = list.error instanceof ApiError && list.error.status === 400 ? list.error.message : null;
   const rows = data ? (desktop ? sortRows(data.rows, params.sort, params.dir) : data.rows) : [];
 
+  // Only rows still in the list count: one deleted elsewhere drops out of the selection.
+  const selectedIds = data ? data.rows.filter((r) => selected.has(r.id)).map((r) => r.id) : [];
+  const effective = new Set(selectedIds);
+  const toggle = (id: number) => setSelected((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
+  const toggleShown = (ids: number[], on: boolean) => setSelected((s) => {
+    const n = new Set(s);
+    for (const id of ids) { if (on) n.add(id); else n.delete(id); }
+    return n;
+  });
+
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
+    <main className={`mx-auto flex max-w-6xl flex-col gap-4 p-4 ${selectedIds.length > 0 ? "pb-28 md:pb-4" : ""}`}>
       <StickyPanel label="Transaction controls">
         <header className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold">Transactions</h1>
@@ -86,6 +99,9 @@ export function TransactionsPage() {
             <TotalsStrip count={data.count} incomeCents={data.incomeCents} expensesCents={data.expensesCents} type={params.type} />
           </div>
         )}
+        <Editing rows={data?.rows ?? []} selectedIds={selectedIds} lookups={lookups.data}
+          onSelectAll={() => setSelected(new Set(data?.rows.map((r) => r.id)))} onClearSelection={() => setSelected(new Set())}
+          open={open} onCloseOpen={() => setOpen(null)} />
       </StickyPanel>
       {badRequest && <p role="alert" className="text-sm text-expense">{badRequest}</p>}
       {list.error && !badRequest && (
@@ -105,9 +121,10 @@ export function TransactionsPage() {
             </p>
           ) : desktop ? (
             <TransactionTable rows={rows.slice(0, shown)} sort={params.sort} dir={params.dir}
-              onSort={(sort, dir) => setSearch(toTxSearch({ ...params, sort, dir }), { replace: true })} />
+              onSort={(sort, dir) => setSearch(toTxSearch({ ...params, sort, dir }), { replace: true })}
+              selected={effective} onToggle={toggle} onToggleShown={toggleShown} onOpen={setOpen} />
           ) : (
-            <DayList rows={rows.slice(0, shown)} />
+            <DayList rows={rows.slice(0, shown)} selected={effective} onToggle={toggle} onOpen={setOpen} />
           )}
           {rows.length > shown && (
             <button type="button" onClick={() => setShown((n) => n + PAGE_SIZE)} className="self-start text-sm underline">

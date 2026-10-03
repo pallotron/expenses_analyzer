@@ -173,27 +173,35 @@ Read PR:
   Summary number drills down to a list with the same total. Opens on the
   latest month with data; filters stay in the URL.
 
-Edit PR:
-- Edit one transaction (`edit_single_transaction_screen.py`): date,
-  merchant, amount, source, type → `updateTransaction`.
-- Bulk edit selected (`b`, `bulk_edit_transaction_screen.py`): merchant,
-  source, type for many rows.
+Edit PR A (row actions) and PR B (merchant editor, budget type):
+- ~~Edit one transaction (`edit_single_transaction_screen.py`): date,
+  merchant, amount, source, type → `updateTransaction`.~~
+- ~~Bulk edit selected (`b`, `bulk_edit_transaction_screen.py`): merchant,
+  source, type for many rows.~~
+- ~~Tag selected (`g`) / tag all filtered (`G`), add or remove
+  (`tag_transactions_screen.py`) → `tagTransactions`. Tag inputs autocomplete
+  from known tags (`tag_suggester.py`).~~
+- ~~Select, select all, delete selected (soft delete) →
+  `softDeleteTransactions`. The TUI has no restore UI although
+  `restore_deleted_transactions` exists; the web adds an "Undo" after delete
+  using `restoreTransactions`.~~
+- ~~**Bulk delete screen (`d`, `delete_screen.py`) folds in here**: its
+  filters (date, merchant regex/glob, category, source, amount) are the
+  Transactions filters plus "select all filtered → delete". Regex/glob
+  matching is dropped in favour of the list's contains/exact match.~~
+
+  Done: five routes `PATCH /api/transactions/:id`, `POST /api/transactions/bulk-edit`,
+  `/delete`, `/restore`, and `/tags`. An Origin check on every non-GET `/api/*` request
+  allows local dev ports. A per-transaction category override, new and not in the TUI,
+  is stored separately and resolved on read. Row selection shows an action bar (Tag,
+  Untag, Edit, Delete) with bulk-edit sheets; delete asks for confirmation above 20
+  rows and offers an Undo toast.
+
 - Edit merchant (`e`, `edit_merchant_screen.py`): regex pattern, display
   alias, category, tags, live preview of affected rows →
   `previewAliasChange` / `saveMerchantDecision`. Suggests a pattern from the
-  raw name (`_suggest_pattern`).
-- Tag selected (`g`) / tag all filtered (`G`), add or remove
-  (`tag_transactions_screen.py`) → `tagTransactions`. Tag inputs autocomplete
-  from known tags (`tag_suggester.py`).
-- Cycle a category's budget type from a row (`x`).
-- Select, select all, delete selected (soft delete) →
-  `softDeleteTransactions`. The TUI has no restore UI although
-  `restore_deleted_transactions` exists; the web adds an "Undo" after delete
-  using `restoreTransactions`.
-- **Bulk delete screen (`d`, `delete_screen.py`) folds in here**: its
-  filters (date, merchant regex/glob, category, source, amount) are the
-  Transactions filters plus "select all filtered → delete". Regex/glob
-  matching is dropped in favour of the list's contains/exact match.
+  raw name (`_suggest_pattern`). (PR B)
+- Cycle a category's budget type from a row (`x`). (PR B)
 - Export PDF (`p`): step 4.
 
 #### Categorize (`categorize_screen.py`)

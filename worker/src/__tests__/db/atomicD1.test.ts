@@ -73,6 +73,32 @@ describe("write services on the D1 driver", () => {
     sqlite.close();
   });
 
+  it("moves a row onto an occurrence another moving row still holds", async () => {
+    const { sqlite, db } = d1Store();
+    seed(sqlite, [
+      { ...SHOP, merchant: "Cafe" }, { ...SHOP, merchant: "Kiosk" }, { ...SHOP, merchant: "Cafe" },
+    ], []);
+    expect(await updateTransactions(db, [2, 3], { merchant: "Cafe" }, USER, { liveOnly: true })).toBe(2);
+    expect(sqlite.prepare(`SELECT occurrence AS o FROM transactions ORDER BY id`).all().map((r) => (r as { o: number }).o))
+      .toEqual([0, 1, 2]);
+    sqlite.close();
+  });
+
+  it("deletes and restores thousands of rows in linear time", async () => {
+    const { sqlite, db } = d1Store();
+    const n = 2000;
+    seed(sqlite, Array.from({ length: n }, () => SHOP), []);
+    const ids = Array.from({ length: n }, (_, i) => i + 1);
+    const started = performance.now();
+    expect(await softDeleteTransactions(db, ids, USER)).toBe(n);
+    expect(await restoreTransactions(db, ids, USER)).toBe(n);
+    const elapsedMs = performance.now() - started;
+    expect(sqlite.prepare(`SELECT COUNT(*) AS c, COUNT(DISTINCT occurrence) AS d FROM transactions WHERE deleted_at IS NULL`).get())
+      .toEqual({ c: n, d: n });
+    expect(elapsedMs).toBeLessThan(3000);
+    sqlite.close();
+  });
+
   it("moves rows to a merchant with distinct occurrences and overrides the category", async () => {
     const { sqlite, db } = d1Store();
     seed(sqlite, [

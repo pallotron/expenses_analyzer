@@ -374,15 +374,17 @@ export async function restoreTransactions(
   })));
   const payload = json([...occurrences].map(([id, occurrence]) => ({ id, occurrence })));
 
+  // UPDATE ... FROM joins the payload once; a correlated subquery would
+  // rescan it for every row, which is quadratic and times out on big undos.
   await atomic(db, [sql`
     UPDATE transactions
-    SET deleted_at = NULL, deleted_by = NULL,
-        occurrence = (
-          SELECT json_extract(value, '$.occurrence') FROM json_each(${payload})
-          WHERE json_extract(value, '$.id') = transactions.id
-        ),
+    SET deleted_at = NULL, deleted_by = NULL, occurrence = j.occurrence,
         updated_at = ${now}, updated_by = ${userId}
-    WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(${payload}))
+    FROM (
+      SELECT json_extract(value, '$.id') AS id, json_extract(value, '$.occurrence') AS occurrence
+      FROM json_each(${payload})
+    ) AS j
+    WHERE transactions.id = j.id
   `]);
   return deleted.length;
 }
@@ -469,6 +471,7 @@ export async function updateTransactions(
 
   const statements: SQL[] = [];
   const sets: SQL[] = [];
+  const afterMainUpdate: SQL[] = [];
   let canonical: string | null = null;
   if (edit.merchant !== undefined) {
     canonical = resolveMerchantName(edit.merchant, await loadAliases(db));
@@ -500,10 +503,24 @@ export async function updateTransactions(
     })));
     if (occurrences.size > 0) {
       const payload = json([...occurrences].map(([id, occurrence]) => ({ id, occurrence })));
-      sets.push(sql`occurrence = COALESCE((
-        SELECT json_extract(value, '$.occurrence') FROM json_each(${payload})
-        WHERE json_extract(value, '$.id') = transactions.id
-      ), occurrence)`);
+      // Park the moving rows first. The unique index is checked row by row,
+      // so a row given an occurrence another moving row still holds would
+      // clash before that row had been updated. Negative values cannot meet a
+      // live occurrence (they start at 0), and -id is distinct per row.
+      statements.push(sql`
+        UPDATE transactions SET occurrence = -id
+        WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(${payload}))
+      `);
+      // Assigned in one pass after the column changes, joined once rather than
+      // searched per row (a correlated subquery is quadratic on large edits).
+      afterMainUpdate.push(sql`
+        UPDATE transactions SET occurrence = j.occurrence
+        FROM (
+          SELECT json_extract(value, '$.id') AS id, json_extract(value, '$.occurrence') AS occurrence
+          FROM json_each(${payload})
+        ) AS j
+        WHERE transactions.id = j.id
+      `);
     }
   }
 
@@ -512,7 +529,7 @@ export async function updateTransactions(
     UPDATE transactions SET ${sql.join(sets, sql`, `)}
     WHERE id IN (SELECT value FROM json_each(${json(current.map((r) => r.id))}))
   `);
-  await atomic(db, statements);
+  await atomic(db, [...statements, ...afterMainUpdate]);
   return current.length;
 }
 

@@ -19,10 +19,17 @@ export function useDeleteFlow(opts: {
   const restore = useRestore();
   const [confirming, setConfirming] = useState<number[] | null>(null);
 
-  const undo = (ids: number[]) => restore.mutate(ids, {
-    onSuccess: (r) => opts.notify({ message: `${r.restored} restored` }),
-    onError: () => opts.notify({ message: "Couldn't restore", action: { label: "Retry", run: () => undo(ids) } }),
-  });
+  const undo = (ids: number[]) => {
+    // The toast keeps its Undo button while the restore runs, and only the
+    // latest mutate() has its callbacks fired, so a second press would end on a
+    // false "0 restored". Ignore it and swap the toast for a plain notice.
+    if (restore.isPending) return;
+    opts.notify({ message: "Restoring…" });
+    restore.mutate(ids, {
+      onSuccess: (r) => opts.notify({ message: `${r.restored} restored` }),
+      onError: () => opts.notify({ message: "Couldn't restore", action: { label: "Retry", run: () => undo(ids) } }),
+    });
+  };
 
   const run = (ids: number[]) => {
     if (del.isPending) return;

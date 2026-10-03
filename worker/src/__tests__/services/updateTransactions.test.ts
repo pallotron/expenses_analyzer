@@ -46,6 +46,20 @@ describe("updateTransactions", () => {
     sqlite.close();
   });
 
+  it("moves a row onto an occurrence another moving row still holds", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [
+      { date: "2026-03-01", merchant: "Cafe", amount: 3, deleted: false },   // 1: occurrence 0
+      { date: "2026-03-01", merchant: "Kiosk", amount: 3, deleted: false },  // 2
+      { date: "2026-03-01", merchant: "Cafe", amount: 3, deleted: false },   // 3: occurrence 1
+    ], []);
+    expect(await updateTransactions(db, [2, 3], { merchant: "Cafe" }, USER, { liveOnly: true })).toBe(2);
+    expect(rowsOf(sqlite).map((r) => [r.id, r.merchant, r.occ]).sort()).toEqual([
+      [1, "Cafe", 0], [2, "Cafe", 1], [3, "Cafe", 2],
+    ]);
+    sqlite.close();
+  });
+
   it("gives rows moving to a brand-new merchant distinct occurrences too", async () => {
     const { sqlite, db } = store([]);
     seed(sqlite, [

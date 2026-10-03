@@ -55,6 +55,24 @@ describe("deleting", () => {
     expect(posted(mock, "/api/transactions/delete")).toHaveLength(1);
   });
 
+  it("restores once however often Undo is pressed, and shows progress meanwhile", async () => {
+    // Holds every POST after the first (the delete) until released.
+    let release!: () => void;
+    const held = new Promise<void>((r) => { release = r; });
+    let posts = 0;
+    const gate = { then: (ok: () => void, bad?: () => void) => (posts++ === 0 ? Promise.resolve() : held).then(ok, bad) } as unknown as Promise<void>;
+    const { mock } = renderAt(URL_SEPT, api({ rows: many(2), gate }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Delete" }));
+    const undo = within(await screen.findByRole("status")).getByRole("button", { name: "Undo" });
+    await userEvent.click(undo);
+    expect(screen.getByRole("status")).toHaveTextContent("Restoring…");
+    expect(within(screen.getByRole("status")).queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+    release();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("2 restored"));
+    expect(posted(mock, "/api/transactions/restore")).toEqual([{ ids: [1, 2] }]);
+  });
+
   it("says when some were already gone", async () => {
     renderAt(URL_SEPT, api({ deletedCount: 1 }));
     await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { Chevron } from "../lib/Chevron";
 import { formatCents } from "../lib/money";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
@@ -11,6 +12,8 @@ export interface BreakdownItem {
   count?: number;
   /** Colours the bar: what the money was. Without it the list's tone is used. */
   kind?: "essential" | "discretionary" | "income";
+  /** The transactions behind the amount; makes the label a link. */
+  href?: string;
 }
 
 const BAR_COLOUR = { essential: "bg-essential", discretionary: "bg-discretionary", income: "bg-income" };
@@ -49,10 +52,11 @@ export function BreakdownList(props: {
   const shown = props.limit && !all ? main.slice(0, props.limit) : main;
 
   const row = (item: BreakdownItem) => (
-    <li key={item.label} className="text-sm">
+    // A linked row is clickable all over: the label's link stretches across it.
+    <li key={item.label} className={item.href ? "group relative -mx-2 rounded-md px-2 py-0.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800" : "text-sm"}>
       <div className="flex justify-between gap-3">
         <span className="min-w-0 truncate">
-          {item.label}
+          {item.href ? <Link to={item.href} className="after:absolute after:inset-0 after:content-['']">{item.label}</Link> : item.label}
           {item.sublabel && item.count === undefined && <span className="ml-1.5 text-xs text-slate-500">{item.sublabel}</span>}
         </span>
         <span className="shrink-0">
@@ -68,7 +72,7 @@ export function BreakdownList(props: {
         </div>
       )}
       {!(item.kind === "income" && item.amountCents < total / 100) && (
-        <div className="mt-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className="mt-1 h-1.5 rounded-full bg-slate-100 group-hover:bg-slate-200 dark:bg-slate-800 dark:group-hover:bg-slate-700">
           <div data-testid="bar"
             className={`h-1.5 rounded-full ${item.kind ? BAR_COLOUR[item.kind] : props.tone === "income" ? "bg-income" : "bg-expense"}`}
             style={{ width: `${Math.min(100, Math.max(0, (item.amountCents / max) * 100))}%` }} />

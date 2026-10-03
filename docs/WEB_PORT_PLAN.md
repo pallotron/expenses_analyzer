@@ -146,8 +146,11 @@ Import → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
 
 - ~~Tiles, spending split with budgets, monthly chart, breakdowns, grid with
   anomaly flags, source filter, include-hidden toggle (`x`).~~ Done.
-- Drill-down (`enter` on a category/merchant/month cell) → link into
-  Transactions with the matching filters. Needs Transactions (read).
+- ~~Drill-down (`enter` on a category/merchant/month cell) → link into
+  Transactions with the matching filters.~~ Done: every list row, grid cell
+  and chart bar or month column links to `/transactions` with the
+  Summary's period, sources and hidden-tag scope (`drillDown` in
+  `worker/src/api/transactions.ts`).
 - Hidden-tag editor (`X`, `tag_exclusion_screen.py`): edit
   `tag_exclusion_patterns`, entries may end in `*`. Service + small sheet.
 - Pension-aware savings rate (`get_enhanced_savings_totals`) and the
@@ -160,12 +163,15 @@ Import → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
 #### Transactions (`transaction_screen.py` + modals)
 
 Read PR:
-- List with filters: date range, merchant, category, source (quoted =
+- ~~List with filters: date range, merchant, category, source (quoted =
   exact), amount range, tags, type (all/income/expense), budget type
-  (all/essential/discretionary). `listTransactions` already implements the
-  Python filter; needs a route and paging. Filters live in the URL so
-  Summary can link in.
-- Phone: card rows; desktop: table with sortable columns.
+  (all/essential/discretionary). Filters live in the URL so Summary can
+  link in.~~
+- ~~Phone: card rows; desktop: table with sortable columns.~~ Done in PR
+  #34: `GET /api/transactions` and `/api/lookups`; `sources` and
+  `excludeHidden` match the Summary's scope, and a test checks that every
+  Summary number drills down to a list with the same total. Opens on the
+  latest month with data; filters stay in the URL.
 
 Edit PR:
 - Edit one transaction (`edit_single_transaction_screen.py`): date,

@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Grid } from "../../lib/types";
@@ -173,5 +174,47 @@ describe("MonthlyGrid with nothing in it", () => {
     screenIs(true);
     render(<MonthlyGrid title="Monthly income" grid={{ rows: [], total: grid.total }} tone="income" lastMonth={12} />);
     expect(screen.getByText(/nothing this year/i)).toBeInTheDocument();
+  });
+});
+
+describe("MonthlyGrid links", () => {
+  const cellHref = (c: string | null, m: number | null) => `/t?c=${c ?? "ALL"}&m=${m ?? "Y"}`;
+  const hrefs = () => screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+
+  it("links names, totals, averages and non-zero months on desktop", () => {
+    screenIs(true);
+    render(<MemoryRouter><MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={3} cellHref={cellHref} /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "Groceries" })).toHaveAttribute("href", "/t?c=Groceries&m=Y");
+    expect(screen.getByRole("link", { name: "Total" })).toHaveAttribute("href", "/t?c=ALL&m=Y");
+    expect(screen.getByRole("link", { name: "€300.00" })).toHaveAttribute("href", "/t?c=Groceries&m=Y");
+    expect(hrefs()).toContain("/t?c=Groceries&m=1");
+    expect(hrefs()).toContain("/t?c=ALL&m=3");
+    expect(hrefs()).not.toContain("/t?c=Groceries&m=2"); // a zero month stays plain
+  });
+
+  it("highlights a linked row on hover, frozen cells included", () => {
+    screenIs(true);
+    render(<MemoryRouter><MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={3} cellHref={cellHref} /></MemoryRouter>);
+    const row = screen.getByRole("row", { name: /Groceries/ });
+    expect(row).toHaveClass("group", "hover:bg-slate-100");
+    expect(within(row).getByRole("rowheader")).toHaveClass("group-hover:bg-slate-100");
+  });
+
+  it("keeps the anomaly and trend arrow inside a month's link", () => {
+    screenIs(true);
+    render(<MemoryRouter><MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={3} cellHref={cellHref} /></MemoryRouter>);
+    const march = screen.getAllByRole("link").find((a) => a.getAttribute("href") === "/t?c=Groceries&m=3")!;
+    expect(march).toHaveTextContent("€200.00");
+    expect(within(march).getByLabelText("up on the month before")).toBeInTheDocument();
+  });
+
+  it("links a phone row's months and all its transactions once expanded", async () => {
+    screenIs(false);
+    render(<MemoryRouter><MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={3} cellHref={cellHref} /></MemoryRouter>);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Groceries/ }));
+    expect(screen.getByRole("link", { name: "All Groceries transactions" })).toHaveAttribute("href", "/t?c=Groceries&m=Y");
+    expect(hrefs()).toContain("/t?c=Groceries&m=1");
+    expect(hrefs()).not.toContain("/t?c=Groceries&m=2");
   });
 });

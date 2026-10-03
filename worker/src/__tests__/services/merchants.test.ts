@@ -78,7 +78,7 @@ describe("saving an alias re-points the rows it claims", () => {
 
     const result = await saveMerchantDecision(db, { pattern: "TESCO", alias: "Tesco", category: "Supermarket" }, USER);
 
-    expect(result).toEqual({ repointed: 1 });
+    expect(result).toEqual({ repointed: 1, tagged: 0 });
     expect(merchantOf(sqlite, expressId)).toBe("Tesco");
     expect(merchantOf(sqlite, 4)).toBe("Tesco");
     expect((await loadAliasRules(db)).map((r) => r.pattern)).toEqual([
@@ -99,7 +99,7 @@ describe("saving an alias re-points the rows it claims", () => {
   it("editing an existing rule keeps its priority and renames every row it decides", async () => {
     const { sqlite, db } = editorStore();
     const result = await saveMerchantDecision(db, { pattern: "STARBUCKS.*", alias: "Starbucks Coffee Co" }, USER);
-    expect(result).toEqual({ repointed: 3 });
+    expect(result).toEqual({ repointed: 3, tagged: 0 });
     expect((await loadAliasRules(db))[0]).toEqual({ pattern: "STARBUCKS.*", canonicalName: "Starbucks Coffee Co" });
     expect([1, 2, 3].map((id) => merchantOf(sqlite, id))).toEqual(Array(3).fill("Starbucks Coffee Co"));
     sqlite.close();
@@ -108,7 +108,7 @@ describe("saving an alias re-points the rows it claims", () => {
   it("saving what is already in force moves nothing", async () => {
     const { sqlite, db } = editorStore();
     expect(await saveMerchantDecision(db, { pattern: "^AMZN|AMAZON", alias: "Amazon" }, USER))
-      .toEqual({ repointed: 0 });
+      .toEqual({ repointed: 0, tagged: 0 });
     sqlite.close();
   });
 
@@ -124,7 +124,7 @@ describe("saving an alias re-points the rows it claims", () => {
     ], rules);
 
     expect(await saveMerchantDecision(db, { pattern: "SBUX", alias: "Starbucks" }, USER))
-      .toEqual({ repointed: 3 });
+      .toEqual({ repointed: 3, tagged: 0 });
     const live = sqlite.prepare(`
       SELECT m.canonical_name AS m, t.occurrence AS o FROM transactions t
       JOIN merchants m ON m.id = t.merchant_id WHERE t.deleted_at IS NULL ORDER BY t.occurrence
@@ -147,6 +147,34 @@ describe("saving an alias re-points the rows it claims", () => {
     await expect(saveMerchantDecision(db, { pattern: "[bad", alias: "X" }, USER)).rejects.toThrow();
     await expect(saveMerchantDecision(db, { pattern: "TESCO", alias: "  " }, USER)).rejects.toThrow();
     expect(await loadAliasRules(db)).toHaveLength(3);
+    sqlite.close();
+  });
+
+  it("adds tags to the live rows that display as the alias, not deleted ones", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [
+      { date: "2026-04-12", merchant: "CORNER SHOP 1", amount: 3, deleted: false },
+      { date: "2026-04-13", merchant: "CORNER SHOP 2", amount: 4, deleted: false },
+      { date: "2026-04-14", merchant: "CORNER SHOP 3", amount: 5, deleted: true },
+      { date: "2026-04-14", merchant: "OTHER PLACE", amount: 5, deleted: false },
+    ], []);
+    const result = await saveMerchantDecision(db, { pattern: "CORNER\\s+SHOP", alias: "Corner Shop", tags: ["Local", "local"] }, USER);
+    expect(result).toEqual({ repointed: 3, tagged: 2 });
+    const tagged = sqlite.prepare(`
+      SELECT t.merchant_raw AS raw FROM transaction_tags tt
+      JOIN transactions t ON t.id = tt.transaction_id JOIN tags g ON g.id = tt.tag_id
+      WHERE g.name = 'local' ORDER BY t.id
+    `).all();
+    expect(tagged).toEqual([{ raw: "CORNER SHOP 1" }, { raw: "CORNER SHOP 2" }]);
+    sqlite.close();
+  });
+
+  it("tags rows already under the alias even when nothing moves", async () => {
+    const rules = [["CORNER", "Corner Shop"]];
+    const { sqlite, db } = store(rules);
+    seed(sqlite, [{ date: "2026-04-12", merchant: "CORNER SHOP 1", amount: 3, deleted: false }], rules);
+    expect(await saveMerchantDecision(db, { pattern: "CORNER", alias: "Corner Shop", tags: ["local"] }, USER))
+      .toEqual({ repointed: 0, tagged: 1 });
     sqlite.close();
   });
 });
@@ -215,7 +243,7 @@ describe.runIf(REAL_DB)("on real data (CROSSCHECK_DB)", () => {
   it("re-saving every existing rule as it stands moves nothing", async () => {
     for (const rule of await loadAliasRules(db)) {
       const result = await saveMerchantDecision(db, { pattern: rule.pattern, alias: rule.canonicalName }, USER);
-      expect(result, rule.pattern).toEqual({ repointed: 0 });
+      expect(result, rule.pattern).toEqual({ repointed: 0, tagged: 0 });
     }
   });
 

@@ -9,8 +9,9 @@ import { describe, expect, it } from "vitest";
 import { atomic } from "../../db/atomic";
 import { createDb } from "../../db/client";
 import { listTransactions } from "../../queries/transactions";
+import { saveMerchantDecision } from "../../services/merchants";
 import {
-  restoreTransactions, softDeleteTransactions, tagTransactions, updateTransactions,
+  importTransactions, restoreTransactions, softDeleteTransactions, tagTransactions, updateTransactions,
 } from "../../services/transactions";
 import { fakeD1 } from "../helpers/fakeD1";
 import { USER, categorise, seed, store } from "../helpers/store";
@@ -126,6 +127,29 @@ describe("write services on the D1 driver", () => {
     const list = await listTransactions(db);
     expect(list.rows.map((r) => r.merchant).sort()).toEqual(["Cafe", "Shop"]);
     expect(list.rows).toHaveLength(2);
+    sqlite.close();
+  });
+  it("saves a merchant decision: rule, category, re-point and tags", async () => {
+    const { sqlite, db } = d1Store();
+    seed(sqlite, [
+      { date: "2026-03-01", merchant: "CAFE ONE", amount: 4, deleted: false },
+      { date: "2026-03-01", merchant: "CAFE TWO", amount: 4, deleted: false },
+    ], []);
+    const result = await saveMerchantDecision(db, { pattern: "^CAFE", alias: "Cafe", category: "Eating out", tags: ["coffee"] }, USER);
+    expect(result).toEqual({ repointed: 2, tagged: 2 });
+    expect(sqlite.prepare(`
+      SELECT m.canonical_name AS m, t.occurrence AS o FROM transactions t
+      JOIN merchants m ON m.id = t.merchant_id ORDER BY t.id
+    `).all()).toEqual([{ m: "Cafe", o: 0 }, { m: "Cafe", o: 1 }]);
+    expect(tagsOf(sqlite, 1)).toEqual(["coffee"]);
+    sqlite.close();
+  });
+
+  it("imports, deduplicating against what is stored", async () => {
+    const { sqlite, db } = d1Store();
+    const rows = [{ date: "2026-03-01", merchant: "CAFE ONE", amountCents: 400 }];
+    expect(await importTransactions(db, rows, { source: "Test", userId: USER })).toMatchObject({ inserted: 1 });
+    expect(await importTransactions(db, rows, { source: "Test", userId: USER })).toMatchObject({ inserted: 0, duplicates: 1 });
     sqlite.close();
   });
 });

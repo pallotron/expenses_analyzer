@@ -42,6 +42,8 @@ export interface LookupsResponse {
   categories: string[];
   tags: string[];
   sources: string[];
+  /** Categories whose spending type is essential. */
+  essentialCategories: string[];
 }
 
 /** The filters as they travel in a URL. Text exactly as typed; "quoted" is exact. */

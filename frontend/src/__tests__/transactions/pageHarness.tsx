@@ -75,7 +75,7 @@ export function api(opts: ApiOptions = {}) {
       return json(r.body, r.status);
     }
     if (url.pathname === "/api/summary/periods") return json(periods);
-    if (url.pathname === "/api/lookups") return json({ categories: ["Eating out", "Groceries", "Other"], tags: [], sources: periods.sources, ...opts.lookups });
+    if (url.pathname === "/api/lookups") return json({ categories: ["Eating out", "Groceries", "Other"], tags: [], essentialCategories: [], sources: periods.sources, ...opts.lookups });
     if (url.pathname === "/api/transactions" && method === "GET") {
       const rows = opts.rowsRef?.value ?? opts.rows ?? [row(3, "2026-09-29", 100), row(2, "2026-09-28", 100)];
       const res: TransactionsResponse = {

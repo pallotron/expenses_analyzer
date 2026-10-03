@@ -13,3 +13,8 @@ export type {
 } from "../../../worker/src/api/transactions";
 // The tag sheet applies the Worker's exact tag rule; the module is pure.
 export { normalizeTags } from "../../../worker/src/domain/tags";
+
+export type {
+  AliasPreviewResponse, DecisionRequest, DecisionResponse, MerchantCategoryRequest, MerchantCategoryResponse,
+  MerchantRow, MerchantRule, MerchantsResponse, RuleDeletedResponse, RuleLookupResponse,
+} from "../../../worker/src/api/merchants";

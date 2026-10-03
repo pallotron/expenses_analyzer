@@ -4,14 +4,14 @@ import type {
   BulkEditRequest, DeletedResponse, RestoredResponse, TaggedResponse, TagRequest, TransactionEdit, UpdatedResponse,
 } from "../../lib/types";
 
-/** Every query a write can change: the list, the Summary, the periods and the lookups. */
-const AFFECTED = ["transactions", "summary", "periods", "lookups"];
+/** Every query a write can change: the list, the Summary, the periods, the lookups, and merchants. */
+const AFFECTED = ["transactions", "summary", "periods", "lookups", "merchants"];
 
-function useWrite<V, R>(fn: (vars: V) => Promise<R>) {
+export function useWrite<V, R>(fn: (vars: V) => Promise<R>, keys: string[] = AFFECTED) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => Promise.all(AFFECTED.map((key) => client.invalidateQueries({ queryKey: [key] }))),
+    onSuccess: () => Promise.all(keys.map((key) => client.invalidateQueries({ queryKey: [key] }))),
   });
 }
 

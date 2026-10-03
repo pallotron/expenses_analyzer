@@ -16,6 +16,6 @@ describe("mutations", () => {
     const { result } = renderHook(() => useDelete(), { wrapper });
     result.current.mutate([1]);
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(spy.mock.calls.map(([f]) => f?.queryKey)).toEqual([["transactions"], ["summary"], ["periods"], ["lookups"]]);
+    expect(spy.mock.calls.map(([f]) => f?.queryKey)).toEqual([["transactions"], ["summary"], ["periods"], ["lookups"], ["merchants"]]);
   });
 });

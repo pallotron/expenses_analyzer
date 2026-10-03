@@ -14,7 +14,7 @@ interface Form { date: string; merchant: string; amount: string; type: Transacti
 const formOf = (r: TransactionRow): Form => ({
   date: r.date,
   merchant: r.merchantRaw,
-  amount: (r.amountCents / 100).toFixed(2).replace(".", ","),
+  amount: (r.amountCents / 100).toFixed(2),
   type: r.type,
   source: r.source,
   category: r.categoryOverridden ? r.category : "",
@@ -61,7 +61,15 @@ export function EditSheet(props: {
 
   const submit = () => {
     if (!r || !form || save.isPending) return;
-    if (edit === null) { setError("Enter an amount more than zero, like 12,50"); return; }
+    if (edit === null) {
+      const trimmed = form.amount.trim();
+      if (trimmed.startsWith("-") || trimmed.startsWith("−") || trimmed.startsWith("+")) {
+        setError("Amounts are always positive; use Expense/Income for the direction");
+      } else {
+        setError("Enter an amount more than zero, like 12.50");
+      }
+      return;
+    }
     if (form.merchant.trim() === "") { setError("Statement text cannot be empty"); return; }
     if (form.source.trim() === "") { setError("Source cannot be empty"); return; }
     setError(null);
@@ -101,7 +109,7 @@ export function EditSheet(props: {
             <Segmented label="Type" value={form.type} onChange={(t) => t && set({ type: t })}
               options={[["expense", "Expense"], ["income", "Income"]]} />
           </div>
-          <span id={hintId} className="sr-only">Euros, for example 12,50. Currently {formatCents(r.amountCents)}.</span>
+          <span id={hintId} className="sr-only">Euros, for example 12.50. Currently {formatCents(r.amountCents)}.</span>
           <label className="flex flex-col gap-1">
             <span className="text-xs text-slate-500">Source</span>
             <input list={sourcesId} value={form.source} onChange={(e) => set({ source: e.target.value })} className={field} />

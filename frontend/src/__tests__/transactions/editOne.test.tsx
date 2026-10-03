@@ -25,14 +25,43 @@ describe("editing one transaction", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it.each(["0", "-5", "abc"])("refuses the amount %j without a request", async (typed) => {
+  it("pre-fills the amount with dot decimals", async () => {
+    renderAt(URL_SEPT, api({ rows: [row(3, "2026-09-29", 121136)] }));
+    const sheet = await openShop3();
+    const amount = within(sheet).getByLabelText("Amount");
+    expect(amount).toHaveValue("1211.36");
+  });
+
+  it.each(["0", "abc"])("refuses the amount %j without a request", async (typed) => {
     const { mock } = renderAt(URL_SEPT);
     const sheet = await openShop3();
     const amount = within(sheet).getByLabelText("Amount");
     await userEvent.clear(amount);
     await userEvent.type(amount, typed);
     await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
-    expect(within(sheet).getByRole("alert")).toHaveTextContent("Enter an amount more than zero, like 12,50");
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("Enter an amount more than zero, like 12.50");
+    expect(patched(mock)).toEqual([]);
+  });
+
+  it("refuses a minus-signed amount without a request", async () => {
+    const { mock } = renderAt(URL_SEPT);
+    const sheet = await openShop3();
+    const amount = within(sheet).getByLabelText("Amount");
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "-15");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("Amounts are always positive; use Expense/Income for the direction");
+    expect(patched(mock)).toEqual([]);
+  });
+
+  it("refuses a plus-signed amount without a request", async () => {
+    const { mock } = renderAt(URL_SEPT);
+    const sheet = await openShop3();
+    const amount = within(sheet).getByLabelText("Amount");
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "+15");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("Amounts are always positive; use Expense/Income for the direction");
     expect(patched(mock)).toEqual([]);
   });
 

@@ -30,10 +30,25 @@ export type ApiOptions = {
   gate?: Promise<void>;
   /** Answers for write routes, keyed "METHOD /path". An unlisted write gets `{}`. */
   routes?: Record<string, Route>;
+  /** What delete reports as removed; default is every id sent. */
+  deletedCount?: number;
+  /** Makes restore answer 500. */
+  restoreFails?: boolean;
 };
+
+const idsOf = (body: unknown) => (body as { ids: number[] }).ids;
+
+/** The delete and restore answers, built on `routes`; an explicit route wins. */
+const deleteRoutes = (opts: ApiOptions): Record<string, Route> => ({
+  "POST /api/transactions/delete": (b) => ({ body: { deleted: opts.deletedCount ?? idsOf(b).length } }),
+  "POST /api/transactions/restore": (b) =>
+    opts.restoreFails ? { status: 500, body: { error: "boom" } } : { body: { restored: idsOf(b).length } },
+  ...opts.routes,
+});
 
 export function api(opts: ApiOptions = {}) {
   const calls: Call[] = [];
+  const routes = deleteRoutes(opts);
   const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://localhost");
     const method = init?.method ?? "GET";
@@ -41,7 +56,7 @@ export function api(opts: ApiOptions = {}) {
     calls.push({ path: url.pathname, method, body });
     const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
     if (method !== "GET") await opts.gate;
-    const route = opts.routes?.[`${method} ${url.pathname}`];
+    const route = routes[`${method} ${url.pathname}`];
     if (route) {
       const r = route(body, url);
       return json(r.body, r.status);

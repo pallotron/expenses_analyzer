@@ -436,9 +436,13 @@ export class UnknownCategoryError extends Error {
  * each moving live row gets an occurrence free there; freeOccurrences counts
  * the rows placed in this same call, so rows moving together never collide.
  * Deleted rows keep their occurrence. Returns how many of the ids exist.
+ *
+ * With liveOnly, soft-deleted rows count as gone: they are neither edited nor
+ * counted. The write routes use it so a row deleted elsewhere answers 404
+ * instead of being silently edited.
  */
 export async function updateTransactions(
-  db: Db, ids: number[], edit: TransactionEdit, userId: number,
+  db: Db, ids: number[], edit: TransactionEdit, userId: number, options: { liveOnly?: boolean } = {},
 ): Promise<number> {
   const unique = [...new Set(ids)];
   if (unique.length === 0) return 0;
@@ -451,7 +455,7 @@ export async function updateTransactions(
       deleted: sql<number>`${transactions.deletedAt} IS NOT NULL`.mapWith(Boolean),
     })
     .from(transactions)
-    .where(idsIn(unique))
+    .where(options.liveOnly ? and(idsIn(unique), isNull(transactions.deletedAt)) : idsIn(unique))
     .orderBy(asc(transactions.id));
   if (current.length === 0) return 0;
 

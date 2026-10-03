@@ -14,6 +14,17 @@ const rowsOf = (sqlite: ReturnType<typeof store>["sqlite"]) => sqlite.prepare(`
 `).all() as { id: number; merchant: string; raw: string; date: string; cents: number; occ: number; type: string; source: string; overridden: number; deleted: number }[];
 
 describe("updateTransactions", () => {
+  it("with liveOnly, skips and does not count a deleted id", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [
+      { date: "2026-03-01", merchant: "Shop", amount: 10, deleted: false },
+      { date: "2026-03-02", merchant: "Cafe", amount: 4, deleted: true },
+    ], []);
+    expect(await updateTransactions(db, [1, 2], { source: "Card" }, USER, { liveOnly: true })).toBe(1);
+    expect(rowsOf(sqlite).map((r) => [r.id, r.source])).toEqual([[1, "Card"], [2, expect.not.stringMatching(/^Card$/)]]);
+    sqlite.close();
+  });
+
   it("moves many rows onto one merchant with distinct occurrences, above a live twin", async () => {
     const { sqlite, db } = store([]);
     seed(sqlite, [

@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { atomic } from "../../db/atomic";
 import { createDb } from "../../db/client";
 import { listTransactions } from "../../queries/transactions";
-import { saveMerchantDecision } from "../../services/merchants";
+import { deleteMerchantRule, saveMerchantDecision, setMerchantCategory } from "../../services/merchants";
 import {
   importTransactions, restoreTransactions, softDeleteTransactions, tagTransactions, updateTransactions,
 } from "../../services/transactions";
@@ -129,6 +129,7 @@ describe("write services on the D1 driver", () => {
     expect(list.rows).toHaveLength(2);
     sqlite.close();
   });
+
   it("saves a merchant decision: rule, category, re-point and tags", async () => {
     const { sqlite, db } = d1Store();
     seed(sqlite, [
@@ -142,6 +143,18 @@ describe("write services on the D1 driver", () => {
       JOIN merchants m ON m.id = t.merchant_id ORDER BY t.id
     `).all()).toEqual([{ m: "Cafe", o: 0 }, { m: "Cafe", o: 1 }]);
     expect(tagsOf(sqlite, 1)).toEqual(["coffee"]);
+    sqlite.close();
+  });
+
+  it("deletes a rule and sets a category", async () => {
+    const { sqlite, db } = d1Store();
+    sqlite.exec(`INSERT INTO merchants (canonical_name) VALUES ('Cafe')`);
+    sqlite.exec(`INSERT INTO merchant_aliases (pattern, priority, merchant_id) VALUES ('^CAFE', 0, 1)`);
+    seed(sqlite, [{ date: "2026-03-01", merchant: "CAFE ONE", amount: 4, deleted: false }], [["^CAFE", "Cafe"]]);
+    expect(await deleteMerchantRule(db, 1, USER)).toEqual({ repointed: 1 });
+    const id = (sqlite.prepare(`SELECT merchant_id AS m FROM transactions WHERE id = 1`).get() as { m: number }).m;
+    expect(await setMerchantCategory(db, [id], "Eating out", USER)).toEqual({ updated: 1 });
+    expect(sqlite.prepare(`SELECT category FROM v_live WHERE id = 1`).get()).toEqual({ category: "Eating out" });
     sqlite.close();
   });
 

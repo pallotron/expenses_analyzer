@@ -17,9 +17,9 @@
  * merchant, and imports would no longer see them as duplicates of new ones.
  */
 
-import { and, asc, eq, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { atomic } from "../db/atomic";
-import { categories, merchants, transactions } from "../db/schema";
+import { categories, merchantAliases, merchants, transactions } from "../db/schema";
 import type { Db } from "../db/types";
 import {
   compileAliases, resolveMerchantName, type AliasRule,
@@ -278,4 +278,56 @@ export async function saveMerchantDecision(
     tagged = row.n;
   }
   return { repointed, tagged };
+}
+
+export class UnknownRuleError extends Error {
+  constructor(id: number) {
+    super(`There is no merchant rule ${id}`);
+    this.name = "UnknownRuleError";
+  }
+}
+
+/**
+ * Drop one rule and re-point the rows it decided: to the next rule that
+ * matches, or to their own normalised names. The merchant it pointed at stays,
+ * with its category, since another rule may still resolve to it.
+ */
+export async function deleteMerchantRule(db: Db, ruleId: number, userId: number): Promise<{ repointed: number }> {
+  const [rule] = await db.select({ pattern: merchantAliases.pattern })
+    .from(merchantAliases).where(eq(merchantAliases.id, ruleId));
+  if (!rule) throw new UnknownRuleError(ruleId);
+  const drop = sql`DELETE FROM merchant_aliases WHERE id = ${ruleId}`;
+  try {
+    checkPattern(rule.pattern);
+  } catch {
+    // Stored patterns came from Python and may not compile here. Such a rule
+    // never matched a row in JavaScript, so it decided none of them.
+    await atomic(db, [drop]);
+    return { repointed: 0 };
+  }
+  const rules = (await loadAliasRules(db)).filter((r) => r.pattern !== rule.pattern);
+  const repointed = await repointRows(db, rules, rule.pattern, { before: [drop], after: [] }, userId);
+  return { repointed };
+}
+
+/** The Merchants page's bulk assign. Null clears; a new name is created. */
+export async function setMerchantCategory(
+  db: Db, merchantIds: number[], category: string | null, userId: number,
+): Promise<{ updated: number }> {
+  const ids = [...new Set(merchantIds)];
+  if (ids.length === 0) return { updated: 0 };
+  const found = await db.select({ id: merchants.id }).from(merchants).where(inArray(merchants.id, ids));
+  if (found.length === 0) return { updated: 0 };
+  const name = category?.trim() || null;
+  const idList = JSON.stringify(found.map((r) => r.id));
+  await atomic(db, [
+    ...(name ? [sql`INSERT OR IGNORE INTO categories (name) VALUES (${name})`] : []),
+    sql`
+      UPDATE merchants
+      SET category_id = ${name ? sql`(SELECT id FROM categories WHERE name = ${name})` : sql`NULL`},
+          category_suggested = 0, category_set_by = ${userId}, category_set_at = unixepoch()
+      WHERE id IN (SELECT value FROM json_each(${idList}))
+    `,
+  ]);
+  return { updated: found.length };
 }

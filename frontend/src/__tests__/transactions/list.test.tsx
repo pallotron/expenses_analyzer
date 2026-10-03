@@ -7,7 +7,7 @@ import { sortRows, TransactionTable } from "../../transactions/TransactionTable"
 import type { TransactionRow } from "../../lib/types";
 
 const row = (id: number, date: string, merchant: string, amountCents: number, type: "expense" | "income" = "expense"): TransactionRow => ({
-  id, date, merchant, merchantRaw: merchant.toUpperCase(), amountCents, type, category: "Groceries", budget: "essential", tags: "", source: "Card",
+  id, date, merchant, merchantRaw: merchant.toUpperCase(), amountCents, type, category: "Groceries", merchantCategory: "Groceries", categoryOverridden: false, budget: "essential", tags: "", source: "Card",
 });
 const rows = [row(3, "2026-09-29", "tesco", 5420), row(2, "2026-09-29", "Lidl", 3110), row(1, "2026-09-27", "Employer", 500000, "income")];
 

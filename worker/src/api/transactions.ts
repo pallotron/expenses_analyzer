@@ -19,6 +19,10 @@ export interface TransactionRow {
   amountCents: number;
   type: TransactionType;
   category: string;
+  /** The merchant's own category ("Other" when it has none). */
+  merchantCategory: string;
+  /** True when this row's category is set on the row, not inherited. */
+  categoryOverridden: boolean;
   /** Anything not essential is discretionary, as get_category_spending_type. */
   budget: BudgetKind;
   /** Sorted, comma-separated. */

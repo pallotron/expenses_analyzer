@@ -16,7 +16,7 @@ function LocationProbe() {
 
 const periods: PeriodsResponse = { years: [{ year: 2026, months: [8, 9] }], sources: ["Bank A", "Card"] };
 const row = (id: number, date: string, cents: number, type: "expense" | "income" = "expense"): TransactionRow => ({
-  id, date, merchant: `Shop ${id}`, merchantRaw: `SHOP ${id}`, amountCents: cents, type, category: "Groceries", budget: "essential", tags: "", source: "Card",
+  id, date, merchant: `Shop ${id}`, merchantRaw: `SHOP ${id}`, amountCents: cents, type, category: "Groceries", merchantCategory: "Groceries", categoryOverridden: false, budget: "essential", tags: "", source: "Card",
 });
 
 function api(opts: { periodsFail?: { value: boolean }; rows?: TransactionRow[]; error?: { status: number; body: unknown } } = {}) {

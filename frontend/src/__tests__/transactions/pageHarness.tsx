@@ -8,7 +8,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, vi } from "vitest";
 
-import type { PeriodsResponse, TransactionRow, TransactionsResponse } from "../../lib/types";
+import type { LookupsResponse, PeriodsResponse, TransactionRow, TransactionsResponse } from "../../lib/types";
 import { TransactionsPage } from "../../transactions/TransactionsPage";
 
 export const URL_SEPT = "/transactions?from=2026-09-01&to=2026-09-30";
@@ -34,15 +34,18 @@ export type ApiOptions = {
   deletedCount?: number;
   /** Makes restore answer 500. */
   restoreFails?: boolean;
+  /** Fields laid over the default lookups answer, e.g. `{ tags: ["travel"] }`. */
+  lookups?: Partial<LookupsResponse>;
 };
 
 const idsOf = (body: unknown) => (body as { ids: number[] }).ids;
 
-/** The delete and restore answers, built on `routes`; an explicit route wins. */
+/** The delete, restore and tag answers, built on `routes`; an explicit route wins. */
 const deleteRoutes = (opts: ApiOptions): Record<string, Route> => ({
   "POST /api/transactions/delete": (b) => ({ body: { deleted: opts.deletedCount ?? idsOf(b).length } }),
   "POST /api/transactions/restore": (b) =>
     opts.restoreFails ? { status: 500, body: { error: "boom" } } : { body: { restored: idsOf(b).length } },
+  "POST /api/transactions/tags": (b) => ({ body: { tagged: idsOf(b).length } }),
   ...opts.routes,
 });
 
@@ -62,7 +65,7 @@ export function api(opts: ApiOptions = {}) {
       return json(r.body, r.status);
     }
     if (url.pathname === "/api/summary/periods") return json(periods);
-    if (url.pathname === "/api/lookups") return json({ categories: ["Groceries"], tags: [], sources: periods.sources });
+    if (url.pathname === "/api/lookups") return json({ categories: ["Groceries"], tags: [], sources: periods.sources, ...opts.lookups });
     if (url.pathname === "/api/transactions" && method === "GET") {
       const rows = opts.rowsRef?.value ?? opts.rows ?? [row(3, "2026-09-29", 100), row(2, "2026-09-28", 100)];
       const res: TransactionsResponse = {

@@ -43,6 +43,7 @@ const field = "rounded-md border border-slate-300 px-2 py-1.5 dark:border-slate-
 export function EditSheet(props: {
   row: TransactionRow | null; lookups: LookupsResponse | undefined;
   onClose: () => void; onSaved: () => void; onDelete: (id: number) => void;
+  onMerchantRule: (raw: string) => void;
 }) {
   const save = useEditOne();
   const client = useQueryClient();
@@ -95,6 +96,8 @@ export function EditSheet(props: {
               <input value={form.merchant} onChange={(e) => set({ merchant: e.target.value })} className={field} />
             </label>
             <span className="text-xs text-slate-500">Shows as: {r.merchant}. Changing the text may change the merchant, and with it the category unless one is set below.</span>
+            <button type="button" onClick={() => props.onMerchantRule(r.merchantRaw)} disabled={save.isPending}
+              className="self-start text-xs underline disabled:opacity-40">Merchant rule…</button>
           </div>
           <div className="flex items-end gap-3">
             <label className="flex flex-1 flex-col gap-1">

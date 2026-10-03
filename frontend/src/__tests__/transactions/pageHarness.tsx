@@ -28,6 +28,8 @@ export type ApiOptions = {
   rowsRef?: { value: TransactionRow[] };
   /** Awaited before answering any POST or PATCH, never a GET. */
   gate?: Promise<void>;
+  /** Awaited before answering a GET of /api/merchants/rule, to hold the rule lookup. */
+  getGate?: Promise<void>;
   /** Answers for write routes, keyed "METHOD /path". An unlisted write gets `{}`. */
   routes?: Record<string, Route>;
   /** What delete reports as removed; default is every id sent. */
@@ -67,6 +69,7 @@ export function api(opts: ApiOptions = {}) {
     calls.push({ path: url.pathname, method, body });
     const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
     if (method !== "GET") await opts.gate;
+    if (method === "GET" && url.pathname.startsWith("/api/merchants/rule")) await opts.getGate;
     const patchId = method === "PATCH" ? /^\/api\/transactions\/(\d+)$/.exec(url.pathname)?.[1] : undefined;
     if (patchId) {
       const r = opts.patch?.(Number(patchId), body) ?? { body: { ok: true } };

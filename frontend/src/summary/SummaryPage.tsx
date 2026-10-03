@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
+import { drillDown, toTransactionsSearch, type DrillTarget } from "../lib/types";
 import { StickyPanel } from "../lib/StickyPanel";
 import { BreakdownList } from "./BreakdownList";
 import { CashFlowTiles } from "./CashFlowTiles";
@@ -73,6 +74,15 @@ export function SummaryPage() {
   }
 
   const data = summary.data;
+  // Each number links to the transactions behind it, in the Summary's scope.
+  const excludeHidden = !view.hidden && (tags.current?.patterns.length ?? 0) > 0;
+  const href = (t: Omit<DrillTarget, "year" | "month" | "sources" | "excludeHidden"> & { month?: number | null }) =>
+    `/transactions?${toTransactionsSearch(drillDown({ year, month: view.month, sources: view.sources, excludeHidden, ...t }))}`;
+  // The chart's whole-month click has no type: drop the one drillDown needs.
+  const monthHref = (type: "income" | "expense" | null, m: number) => type
+    ? href({ type, month: m })
+    : `/transactions?${toTransactionsSearch({ ...drillDown({ year, month: m, type: "expense", sources: view.sources, excludeHidden }), type: undefined })}`;
+  const budgetOf = (category: string) => data?.expenseCategories.find((c) => c.category === category)?.spendingType ?? null;
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
       <StickyPanel label="Summary controls">
@@ -100,27 +110,29 @@ export function SummaryPage() {
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-4">
             {tab === "expenses" && (
               <>
-                {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} lastMonth={lastMonth} />}
+                {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} lastMonth={lastMonth} monthHref={monthHref} />}
                 <div className="grid gap-4 md:grid-cols-2">
                   <BreakdownList title="Expense categories" tone="expense" showShare limit={10} foldBelow={0.01}
-                    items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined }))} />
+                    items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined, href: href({ type: "expense", category: c.category, budget: c.spendingType }) }))} />
                   <BreakdownList title="Top expense merchants" tone="expense" limit={10} collapsible foldBelow={0.01}
-                    items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: m.spendingType ?? undefined }))} />
+                    items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: m.spendingType ?? undefined, href: href({ type: "expense", merchant: m.merchant }) }))} />
                 </div>
               </>
             )}
             {tab === "income" && (
               <div className="grid items-start gap-4 md:grid-cols-2">
                 <BreakdownList title="Income categories" tone="income" showShare limit={5} foldBelow={0.01}
-                  items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents, kind: "income" as const }))} />
+                  items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents, kind: "income" as const, href: href({ type: "income", category: c.category }) }))} />
                 <BreakdownList title="Top income sources" tone="income" limit={5} foldBelow={0.01}
-                  items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: "income" as const }))} />
+                  items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: "income" as const, href: href({ type: "income", merchant: m.merchant }) }))} />
               </div>
             )}
             {tab === "monthly" && data.monthly && (
               <>
-                <MonthlyGrid title="Monthly expenses" grid={data.monthly.expense} tone="expense" lastMonth={lastMonth} />
-                <MonthlyGrid title="Monthly income" grid={data.monthly.income} tone="income" lastMonth={lastMonth} />
+                <MonthlyGrid title="Monthly expenses" grid={data.monthly.expense} tone="expense" lastMonth={lastMonth}
+                  cellHref={(category, m) => href({ type: "expense", month: m, ...(category !== null && { category, budget: budgetOf(category) }) })} />
+                <MonthlyGrid title="Monthly income" grid={data.monthly.income} tone="income" lastMonth={lastMonth}
+                  cellHref={(category, m) => href({ type: "income", month: m, ...(category !== null && { category }) })} />
               </>
             )}
           </div>

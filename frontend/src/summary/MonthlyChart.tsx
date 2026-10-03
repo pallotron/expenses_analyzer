@@ -1,20 +1,43 @@
+import { useNavigate } from "react-router";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatAxisCents, formatCents } from "../lib/money";
 import type { MonthTotals } from "../lib/types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** `lastMonth` is the latest month with data: the months after it are not plotted. */
-export function MonthlyChart(props: { totals: MonthTotals[]; lastMonth: number }) {
+/** `type` null: the whole month, income and expenses both. */
+export type MonthHref = (type: "income" | "expense" | null, month: number) => string;
+
+/**
+ * `lastMonth` is the latest month with data: the months after it are not plotted.
+ * With `monthHref`, a bar opens its month's income or expenses, and anywhere
+ * else in a month's column opens the whole month. The grid's links are the
+ * keyboard route to the same lists.
+ */
+export function MonthlyChart(props: { totals: MonthTotals[]; lastMonth: number; monthHref?: MonthHref }) {
+  const navigate = useNavigate();
   const data = props.totals
     .filter((t) => t.month <= props.lastMonth)
     .map((t) => ({ ...t, netCents: t.incomeCents - t.expensesCents, label: MONTHS[t.month - 1] }));
+  const href = props.monthHref;
+  const onBar = (type: "income" | "expense") => href && ((bar: { payload?: { month?: number } }) => {
+    const month = bar.payload?.month;
+    if (month === undefined) return;
+    navigate(href(type, month));
+  });
+  // A bar's click reaches the chart too; the bar has already handled it.
+  const onChart = href && ((state: { activeTooltipIndex?: number | string | null }, e: { target: EventTarget | null }) => {
+    if (e.target instanceof Element && e.target.closest(".recharts-bar-rectangle")) return;
+    const month = state.activeTooltipIndex == null ? undefined : data[Number(state.activeTooltipIndex)]?.month;
+    if (month !== undefined) navigate(href(null, month));
+  });
   return (
     <section aria-label="Income and expenses by month" className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
       <h2 className="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-400">Income and expenses by month</h2>
       <div className="h-48 md:h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} barGap={1}>
+          {/* Recharts sets its own inline cursor, so the pointer goes on the chart. */}
+          <ComposedChart data={data} barGap={1} onClick={onChart} style={href && { cursor: "pointer" }}>
             <CartesianGrid vertical={false} strokeOpacity={0.15} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
             <YAxis tickFormatter={formatAxisCents} width={56} tickLine={false} axisLine={false} fontSize={12} />
@@ -22,8 +45,8 @@ export function MonthlyChart(props: { totals: MonthTotals[]; lastMonth: number }
             {/* Recharts sorts legend items by name unless told otherwise. */}
             <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }}
               itemSorter={(item) => ["Income", "Expenses", "Net"].indexOf(String(item.value))} />
-            <Bar dataKey="incomeCents" name="Income" fill="var(--color-income)" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="expensesCents" name="Expenses" fill="var(--color-expense)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="incomeCents" name="Income" fill="var(--color-income)" radius={[3, 3, 0, 0]} onClick={onBar("income")} />
+            <Bar dataKey="expensesCents" name="Expenses" fill="var(--color-expense)" radius={[3, 3, 0, 0]} onClick={onBar("expense")} />
             <Line dataKey="netCents" name="Net" type="monotone" stroke="#64748b" strokeWidth={2} dot={{ r: 2.5 }} />
           </ComposedChart>
         </ResponsiveContainer>

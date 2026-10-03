@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Link } from "react-router";
 import { Chevron } from "../lib/Chevron";
 import { formatCents } from "../lib/money";
 import { averageCents, monthTrends, type Grid, type GridCell, type GridRow, type Trend } from "../lib/types";
@@ -29,6 +30,18 @@ function Amount(props: { cell: GridCell; trend?: Trend | null }) {
   );
 }
 
+/** `category` null is the Total row; `month` null is the whole year. */
+type CellHref = (category: string | null, month: number | null) => string;
+
+/** A link filling its cell, so the whole cell is the target. */
+function Linked(props: { to: string | undefined; children: ReactNode }) {
+  return props.to ? <Link to={props.to} className="block hover:underline">{props.children}</Link> : <>{props.children}</>;
+}
+
+const ROW_HOVER = "hover:bg-slate-100 dark:hover:bg-slate-800";
+// Frozen cells paint their own background over the months, so they follow the row's hover.
+const FROZEN_HOVER = "group-hover:bg-slate-100 dark:group-hover:bg-slate-800";
+
 /** Arrows are the expense grid's only, as in the TUI; the Total row has none. */
 function trendsFor(row: GridRow, tone: "income" | "expense", isTotal = false): (Trend | null)[] {
   return tone === "expense" && !isTotal ? monthTrends(row) : row.months.map(() => null);
@@ -52,16 +65,21 @@ const FROZEN_CLASS = "sticky z-10 bg-white dark:bg-slate-950";
 const EDGE = "shadow-[1px_0_0_0_var(--color-slate-200)] dark:shadow-[1px_0_0_0_var(--color-slate-800)]";
 const frozen = (i: number) => ({ left: FROZEN[i].left, width: FROZEN[i].width, minWidth: FROZEN[i].width, maxWidth: FROZEN[i].width });
 
-function DesktopTable(props: { grid: Grid; lastMonth: number; tone: "income" | "expense"; scroll: HorizontalScroll }) {
+function DesktopTable(props: { grid: Grid; lastMonth: number; tone: "income" | "expense"; scroll: HorizontalScroll; cellHref?: CellHref }) {
   const row = (r: GridRow, isTotal = false) => {
     const trends = trendsFor(r, props.tone, isTotal);
+    const cat = isTotal ? null : r.category;
+    const yearHref = props.cellHref?.(cat, null);
+    const hover = props.cellHref ? FROZEN_HOVER : "";
     return (
-      <tr key={r.category} className={isTotal ? "font-semibold" : "border-t border-slate-100 dark:border-slate-800"}>
-        <th scope="row" style={frozen(0)} className={`${FROZEN_CLASS} py-1.5 pr-3 text-left font-medium`}>{r.category}</th>
-        <td style={frozen(1)} className={`${FROZEN_CLASS} px-2 text-right whitespace-nowrap`}>{formatCents(r.totalCents)}</td>
-        <td style={frozen(2)} className={`${FROZEN_CLASS} px-2 text-right whitespace-nowrap`}>{formatCents(averageCents(r, isTotal))}</td>
-        <td style={frozen(3)} className={`${FROZEN_CLASS} ${EDGE} px-2`}>{!isTotal && <Sparkline values={r.months.slice(0, props.lastMonth)} label={`${r.category} by month`} />}</td>
-        {r.months.slice(0, props.lastMonth).map((c, i) => <td key={i} className="px-2 text-right whitespace-nowrap"><Amount cell={c} trend={trends[i]} /></td>)}
+      <tr key={r.category} className={`${isTotal ? "font-semibold" : "border-t border-slate-100 dark:border-slate-800"} ${props.cellHref ? `group ${ROW_HOVER}` : ""}`}>
+        <th scope="row" style={frozen(0)} className={`${FROZEN_CLASS} ${hover} py-1.5 pr-3 text-left font-medium`}><Linked to={yearHref}>{r.category}</Linked></th>
+        <td style={frozen(1)} className={`${FROZEN_CLASS} ${hover} px-2 text-right whitespace-nowrap`}><Linked to={yearHref}>{formatCents(r.totalCents)}</Linked></td>
+        <td style={frozen(2)} className={`${FROZEN_CLASS} ${hover} px-2 text-right whitespace-nowrap`}><Linked to={yearHref}>{formatCents(averageCents(r, isTotal))}</Linked></td>
+        <td style={frozen(3)} className={`${FROZEN_CLASS} ${hover} ${EDGE} px-2`}>{!isTotal && <Sparkline values={r.months.slice(0, props.lastMonth)} label={`${r.category} by month`} />}</td>
+        {r.months.slice(0, props.lastMonth).map((c, i) => <td key={i} className="px-2 text-right whitespace-nowrap">
+          <Linked to={c.amountCents ? props.cellHref?.(cat, i + 1) : undefined}><Amount cell={c} trend={trends[i]} /></Linked>
+        </td>)}
       </tr>
     );
   };
@@ -92,7 +110,7 @@ function DesktopTable(props: { grid: Grid; lastMonth: number; tone: "income" | "
   );
 }
 
-function PhoneRows(props: { grid: Grid; lastMonth: number; tone: "income" | "expense" }) {
+function PhoneRows(props: { grid: Grid; lastMonth: number; tone: "income" | "expense"; cellHref?: CellHref }) {
   const [open, setOpen] = useState<string | null>(null);
   return (
     <ul className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -100,7 +118,7 @@ function PhoneRows(props: { grid: Grid; lastMonth: number; tone: "income" | "exp
         <li key={r.category} className="py-2">
           <button type="button" aria-expanded={open === r.category}
             onClick={() => setOpen(open === r.category ? null : r.category)}
-            className="flex w-full items-center justify-between gap-3 text-left text-sm">
+            className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded-md px-2 py-1 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
             <span className="min-w-0">
               <span className="block truncate font-medium">{r.category}</span>
               <span className="text-xs text-slate-500">{formatCents(r.totalCents)} · avg {formatCents(averageCents(r))}</span>
@@ -108,14 +126,25 @@ function PhoneRows(props: { grid: Grid; lastMonth: number; tone: "income" | "exp
             <Sparkline values={r.months.slice(0, props.lastMonth)} label={`${r.category} by month`} />
           </button>
           {open === r.category && (
-            <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-              {r.months.slice(0, props.lastMonth).map((c, i) => (
-                <div key={i} className="flex justify-between">
-                  <dt className="text-slate-500">{MONTHS[i]}</dt>
-                  <dd><Amount cell={c} trend={trendsFor(r, props.tone)[i]} /></dd>
-                </div>
-              ))}
-            </dl>
+            <>
+              <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
+                {r.months.slice(0, props.lastMonth).map((c, i) => (
+                  <div key={i} className="flex justify-between">
+                    <dt className="text-slate-500">{MONTHS[i]}</dt>
+                    <dd>
+                      <Linked to={c.amountCents ? props.cellHref?.(r.category, i + 1) : undefined}>
+                        <Amount cell={c} trend={trendsFor(r, props.tone)[i]} />
+                      </Linked>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {props.cellHref && (
+                <Link to={props.cellHref(r.category, null)} className="mt-2 block text-xs underline">
+                  All {r.category} transactions
+                </Link>
+              )}
+            </>
           )}
         </li>
       ))}
@@ -124,7 +153,7 @@ function PhoneRows(props: { grid: Grid; lastMonth: number; tone: "income" | "exp
 }
 
 /** `lastMonth` is the latest month with data (1–12): later months would be empty columns. */
-export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" | "expense"; lastMonth: number }) {
+export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" | "expense"; lastMonth: number; cellHref?: CellHref }) {
   const desktop = useMediaQuery(DESKTOP);
   const scroll = useHorizontalScroll(props.grid);
   const overflows = desktop && (scroll.canLeft || scroll.canRight);
@@ -147,8 +176,8 @@ export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" |
       {props.grid.rows.length === 0
         ? <p className="text-sm text-slate-500">Nothing this year.</p>
         : desktop
-          ? <DesktopTable grid={props.grid} lastMonth={props.lastMonth} tone={props.tone} scroll={scroll} />
-          : <PhoneRows grid={props.grid} lastMonth={props.lastMonth} tone={props.tone} />}
+          ? <DesktopTable grid={props.grid} lastMonth={props.lastMonth} tone={props.tone} scroll={scroll} cellHref={props.cellHref} />
+          : <PhoneRows grid={props.grid} lastMonth={props.lastMonth} tone={props.tone} cellHref={props.cellHref} />}
     </section>
   );
 }

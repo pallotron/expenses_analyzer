@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BreakdownList } from "../../summary/BreakdownList";
@@ -70,5 +72,34 @@ describe("BreakdownList layout", () => {
   it("leaves the total to the tiles", () => {
     render(<BreakdownList title="Expense categories" tone="expense" items={[{ label: "Rent", amountCents: 100_000 }]} />);
     expect(screen.getByRole("heading", { name: "Expense categories" })).toBeInTheDocument();
+  });
+});
+
+describe("BreakdownList links", () => {
+  it("links an item to its transactions when given an href", () => {
+    render(<MemoryRouter><BreakdownList title="Cats" tone="expense" items={[{ label: "Groceries", amountCents: 100, href: "/transactions?category=%22Groceries%22" }]} /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "Groceries" })).toHaveAttribute("href", "/transactions?category=%22Groceries%22");
+  });
+
+  it("links folded items once the smaller items are opened", async () => {
+    render(<MemoryRouter><BreakdownList title="Cats" tone="expense" foldBelow={0.01} items={[
+      { label: "Rent", amountCents: 100_000, href: "/t?c=Rent" },
+      { label: "Stamps", amountCents: 100, href: "/t?c=Stamps" },
+      { label: "Pens", amountCents: 100, href: "/t?c=Pens" },
+    ]} /></MemoryRouter>);
+    await userEvent.click(screen.getByRole("button", { name: /smaller items/i }));
+    expect(screen.getByRole("link", { name: "Stamps" })).toHaveAttribute("href", "/t?c=Stamps");
+  });
+
+  it("makes the whole linked row the target and highlights it on hover", () => {
+    render(<MemoryRouter><BreakdownList title="Cats" tone="expense" items={[{ label: "Groceries", amountCents: 100, href: "/t" }]} /></MemoryRouter>);
+    const link = screen.getByRole("link", { name: "Groceries" });
+    expect(link).toHaveClass("after:absolute", "after:inset-0");
+    expect(link.closest("li")).toHaveClass("relative", "hover:bg-slate-100");
+  });
+
+  it("leaves the label plain without an href", () => {
+    render(<BreakdownList title="Cats" tone="expense" items={[{ label: "Groceries", amountCents: 100 }]} />);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

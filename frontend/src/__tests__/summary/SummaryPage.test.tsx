@@ -237,4 +237,48 @@ describe("SummaryPage", () => {
     expect(controls.queryByRole("tablist")).not.toBeInTheDocument();
     expect(screen.getByRole("tablist")).toBeInTheDocument();
   });
+
+  it("links a category to its transactions with the Summary's scope", async () => {
+    renderAt("/?year=2026&sources=Card");
+    await screen.findByText("€61,400.00");
+    const link = within(screen.getByRole("region", { name: "Expense categories" })).getByRole("link", { name: "Groceries" });
+    const url = new URL(link.getAttribute("href")!, "http://localhost");
+    expect(url.pathname).toBe("/transactions");
+    expect(url.searchParams.get("from")).toBe("2026-01-01");
+    expect(url.searchParams.get("to")).toBe("2026-12-31");
+    expect(url.searchParams.get("type")).toBe("expense");
+    expect(url.searchParams.get("category")).toBe('"Groceries"');
+    expect(url.searchParams.get("budget")).toBe("essential");
+    expect(url.searchParams.getAll("sources")).toEqual(["Card"]);
+    expect(url.searchParams.get("excludeHidden")).toBe("1"); // the fixture excludes "emergency"
+    expect(url.searchParams.has("tab")).toBe(false);
+  });
+
+  it("links a merchant without a budget, and a month view to that month", async () => {
+    renderAt("/?year=2026&month=2", mockApi({ summary: () => summary({ month: 2, monthlyTotals: null, monthly: null }) }));
+    const merchants = await screen.findByRole("region", { name: "Top expense merchants" });
+    const url = new URL(within(merchants).getByRole("link", { name: "Shop 1" }).getAttribute("href")!, "http://localhost");
+    expect(url.searchParams.get("merchant")).toBe('"Shop 1"');
+    expect(url.searchParams.get("from")).toBe("2026-02-01");
+    expect(url.searchParams.get("to")).toBe("2026-02-28");
+    expect(url.searchParams.has("budget")).toBe(false);
+  });
+
+  it("does not exclude hidden tags in links when the Summary includes them", async () => {
+    renderAt("/?year=2026&hidden=1&tab=income");
+    const sources = await screen.findByRole("region", { name: "Top income sources" });
+    const url = new URL(within(sources).getByRole("link", { name: "Employer" }).getAttribute("href")!, "http://localhost");
+    expect(url.searchParams.get("type")).toBe("income");
+    expect(url.searchParams.has("excludeHidden")).toBe(false);
+  });
+
+  it("links the monthly grid's cells with the category's budget", async () => {
+    renderAt("/?year=2026&tab=monthly");
+    const grid = await screen.findByRole("region", { name: "Monthly expenses" });
+    const march = within(grid).getAllByRole("link").map((a) => new URL(a.getAttribute("href")!, "http://localhost"))
+      .find((u) => u.searchParams.get("from") === "2026-03-01" && u.searchParams.has("category"))!;
+    expect(march.searchParams.get("category")).toBe('"Groceries"');
+    expect(march.searchParams.get("budget")).toBe("essential");
+    expect(march.searchParams.get("type")).toBe("expense");
+  });
 });

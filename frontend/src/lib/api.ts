@@ -32,17 +32,34 @@ function reauthenticate(): boolean {
   return true;
 }
 
-export async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(path, { redirect: "manual", headers: { Accept: "application/json" } });
+async function handle<T>(res: Response): Promise<T> {
   if (res.type === "opaqueredirect" || res.status === 401) {
     throw new ApiError(401, reauthenticate()
       ? "Your session has expired. Reloading to sign in again…"
       : "Your session has expired. Reload the page to sign in again.");
   }
-  if (res.status === 403) throw new ApiError(403, NOT_SET_UP);
+  if (res.status === 403) {
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    // The Origin check also answers 403, with a message; Access's 403 has no body.
+    throw new ApiError(403, body?.error ?? NOT_SET_UP);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => null) as { error?: string } | null;
     throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
   }
   return res.json() as Promise<T>;
+}
+
+export async function getJson<T>(path: string): Promise<T> {
+  return handle<T>(await fetch(path, { redirect: "manual", headers: { Accept: "application/json" } }));
+}
+
+/** A write. The Worker answers with JSON, or { error } on a 4xx. */
+export async function send<T>(method: "POST" | "PATCH", path: string, body: unknown): Promise<T> {
+  return handle<T>(await fetch(path, {
+    method,
+    redirect: "manual",
+    headers: { Accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify(body),
+  }));
 }

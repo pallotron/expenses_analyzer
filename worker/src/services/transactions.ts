@@ -530,7 +530,23 @@ export async function updateTransactions(
     UPDATE transactions SET ${sql.join(sets, sql`, `)}
     WHERE id IN (SELECT value FROM json_each(${json(current.map((r) => r.id))}))
   `);
-  await atomic(db, [...statements, ...afterMainUpdate]);
+
+  const replaceTags: SQL[] = [];
+  if (edit.tags !== undefined) {
+    const idList = json(current.map((r) => r.id));
+    const tagList = json(normalizeTags(edit.tags));
+    replaceTags.push(
+      sql`DELETE FROM transaction_tags WHERE transaction_id IN (SELECT value FROM json_each(${idList}))`,
+      sql`INSERT OR IGNORE INTO tags (name) SELECT value FROM json_each(${tagList})`,
+      sql`
+        INSERT OR IGNORE INTO transaction_tags (transaction_id, tag_id, tagged_by)
+        SELECT i.value, g.id, ${userId}
+        FROM json_each(${idList}) i
+        JOIN tags g ON g.name IN (SELECT value FROM json_each(${tagList}))
+      `,
+    );
+  }
+  await atomic(db, [...statements, ...afterMainUpdate, ...replaceTags]);
   return current.length;
 }
 

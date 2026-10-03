@@ -56,6 +56,21 @@ describe("PATCH /api/transactions/:id", () => {
     expect(one(sqlite, `SELECT category FROM v_live WHERE id = 1`)).toEqual({ category: "Eating out" });
   });
 
+  it("replaces the tags", async () => {
+    const { send, sqlite } = setup();
+    sqlite.prepare(`INSERT INTO tags (name) VALUES ('old')`).run();
+    sqlite.prepare(`INSERT INTO transaction_tags (transaction_id, tag_id) VALUES (1, 1)`).run();
+    const res = await send("PATCH", "/api/transactions/1", { tags: [" Gift ", "trip"] });
+    expect(res.status).toBe(200);
+    expect(sqlite.prepare(`SELECT g.name FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.transaction_id = 1 ORDER BY 1`).all())
+      .toEqual([{ name: "gift" }, { name: "trip" }]);
+  });
+
+  it("refuses tags in a bulk edit", async () => {
+    const { send } = setup();
+    expect((await send("POST", "/api/transactions/bulk-edit", { ids: [1], edit: { tags: ["a"] } })).status).toBe(400);
+  });
+
   it("answers 404 for a transaction that does not exist", async () => {
     const { send } = setup();
     const res = await send("PATCH", "/api/transactions/99", { type: "income" });

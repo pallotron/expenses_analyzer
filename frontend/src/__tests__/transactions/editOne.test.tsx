@@ -171,4 +171,50 @@ describe("editing one transaction", () => {
     expect(within(sheet).getByLabelText("Statement text")).toHaveValue("SHOP 3");
     expect(sheet).toHaveTextContent("Shows as: Shop 3");
   });
+
+  describe("tags", () => {
+    const tagged = () => api({ rows: [{ ...row(3, "2026-09-29", 100), tags: "gift,travel" }] });
+    const save = (sheet: HTMLElement) => userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+
+    it("opens with the row's tags as chips", async () => {
+      renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      const chips = within(within(sheet).getByRole("list", { name: "Chosen tags" }));
+      expect(chips.getByText("gift")).toBeInTheDocument();
+      expect(chips.getByText("travel")).toBeInTheDocument();
+    });
+
+    it("sends the remaining tags after removing one", async () => {
+      const { mock } = renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      await userEvent.click(within(sheet).getByRole("button", { name: "Remove gift" }));
+      await save(sheet);
+      await waitFor(() => expect(patched(mock)).toEqual([{ id: 3, body: { tags: ["travel"] } }]));
+    });
+
+    it("counts text left in the box", async () => {
+      const { mock } = renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      await userEvent.type(within(sheet).getByLabelText("Tags"), "trip");
+      await save(sheet);
+      await waitFor(() => expect(patched(mock)).toHaveLength(1));
+      expect([...(patched(mock)[0].body as { tags: string[] }).tags].sort()).toEqual(["gift", "travel", "trip"]);
+    });
+
+    it("does not send tags when only the amount changed", async () => {
+      const { mock } = renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      const amount = within(sheet).getByLabelText("Amount");
+      await userEvent.clear(amount);
+      await userEvent.type(amount, "5");
+      await save(sheet);
+      await waitFor(() => expect(patched(mock)).toEqual([{ id: 3, body: { amountCents: 500 } }]));
+    });
+
+    it("keeps Save disabled while the tags are unchanged", async () => {
+      renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      expect(within(sheet).getByRole("button", { name: "Save" })).toBeDisabled();
+    });
+  });
 });

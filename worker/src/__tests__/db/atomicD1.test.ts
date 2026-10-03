@@ -199,6 +199,15 @@ describe("write services on the D1 driver", () => {
     sqlite.close();
   });
 
+  it("replaces a row's tags", async () => {
+    const { sqlite, db } = d1Store();
+    seed(sqlite, [SHOP], []);
+    await updateTransactions(db, [1], { tags: ["a"] }, USER);
+    await updateTransactions(db, [1], { tags: ["b", "c"] }, USER);
+    expect(tagsOf(sqlite, 1)).toEqual(["b", "c"]);
+    sqlite.close();
+  });
+
   it("imports, deduplicating against what is stored", async () => {
     const { sqlite, db } = d1Store();
     const rows = [{ date: "2026-03-01", merchant: "CAFE ONE", amountCents: 400 }];

@@ -128,6 +128,8 @@ export interface TransactionEdit {
   source?: string;
   /** A category name sets the override, null clears it, absent leaves it. */
   category?: string | null;
+  /** Replaces the row's tags; absent leaves them. */
+  tags?: string[];
 }
 export type BulkEdit = Pick<TransactionEdit, "merchant" | "type" | "source" | "category">;
 export interface BulkEditRequest { ids: number[]; edit: BulkEdit }

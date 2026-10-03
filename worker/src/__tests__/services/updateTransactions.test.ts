@@ -13,6 +13,67 @@ const rowsOf = (sqlite: ReturnType<typeof store>["sqlite"]) => sqlite.prepare(`
   FROM transactions t JOIN merchants m ON m.id = t.merchant_id ORDER BY t.id
 `).all() as { id: number; merchant: string; raw: string; date: string; cents: number; occ: number; type: string; source: string; overridden: number; deleted: number }[];
 
+const tagsOf = (sqlite: ReturnType<typeof store>["sqlite"], id: number) =>
+  (sqlite.prepare(`
+    SELECT g.name FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id
+    WHERE tt.transaction_id = ? ORDER BY g.name
+  `).all(id) as { name: string }[]).map((r) => r.name);
+const tag = (sqlite: ReturnType<typeof store>["sqlite"], id: number, name: string) => {
+  sqlite.prepare(`INSERT OR IGNORE INTO tags (name) VALUES (?)`).run(name);
+  sqlite.prepare(`INSERT INTO transaction_tags (transaction_id, tag_id) SELECT ?, id FROM tags WHERE name = ?`).run(id, name);
+};
+
+describe("updateTransactions tags", () => {
+  const setup = () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [
+      { date: "2026-03-01", merchant: "Shop", amount: 10, deleted: false },
+      { date: "2026-03-02", merchant: "Cafe", amount: 4, deleted: true },
+    ], []);
+    tag(sqlite, 1, "gift");
+    tag(sqlite, 1, "travel");
+    tag(sqlite, 2, "gift");
+    return { sqlite, db };
+  };
+
+  it("replaces the tags, normalised", async () => {
+    const { sqlite, db } = setup();
+    expect(await updateTransactions(db, [1], { tags: [" Trip ", "TRAVEL", "trip"] }, USER)).toBe(1);
+    expect(tagsOf(sqlite, 1)).toEqual(["travel", "trip"]);
+    sqlite.close();
+  });
+
+  it("clears the tags with an empty list", async () => {
+    const { sqlite, db } = setup();
+    await updateTransactions(db, [1], { tags: [] }, USER);
+    expect(tagsOf(sqlite, 1)).toEqual([]);
+    sqlite.close();
+  });
+
+  it("leaves the tags alone when absent", async () => {
+    const { sqlite, db } = setup();
+    await updateTransactions(db, [1], { source: "Card" }, USER);
+    expect(tagsOf(sqlite, 1)).toEqual(["gift", "travel"]);
+    sqlite.close();
+  });
+
+  it("edits only the tags, stamping the row", async () => {
+    const { sqlite, db } = setup();
+    await updateTransactions(db, [1], { tags: ["gift"] }, USER);
+    expect(tagsOf(sqlite, 1)).toEqual(["gift"]);
+    expect(rowsOf(sqlite)[0]).toMatchObject({ merchant: "Shop", cents: 1000, source: expect.any(String) });
+    sqlite.close();
+  });
+
+  it("leaves a deleted row's tags alone with liveOnly", async () => {
+    const { sqlite, db } = setup();
+    expect(await updateTransactions(db, [1, 2], { tags: ["new"] }, USER, { liveOnly: true })).toBe(1);
+    expect(tagsOf(sqlite, 1)).toEqual(["new"]);
+    expect(tagsOf(sqlite, 2)).toEqual(["gift"]);
+    sqlite.close();
+  });
+});
+
 describe("updateTransactions", () => {
   it("with liveOnly, skips and does not count a deleted id", async () => {
     const { sqlite, db } = store([]);

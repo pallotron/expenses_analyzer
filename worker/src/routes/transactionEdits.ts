@@ -57,6 +57,7 @@ const Edit = z.object({
   type: Type,
   source: text("Source").optional(),
   category: Category,
+  tags: z.array(z.string()).transform(normalizeTags).optional(),
 }).strict().refine((e) => Object.keys(e).length > 0, "Nothing to change");
 
 const BulkEdit = z.object({

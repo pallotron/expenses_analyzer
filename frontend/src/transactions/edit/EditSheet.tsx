@@ -9,8 +9,9 @@ import { SheetError, useSheetSubmit } from "../../lib/useSheetSubmit";
 import { parseEuros } from "../amount";
 import { CategorySelect, toCategoryEdit } from "./CategorySelect";
 import { useEditOne } from "./mutations";
+import { splitTags, TagInput } from "./TagInput";
 
-interface Form { date: string; merchant: string; amount: string; type: TransactionType; source: string; category: string }
+interface Form { date: string; merchant: string; amount: string; type: TransactionType; source: string; category: string; tags: string[]; tagDraft: string }
 
 const formOf = (r: TransactionRow): Form => ({
   date: r.date,
@@ -19,7 +20,12 @@ const formOf = (r: TransactionRow): Form => ({
   type: r.type,
   source: r.source,
   category: r.categoryOverridden ? r.category : "",
+  tags: splitTags(r.tags),
+  tagDraft: "",
 });
+
+/** Chips plus what is typed in the box, sorted so two sets compare by value. */
+const tagsOfForm = (f: Form) => [...new Set([...f.tags, ...splitTags(f.tagDraft)])].sort();
 
 /** Only what differs from the row, as the PATCH body. Null when the amount does not parse. */
 function diff(r: TransactionRow, f: Form): TransactionEdit | null {
@@ -35,6 +41,8 @@ function diff(r: TransactionRow, f: Form): TransactionEdit | null {
   if (f.type !== start.type) edit.type = f.type;
   if (f.source.trim() !== start.source.trim()) edit.source = f.source.trim();
   if (f.category !== start.category) edit.category = toCategoryEdit(f.category);
+  const tags = tagsOfForm(f);
+  if (tags.join(",") !== tagsOfForm(start).join(",")) edit.tags = tags;
   return edit;
 }
 
@@ -116,6 +124,8 @@ export function EditSheet(props: {
           </label>
           <CategorySelect value={form.category} onChange={(category) => set({ category })}
             categories={props.lookups?.categories ?? []} merchantCategory={r.merchantCategory} />
+          <TagInput label="Tags" value={form.tags} onChange={(tags) => set({ tags })}
+            draft={form.tagDraft} onDraft={(tagDraft) => set({ tagDraft })} suggestions={props.lookups?.tags ?? []} />
           <SheetError submit={submitter} onRetry={submit} />
           <div className="flex items-center justify-between gap-2 pt-1">
             <button type="button" onClick={() => props.onDelete(r.id)} disabled={save.isPending}

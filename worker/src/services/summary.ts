@@ -4,11 +4,12 @@
  * or below.
  */
 
-import { asc } from "drizzle-orm";
+import { asc, sql } from "drizzle-orm";
 import type {
   CategoryItem, MerchantItem, MonthTotals, PeriodsResponse, SpendingKind, SummaryResponse,
 } from "../api/summary";
 import { categories, spendingTypeBudgets, tagExclusionPatterns, vLive } from "../db/schema";
+import { atomic } from "../db/atomic";
 import type { Db } from "../db/types";
 import { historicalStats, isAnomaly } from "../domain/anomalies";
 import { buildGrid } from "../domain/grid";
@@ -142,4 +143,18 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
     hiddenCents,
     excludedPatterns: patternRows.map((p) => p.pattern),
   };
+}
+
+/**
+ * Replace the hidden-tag patterns (tag_settings.json's exclude_from_summary)
+ * with `patterns`, in that order: the Summary lists them by id. The list goes
+ * in as one JSON parameter, so its length never meets D1's bound-parameter cap.
+ */
+export async function setHiddenTagPatterns(db: Db, patterns: string[]): Promise<string[]> {
+  await atomic(db, [
+    sql`DELETE FROM tag_exclusion_patterns`,
+    sql`INSERT INTO tag_exclusion_patterns (pattern)
+        SELECT value FROM json_each(${JSON.stringify(patterns)}) ORDER BY key`,
+  ]);
+  return patterns;
 }

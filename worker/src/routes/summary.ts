@@ -1,12 +1,14 @@
 /**
- * /api/summary and /api/summary/periods. Parse, call the service, serialise.
+ * /api/summary, /api/summary/periods and /api/summary/hidden-tags. Parse,
+ * call the service, serialise.
  */
 
 import { Hono } from "hono";
 import { z } from "zod";
 
 import type { AppBindings, AppEnv } from "../app";
-import { buildSummary, summaryPeriods, type SummaryQuery } from "../services/summary";
+import { buildSummary, setHiddenTagPatterns, summaryPeriods, type SummaryQuery } from "../services/summary";
+import { parseBody } from "./parseBody";
 
 const Params = z.object({
   year: z.string().regex(/^\d{4}$/, "year must be four digits").transform(Number),
@@ -43,6 +45,16 @@ export function parseSummaryQuery(url: URL): { ok: true; query: SummaryQuery } |
   };
 }
 
+/** The whole list, as the TUI saves it. A trailing `*` matches a prefix. */
+const HiddenTags = z.object({
+  patterns: z.array(
+    z.string()
+      .refine((p) => p.trim() !== "", "A pattern can't be blank")
+      .refine((p) => p.length <= 100, "A pattern can be at most 100 characters"),
+    "patterns must be a list",
+  ).transform((ps) => [...new Set(ps)]),
+});
+
 export function summaryRoutes<B extends AppBindings>() {
   const routes = new Hono<AppEnv<B>>();
 
@@ -52,6 +64,12 @@ export function summaryRoutes<B extends AppBindings>() {
     const parsed = parseSummaryQuery(new URL(c.req.url));
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
     return c.json(await buildSummary(c.get("db"), parsed.query));
+  });
+
+  routes.post("/hidden-tags", async (c) => {
+    const body = await parseBody(c, HiddenTags);
+    if (!body.ok) return c.json({ error: body.error }, 400);
+    return c.json({ patterns: await setHiddenTagPatterns(c.get("db"), body.data.patterns) });
   });
 
   return routes;

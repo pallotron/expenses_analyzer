@@ -140,7 +140,7 @@ below was taken from the TUI on 2026-09-30 so that nothing is lost at cutover.
 Each line is a TUI feature, where it lives, and what the web does with it.
 
 **Order**, one PR each unless noted: Transactions (read) → Transactions
-(edit) → Summary drill-down + hidden-tag editor → Merchants page (done) +
+(edit) → Summary drill-down + hidden-tag editor (done) → Merchants page (done) +
 Gemini →
 Import → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
 
@@ -153,8 +153,12 @@ Import → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
   and chart bar or month column links to `/transactions` with the
   Summary's period, sources and hidden-tag scope (`drillDown` in
   `worker/src/api/transactions.ts`).
-- Hidden-tag editor (`X`, `tag_exclusion_screen.py`): edit
-  `tag_exclusion_patterns`, entries may end in `*`. Service + small sheet.
+- ~~Hidden-tag editor (`X`, `tag_exclusion_screen.py`): edit
+  `tag_exclusion_patterns`, entries may end in `*`.~~ Done: "Edit…" beside
+  the hidden-tags status opens a checkbox sheet laid out like the TUI's
+  (`ns:*` rows, tags in use, stale patterns); `POST
+  /api/summary/hidden-tags` replaces the list, and a save turns the
+  exclusion back on.
 - Pension-aware savings rate (`get_enhanced_savings_totals`) and the
   payslip-only month note (`_coverage_label`). Needs payslips in D1, so it
   lands with or after Payslips.

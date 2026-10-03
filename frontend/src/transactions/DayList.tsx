@@ -12,7 +12,12 @@ export function dayLabel(iso: string): string {
 }
 
 /** Phone list: rows in the order given, under a heading per day. */
-export function DayList(props: { rows: TransactionRow[] }) {
+export function DayList(props: {
+  rows: TransactionRow[];
+  selected: ReadonlySet<number>;
+  onToggle: (id: number) => void;
+  onOpen: (row: TransactionRow) => void;
+}) {
   const days: { date: string; rows: TransactionRow[] }[] = [];
   for (const r of props.rows) {
     const last = days[days.length - 1];
@@ -28,13 +33,19 @@ export function DayList(props: { rows: TransactionRow[] }) {
             <h3 className="mb-1 border-b border-slate-200 pb-0.5 text-xs font-semibold text-slate-500 dark:border-slate-800">{label}</h3>
             <ul aria-label={label} className="flex flex-col">
               {day.rows.map((r) => (
-                <li key={r.id} className="px-2 py-1.5 text-sm odd:bg-white even:bg-slate-100 dark:odd:bg-slate-950 dark:even:bg-slate-900">
-                  <div className="flex justify-between gap-3">
-                    <span className="min-w-0 truncate">{r.merchant}</span>
-                    <span className={`shrink-0 ${signedAmount(r).className}`.trimEnd()}>{signedAmount(r).text}</span>
-                  </div>
-                  <div className="truncate text-xs text-slate-500">
-                    {[r.category, r.source, r.tags].filter(Boolean).join(" · ")}
+                <li key={r.id} onClick={() => props.onOpen(r)} aria-selected={props.selected.has(r.id) || undefined}
+                  className={`flex cursor-pointer items-start gap-2 px-2 py-1.5 text-sm ${props.selected.has(r.id) ? "!bg-slate-200 dark:!bg-slate-800" : ""} odd:bg-white even:bg-slate-100 dark:odd:bg-slate-950 dark:even:bg-slate-900`}>
+                  <input type="checkbox" className="mt-1" aria-label={`Select ${r.merchant}, ${r.date}, ${signedAmount(r).text}`}
+                    checked={props.selected.has(r.id)} onChange={() => props.onToggle(r.id)} onClick={(e) => e.stopPropagation()} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex justify-between gap-3">
+                      <button type="button" className="min-w-0 truncate text-left" aria-label={`Edit ${r.merchant}`}
+                        onClick={(e) => { e.stopPropagation(); props.onOpen(r); }}>{r.merchant}</button>
+                      <span className={`shrink-0 ${signedAmount(r).className}`.trimEnd()}>{signedAmount(r).text}</span>
+                    </div>
+                    <div className="truncate text-xs text-slate-500">
+                      {[r.category, r.source, r.tags].filter(Boolean).join(" · ")}
+                    </div>
                   </div>
                 </li>
               ))}

@@ -30,7 +30,13 @@ export function TransactionTable(props: {
   sort: SortKey;
   dir: "asc" | "desc";
   onSort: (sort: SortKey, dir: "asc" | "desc") => void;
+  selected: ReadonlySet<number>;
+  onToggle: (id: number) => void;
+  onToggleShown: (ids: number[], on: boolean) => void;
+  onOpen: (row: TransactionRow) => void;
 }) {
+  const allShown = props.rows.length > 0 && props.rows.every((r) => props.selected.has(r.id));
+  const someShown = props.rows.some((r) => props.selected.has(r.id));
   const click = (key: SortKey) => props.onSort(key,
     key === props.sort ? (props.dir === "asc" ? "desc" : "asc") : key === "date" ? "desc" : "asc");
   return (
@@ -38,6 +44,11 @@ export function TransactionTable(props: {
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-slate-500">
+            <th scope="col" className={`bg-white px-2 py-1 font-normal shadow-[inset_0_-1px_0_theme(colors.slate.200)] md:sticky md:top-[calc(var(--topbar-h,0px)+var(--controls-h,0px))] md:z-10 dark:bg-slate-950 dark:shadow-[inset_0_-1px_0_theme(colors.slate.800)] w-8`}>
+              <input type="checkbox" aria-label="Select all shown" checked={allShown}
+                ref={(el) => { if (el) el.indeterminate = someShown && !allShown; }}
+                onChange={(e) => props.onToggleShown(props.rows.map((r) => r.id), e.target.checked)} />
+            </th>
             {COLUMNS.map(([key, label]) => (
               <th key={key} scope="col" className={`bg-white px-2 py-1 font-normal shadow-[inset_0_-1px_0_theme(colors.slate.200)] md:sticky md:top-[calc(var(--topbar-h,0px)+var(--controls-h,0px))] md:z-10 dark:bg-slate-950 dark:shadow-[inset_0_-1px_0_theme(colors.slate.800)] ${key === "amount" ? "text-right" : ""}`}
                 aria-sort={props.sort === key ? (props.dir === "asc" ? "ascending" : "descending") : undefined}>
@@ -50,9 +61,17 @@ export function TransactionTable(props: {
         </thead>
         <tbody>
           {props.rows.map((r) => (
-            <tr key={r.id} className="odd:bg-white even:bg-slate-100 odd:hover:bg-slate-200 even:hover:bg-slate-200 dark:odd:bg-slate-950 dark:even:bg-slate-900 dark:odd:hover:bg-slate-800 dark:even:hover:bg-slate-800">
+            <tr key={r.id} aria-selected={props.selected.has(r.id) || undefined} onClick={() => props.onOpen(r)}
+              className={`cursor-pointer ${props.selected.has(r.id) ? "!bg-slate-200 dark:!bg-slate-800" : ""} odd:bg-white even:bg-slate-100 odd:hover:bg-slate-200 even:hover:bg-slate-200 dark:odd:bg-slate-950 dark:even:bg-slate-900 dark:odd:hover:bg-slate-800 dark:even:hover:bg-slate-800`}>
+              <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" aria-label={`Select ${r.merchant}, ${r.date}, ${signedAmount(r).text}`}
+                  checked={props.selected.has(r.id)} onChange={() => props.onToggle(r.id)} />
+              </td>
               <td className="px-2 py-2 whitespace-nowrap">{r.date}</td>
-              <td className="max-w-32 truncate px-2 py-2 lg:max-w-64" title={r.merchantRaw}>{r.merchant}</td>
+              <td className="max-w-32 truncate px-2 py-2 lg:max-w-64" title={r.merchantRaw}>
+                <button type="button" className="max-w-full truncate text-left" aria-label={`Edit ${r.merchant}`}
+                  onClick={(e) => { e.stopPropagation(); props.onOpen(r); }}>{r.merchant}</button>
+              </td>
               <AmountCell row={r} />
               <td className="px-2 py-2 lg:whitespace-nowrap">{r.source}</td>
               <td className="px-2 py-2 lg:whitespace-nowrap">{r.category}</td>

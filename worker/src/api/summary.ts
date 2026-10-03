@@ -113,3 +113,8 @@ export interface SummaryResponse {
   hiddenCents: number;
   excludedPatterns: string[];
 }
+
+/** POST /api/summary/hidden-tags, both ways: the whole pattern list. */
+export interface HiddenTagsBody {
+  patterns: string[];
+}

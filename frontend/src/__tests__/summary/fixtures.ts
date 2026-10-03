@@ -37,12 +37,30 @@ export function summary(overrides: Partial<SummaryResponse> = {}): SummaryRespon
   };
 }
 
-/** A fetch that answers the two Summary endpoints and records what was asked. */
-export function mockApi(opts: { periods?: PeriodsResponse; summary?: (url: URL) => SummaryResponse; status?: number } = {}) {
+/**
+ * A fetch that answers the Summary endpoints, the lookups the hidden-tag sheet
+ * reads, and its save (echoing the body back), and records what was asked.
+ */
+export function mockApi(opts: {
+  periods?: PeriodsResponse; summary?: (url: URL) => SummaryResponse; status?: number;
+  tags?: string[]; saveStatus?: number;
+} = {}) {
   const calls: URL[] = [];
-  const fetch = async (input: RequestInfo | URL) => {
+  const saved: unknown[] = [];
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://localhost");
     calls.push(url);
+    if (url.pathname === "/api/lookups") {
+      return json({ categories: [], tags: opts.tags ?? [], sources: [], essentialCategories: [] });
+    }
+    if (url.pathname === "/api/summary/hidden-tags") {
+      if (opts.saveStatus) return json({ error: "Nope" }, opts.saveStatus);
+      const body = JSON.parse(String(init?.body));
+      saved.push(body);
+      return json(body);
+    }
     // Access's own 403 has no JSON body; the Worker's errors do.
     if (opts.status === 403) return new Response("", { status: 403 });
     if (opts.status) return new Response(JSON.stringify({ error: "boom" }), { status: opts.status });
@@ -51,5 +69,5 @@ export function mockApi(opts: { periods?: PeriodsResponse; summary?: (url: URL) 
       : (opts.summary ?? (() => summary()))(url);
     return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
   };
-  return { fetch, calls };
+  return { fetch, calls, saved };
 }

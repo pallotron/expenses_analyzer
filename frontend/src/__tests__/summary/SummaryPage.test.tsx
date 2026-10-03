@@ -126,7 +126,7 @@ describe("SummaryPage", () => {
   it("keeps the hidden-tags switch reachable when the summary errors", async () => {
     const api = mockApi();
     renderAt("/?year=2026&hidden=1", {
-      calls: api.calls,
+      ...api,
       fetch: async (input: RequestInfo | URL) =>
         String(input).startsWith("/api/summary?")
           ? new Response(JSON.stringify({ error: "boom" }), { status: 500 })
@@ -280,5 +280,46 @@ describe("SummaryPage", () => {
     expect(march.searchParams.get("category")).toBe('"Groceries"');
     expect(march.searchParams.get("budget")).toBe("essential");
     expect(march.searchParams.get("type")).toBe("expense");
+  });
+});
+
+describe("hidden-tag editor", () => {
+  it("saves the ticked patterns, turns the exclusion on, and says so", async () => {
+    const api = renderAt("/?year=2026&hidden=1", mockApi({ tags: ["emergency", "trip:rome"] }));
+    await userEvent.click(await screen.findByRole("button", { name: /edit hidden tags/i }));
+    const sheet = await screen.findByRole("dialog", { name: /hidden tags/i });
+    expect(await within(sheet).findByRole("checkbox", { name: "emergency" })).toBeChecked();
+    expect(within(sheet).getByRole("checkbox", { name: "trip:rome" })).not.toBeChecked();
+    await userEvent.click(within(sheet).getByRole("checkbox", { name: "trip:*" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.saved).toEqual([{ patterns: ["trip:*", "emergency"] }]));
+    expect(await screen.findByText("Hiding 2 tag patterns")).toBeInTheDocument();
+    await waitFor(() => expect(location).not.toContain("hidden=1"));
+  });
+
+  it("can clear every pattern", async () => {
+    const api = renderAt("/?year=2026", mockApi({ tags: ["emergency"] }));
+    await userEvent.click(await screen.findByRole("button", { name: /edit hidden tags/i }));
+    const sheet = await screen.findByRole("dialog", { name: /hidden tags/i });
+    await userEvent.click(await within(sheet).findByRole("checkbox", { name: "emergency" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.saved).toEqual([{ patterns: [] }]));
+    expect(await screen.findByText("No tags hidden")).toBeInTheDocument();
+  });
+
+  it("says when no tag is in use", async () => {
+    renderAt("/?year=2026", mockApi({ summary: () => summary({ excludedPatterns: [], hiddenCents: 0 }) }));
+    await userEvent.click(await screen.findByRole("button", { name: /edit hidden tags/i }));
+    const sheet = await screen.findByRole("dialog", { name: /hidden tags/i });
+    expect(await within(sheet).findByText("No tags in use")).toBeInTheDocument();
+  });
+
+  it("keeps the sheet open with the Worker's message when the save fails", async () => {
+    renderAt("/?year=2026", mockApi({ tags: ["emergency"], saveStatus: 400 }));
+    await userEvent.click(await screen.findByRole("button", { name: /edit hidden tags/i }));
+    const sheet = await screen.findByRole("dialog", { name: /hidden tags/i });
+    await within(sheet).findByRole("checkbox", { name: "emergency" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent("Nope");
   });
 });

@@ -6,7 +6,7 @@ import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
  * Sources and the hidden-tags switch. On a phone both sit behind one
  * "Filters (n)" button that opens a panel; on desktop every source is an
  * inline checkbox, with the switch on the line below. Undefined patterns: not
- * loaded yet.
+ * loaded yet. "Edit…" opens the hidden-tag picker.
  */
 export function FiltersBar(props: {
   sources: string[];
@@ -16,6 +16,7 @@ export function FiltersBar(props: {
   excludedPatterns: string[] | undefined;
   onSources: (s: string[] | undefined) => void;
   onHidden: (h: boolean) => void;
+  onEditHidden: () => void;
 }) {
   const desktop = useMediaQuery(DESKTOP);
   const [open, setOpen] = useState(false);
@@ -76,7 +77,12 @@ export function FiltersBar(props: {
       </button>
     </label>
   );
-  const status = <span className="text-slate-600 dark:text-slate-400">{tagStatus}</span>;
+  const status = props.excludedPatterns !== undefined && (
+    <span className="flex flex-wrap items-center gap-2 text-slate-600 dark:text-slate-400">
+      {tagStatus}
+      <button type="button" onClick={props.onEditHidden} aria-label="Edit hidden tags" className="underline">Edit…</button>
+    </span>
+  );
 
   if (!desktop) {
     return (

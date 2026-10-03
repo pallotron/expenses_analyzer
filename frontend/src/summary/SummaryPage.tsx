@@ -1,12 +1,14 @@
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
 import { drillDown, toTransactionsSearch, type DrillTarget } from "../lib/types";
 import { StickyPanel } from "../lib/StickyPanel";
+import { Toast, useToast } from "../lib/Toast";
 import { BreakdownList } from "./BreakdownList";
 import { CashFlowTiles } from "./CashFlowTiles";
 import { FiltersBar } from "./FiltersBar";
+import { HiddenTagsSheet } from "./HiddenTagsSheet";
 import { MonthlyChart } from "./MonthlyChart";
 import { MonthlyGrid } from "./MonthlyGrid";
 import { parseParams, toSearchParams, type SummaryParams, type Tab } from "./params";
@@ -62,6 +64,8 @@ export function SummaryPage() {
   const tags = useRef<{ patterns: string[]; hiddenCents: number } | undefined>(undefined);
   if (summary.data) tags.current = { patterns: summary.data.excludedPatterns, hiddenCents: summary.data.hiddenCents };
   const update = (patch: Partial<SummaryParams>) => setSearch(toSearchParams({ ...view, ...patch }));
+  const [editingHidden, setEditingHidden] = useState(false);
+  const { toast, notify, dismiss } = useToast();
 
   if (periods.error) return <main className="mx-auto max-w-6xl p-4"><ErrorCard error={periods.error} onRetry={() => periods.refetch()} /></main>;
   if (periods.isPending) return <main className="mx-auto max-w-6xl p-4" aria-busy="true"><div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900" /></main>;
@@ -92,7 +96,8 @@ export function SummaryPage() {
             onChange={(y, m) => update({ year: y, month: m })} />
           <FiltersBar sources={periods.data.sources} selected={view.sources} hidden={view.hidden}
             hiddenCents={tags.current?.hiddenCents ?? 0} excludedPatterns={tags.current?.patterns}
-            onSources={(s) => update({ sources: s })} onHidden={(h) => update({ hidden: h })} />
+            onSources={(s) => update({ sources: s })} onHidden={(h) => update({ hidden: h })}
+            onEditHidden={() => setEditingHidden(true)} />
         </header>
         {data && (
           <div className={`flex flex-col gap-4 transition-opacity ${summary.isPlaceholderData ? "opacity-60" : ""}`}>
@@ -138,6 +143,13 @@ export function SummaryPage() {
           </div>
         </div>
       )}
+      <HiddenTagsSheet open={editingHidden} excluded={tags.current?.patterns ?? []} onClose={() => setEditingHidden(false)}
+        onSaved={(patterns) => {
+          // Like the TUI: a saved list is applied straight away.
+          update({ hidden: false });
+          notify({ message: patterns.length === 0 ? "No tags hidden" : `Hiding ${patterns.length} tag pattern${patterns.length === 1 ? "" : "s"}` });
+        }} />
+      <Toast toast={toast} onDismiss={dismiss} />
     </main>
   );
 }

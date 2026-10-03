@@ -46,10 +46,9 @@ describe("selecting transactions", () => {
   it("opens a row by clicking it, but not by ticking it", async () => {
     renderAt(URL_SEPT);
     await userEvent.click(await screen.findByRole("checkbox", { name: /Select Shop 3/ }));
-    expect(screen.getByTestId("open-row")).toBeEmptyDOMElement();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Edit Shop 3" }));
-    // The sheet itself arrives in a later task; here the page records the open row.
-    expect(screen.getByTestId("open-row")).toHaveTextContent("3");
+    expect(screen.getByRole("dialog", { name: "Edit transaction" })).toBeInTheDocument();
   });
 
   it("offers the same on a phone", async () => {

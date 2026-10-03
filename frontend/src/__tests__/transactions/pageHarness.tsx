@@ -36,6 +36,8 @@ export type ApiOptions = {
   restoreFails?: boolean;
   /** Fields laid over the default lookups answer, e.g. `{ tags: ["travel"] }`. */
   lookups?: Partial<LookupsResponse>;
+  /** Answers PATCH /api/transactions/:id; default `{ ok: true }`. */
+  patch?: (id: number, body: unknown) => { status?: number; body: unknown };
 };
 
 const idsOf = (body: unknown) => (body as { ids: number[] }).ids;
@@ -59,13 +61,18 @@ export function api(opts: ApiOptions = {}) {
     calls.push({ path: url.pathname, method, body });
     const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
     if (method !== "GET") await opts.gate;
+    const patchId = method === "PATCH" ? /^\/api\/transactions\/(\d+)$/.exec(url.pathname)?.[1] : undefined;
+    if (patchId) {
+      const r = opts.patch?.(Number(patchId), body) ?? { body: { ok: true } };
+      return json(r.body, r.status);
+    }
     const route = routes[`${method} ${url.pathname}`];
     if (route) {
       const r = route(body, url);
       return json(r.body, r.status);
     }
     if (url.pathname === "/api/summary/periods") return json(periods);
-    if (url.pathname === "/api/lookups") return json({ categories: ["Groceries"], tags: [], sources: periods.sources, ...opts.lookups });
+    if (url.pathname === "/api/lookups") return json({ categories: ["Eating out", "Groceries", "Other"], tags: [], sources: periods.sources, ...opts.lookups });
     if (url.pathname === "/api/transactions" && method === "GET") {
       const rows = opts.rowsRef?.value ?? opts.rows ?? [row(3, "2026-09-29", 100), row(2, "2026-09-28", 100)];
       const res: TransactionsResponse = {
@@ -85,6 +92,10 @@ export type Mock = ReturnType<typeof api>;
 /** Bodies of the POSTs made to `path`, in order. */
 export const posted = (mock: Mock, path: string) =>
   mock.calls.filter((c) => c.method === "POST" && c.path === path).map((c) => c.body);
+
+/** The PATCHes made to /api/transactions/:id, in order. */
+export const patched = (mock: Mock) =>
+  mock.calls.filter((c) => c.method === "PATCH").map((c) => ({ id: Number(c.path.split("/").pop()), body: c.body }));
 
 export function renderAt(url: string, mock: Mock = api()) {
   vi.stubGlobal("fetch", vi.fn(mock.fetch));

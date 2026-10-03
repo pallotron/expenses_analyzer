@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Toast, type ToastState } from "../../lib/Toast";
 import type { LookupsResponse, TransactionRow } from "../../lib/types";
 import { ActionBar } from "./ActionBar";
+import { EditSheet } from "./EditSheet";
 import { TagSheet } from "./TagSheet";
 import { useDeleteFlow } from "./useDeleteFlow";
 
@@ -31,7 +32,8 @@ export function Editing(props: {
       <TagSheet mode={tagMode} ids={props.selectedIds} rows={props.rows} known={props.lookups?.tags ?? []}
         onClose={() => setTagMode(null)} onDone={(message) => notify({ message })} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
-      <span hidden data-testid="open-row">{props.open?.id}</span>
+      <EditSheet row={props.open} lookups={props.lookups} onClose={props.onCloseOpen} onSaved={() => notify({ message: "Saved" })}
+        onDelete={(id) => { props.onCloseOpen(); deleting.start([id]); }} />
     </>
   );
 }

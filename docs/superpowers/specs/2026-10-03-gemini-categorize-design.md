@@ -32,8 +32,10 @@ Ports, held to the Python by a new `gemini` section in
 - `parseGeminiResponse(text: string, asked: string[]): Record<string, string>`
   ← `_parse_gemini_response` (strip code fences, `JSON.parse`), plus checks
   the Python lacks: the result must be a JSON object; only keys that were
-  asked are kept; only non-blank string values are kept, trimmed. Anything
-  else throws `GeminiResponseError`. Vectors cover the Python-equivalent
+  asked are kept, matched to the asked spelling ignoring case and
+  surrounding spaces; only non-blank string values are kept, trimmed, and
+  "Uncategorized" in any case counts as no answer. A non-object throws
+  `GeminiResponseError`. Vectors cover the Python-equivalent
   part; the extra checks have their own tests.
 
 ### Gemini client
@@ -45,8 +47,10 @@ It POSTs to
 `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
 with the key in the `x-goog-api-key` header (never in the URL), body
 `{ contents: [{ parts: [{ text: prompt }] }] }`, and returns the joined text of
-`candidates[0].content.parts`. A non-2xx status or a missing candidate throws
-`GeminiCallError` carrying the HTTP status only. Nothing logs the key, the
+`candidates[0].content.parts`. A non-2xx status throws `GeminiCallError`
+carrying the HTTP status only; a failed `fetch` throws it with no status. A
+200 without a candidate (for example a blocked prompt) throws
+`GeminiResponseError`. Nothing logs the key, the
 prompt or the names.
 
 ### `worker/src/services/categorize.ts`
@@ -86,7 +90,8 @@ prompt or the names.
 - `POST /api/merchants/suggest` (empty body). 503
   `{ error: "Gemini isn't set up" }` when `GEMINI_API_KEY` is unset. On
   `GeminiCallError` or `GeminiResponseError`: 502
-  `{ error: "Gemini didn't answer (HTTP 429)" }` /
+  `{ error: "Gemini didn't answer (HTTP 429)" }` (just "Gemini didn't answer"
+  when there is no status) /
   `{ error: "Gemini's answer couldn't be read" }`. Otherwise 200
   `SuggestResponse`. With no uncategorized merchants it returns zeros without
   calling Gemini.

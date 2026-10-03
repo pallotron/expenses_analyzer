@@ -17,8 +17,11 @@ import {
 } from "../services/merchants";
 import { parseBody } from "./parseBody";
 
+const PATTERN_TOO_LONG = "Patterns can be at most 500 characters";
+
 const Decision = z.object({
-  pattern: z.string().trim().min(1, "Enter a pattern"),
+  // Kept as typed: a trailing space is part of the match.
+  pattern: z.string().max(500, PATTERN_TOO_LONG).refine((p) => p.trim() !== "", "Enter a pattern"),
   alias: z.string().trim().min(1, "Enter a display name"),
   category: z.string().trim().min(1, "Category cannot be empty").optional(),
   tags: z.array(z.string()).optional(),
@@ -46,8 +49,11 @@ export function merchantRoutes<B extends AppBindings>() {
     return c.json(await ruleFor(c.get("db"), raw));
   });
 
-  routes.get("/merchants/preview", async (c) =>
-    c.json(await previewAliasChange(c.get("db"), c.req.query("pattern") ?? "", c.req.query("alias") ?? "")));
+  routes.get("/merchants/preview", async (c) => {
+    const pattern = c.req.query("pattern") ?? "";
+    if (pattern.length > 500) return c.json({ error: PATTERN_TOO_LONG }, 400);
+    return c.json(await previewAliasChange(c.get("db"), pattern, c.req.query("alias") ?? ""));
+  });
 
   routes.post("/merchants/decision", async (c) => {
     const body = await parseBody(c, Decision);

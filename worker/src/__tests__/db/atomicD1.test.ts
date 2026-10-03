@@ -158,6 +158,47 @@ describe("write services on the D1 driver", () => {
     sqlite.close();
   });
 
+  it("sets a category on 150 merchants within D1's parameter limit", async () => {
+    const { sqlite, db } = d1Store();
+    const ids = Array.from({ length: 150 }, (_, i) => {
+      sqlite.prepare(`INSERT INTO merchants (canonical_name) VALUES (?)`).run(`SHOP ${i}`);
+      return i + 1;
+    });
+    expect(await setMerchantCategory(db, ids, "Groceries", USER)).toEqual({ updated: 150 });
+    expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM merchants WHERE category_id IS NOT NULL`).get()).toEqual({ n: 150 });
+    sqlite.close();
+  });
+
+  it("clears a category with null", async () => {
+    const { sqlite, db } = d1Store();
+    sqlite.exec(`INSERT INTO merchants (canonical_name) VALUES ('Cafe')`);
+    await setMerchantCategory(db, [1], "Eating out", USER);
+    expect(await setMerchantCategory(db, [1], null, USER)).toEqual({ updated: 1 });
+    expect(sqlite.prepare(`SELECT category_id AS c FROM merchants WHERE id = 1`).get()).toEqual({ c: null });
+    sqlite.close();
+  });
+
+  it("updates an existing rule's alias and re-points its rows", async () => {
+    const { sqlite, db } = d1Store();
+    seed(sqlite, [{ date: "2026-03-01", merchant: "CAFE ONE", amount: 4, deleted: false }], []);
+    await saveMerchantDecision(db, { pattern: "^CAFE", alias: "Cafe", tags: [] }, USER);
+    await saveMerchantDecision(db, { pattern: "^CAFE", alias: "Coffee", tags: [] }, USER);
+    expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM merchant_aliases WHERE pattern = '^CAFE'`).get()).toEqual({ n: 1 });
+    expect(sqlite.prepare(`
+      SELECT m.canonical_name AS m FROM transactions t JOIN merchants m ON m.id = t.merchant_id
+    `).all()).toEqual([{ m: "Coffee" }]);
+    sqlite.close();
+  });
+
+  it("deletes a rule whose stored pattern JavaScript cannot compile", async () => {
+    const { sqlite, db } = d1Store();
+    sqlite.exec(`INSERT INTO merchants (canonical_name) VALUES ('Cafe')`);
+    sqlite.exec(`INSERT INTO merchant_aliases (pattern, priority, merchant_id) VALUES ('(?P<x>CAFE)', 0, 1)`);
+    expect(await deleteMerchantRule(db, 1, USER)).toEqual({ repointed: 0 });
+    expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM merchant_aliases`).get()).toEqual({ n: 0 });
+    sqlite.close();
+  });
+
   it("imports, deduplicating against what is stored", async () => {
     const { sqlite, db } = d1Store();
     const rows = [{ date: "2026-03-01", merchant: "CAFE ONE", amountCents: 400 }];

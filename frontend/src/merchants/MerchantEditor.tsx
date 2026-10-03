@@ -54,7 +54,11 @@ export function MerchantEditor(props: {
   const key = raw !== null ? `raw:${raw}` : merchant ? `merchant:${merchant.id}` : null;
   const initialised = useRef<string | null>(null);
   useEffect(() => {
-    if (key === null) { initialised.current = null; return; }
+    if (key === null) {
+      initialised.current = null;
+      apply({ pattern: "", alias: "", category: "", ruleId: null });
+      return;
+    }
     if (initialised.current === key) return;
     setTags([]); setDraft(""); setConfirming(false); saver.reset(); deleter.reset();
     if (merchant) {
@@ -65,14 +69,15 @@ export function MerchantEditor(props: {
         category: merchant.category ?? "", ruleId: rule?.id ?? null,
       });
       initialised.current = key;
-    } else if (raw !== null && lookup.data) {
+    } else if (raw !== null && lookup.data && !lookup.isFetching) {
+      // A cached answer that is refetching may be stale; wait for the fresh one.
       const { rule, merchant: name, category: cat } = lookup.data;
       apply({ pattern: rule?.pattern ?? suggestPattern(raw), alias: rule ? name : "", category: cat ?? "", ruleId: rule?.id ?? null });
       initialised.current = key;
     } else {
       apply({ pattern: "", alias: "", category: "", ruleId: null });
     }
-  }, [key, lookup.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, lookup.data, lookup.isFetching]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = (value: number | typeof NEW_RULE) => {
     if (!merchant) return;
@@ -83,11 +88,12 @@ export function MerchantEditor(props: {
       : { pattern: suggestPattern(merchant.name), alias: "", category, ruleId: null });
   };
 
-  const preview = useAliasPreview(useDebounced(pattern, 300), useDebounced(alias, 300));
+  const preview = useAliasPreview(useDebounced(pattern, 300), useDebounced(alias, 300), target !== null);
   const invalid = compileError(pattern);
   const allTags = [...new Set([...tags, ...splitTags(draft)])];
   const busy = save.isPending || del.isPending;
-  const loading = raw !== null && !lookup.data;
+  // Until fresh start values arrive; a later background refetch must not lock the form.
+  const loading = raw !== null && (!lookup.data || (lookup.isFetching && initialised.current !== key));
   const cat = category.trim();
 
   const submit = () => {
@@ -95,7 +101,7 @@ export function MerchantEditor(props: {
     if (!pattern.trim()) { saver.fail("Enter a pattern"); return; }
     if (!alias.trim()) { saver.fail("Enter a display name"); return; }
     saver.run({
-      pattern: pattern.trim(), alias: alias.trim(),
+      pattern, alias: alias.trim(),
       ...(cat && { category: cat }), ...(allTags.length && { tags: allTags }),
     });
   };
@@ -131,7 +137,9 @@ export function MerchantEditor(props: {
           <input value={pattern} onChange={(e) => setPattern(e.target.value)} spellCheck={false}
             aria-describedby={patternHint} className={`${field} font-mono`} />
         </label>
-        <span id={patternHint} className="text-xs text-slate-500">`.*` matches anything, `\d` a digit, `\s` a space</span>
+        <span id={patternHint} className="text-xs text-slate-500">
+          <code>.*</code> matches anything, <code>\d</code> a digit, <code>\s</code> a space
+        </span>
         {invalid && <p role="alert" className="text-sm text-expense">Invalid pattern: {invalid}</p>}
         <label className="flex flex-col gap-1">
           <span className="text-xs text-slate-500">Display name</span>

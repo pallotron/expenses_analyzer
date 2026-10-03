@@ -73,6 +73,28 @@ describe("merchant writes", () => {
     expect((await send("POST", "/api/merchants/decision", { pattern: "CORNER", alias: " " })).status).toBe(400);
   });
 
+  it("refuses a pattern over 500 characters, on save and on preview", async () => {
+    const { send } = setup();
+    const long = "a".repeat(501);
+    const save = await send("POST", "/api/merchants/decision", { pattern: long, alias: "X" });
+    expect(save.status).toBe(400);
+    expect(((await save.json()) as { error: string }).error).toBe("Patterns can be at most 500 characters");
+    const preview = await send("GET", `/api/merchants/preview?pattern=${long}&alias=X`);
+    expect(preview.status).toBe(400);
+    expect(((await preview.json()) as { error: string }).error).toBe("Patterns can be at most 500 characters");
+  });
+
+  it("keeps a pattern as typed, trailing space included, and refuses a blank one", async () => {
+    const { send, sqlite } = setup();
+    const res = await send("POST", "/api/merchants/decision", { pattern: "CORNER ", alias: "Corner Shop" });
+    expect(res.status).toBe(200);
+    expect(sqlite.prepare(`SELECT pattern FROM merchant_aliases WHERE pattern LIKE 'CORNER%'`).all())
+      .toEqual([{ pattern: "CORNER " }]);
+    const blank = await send("POST", "/api/merchants/decision", { pattern: "  ", alias: "X" });
+    expect(blank.status).toBe(400);
+    expect(((await blank.json()) as { error: string }).error).toBe("Enter a pattern");
+  });
+
   it("answers 400 for a whitespace-only category", async () => {
     const { send } = setup();
     const res = await send("POST", "/api/merchants/decision", { pattern: "CORNER", alias: "Corner Shop", category: "  " });

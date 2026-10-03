@@ -17,7 +17,7 @@
  * merchant, and imports would no longer see them as duplicates of new ones.
  */
 
-import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { atomic } from "../db/atomic";
 import { categories, merchantAliases, merchants, transactions } from "../db/schema";
 import type { Db } from "../db/types";
@@ -316,7 +316,7 @@ export async function setMerchantCategory(
 ): Promise<{ updated: number }> {
   const ids = [...new Set(merchantIds)];
   if (ids.length === 0) return { updated: 0 };
-  const found = await db.select({ id: merchants.id }).from(merchants).where(inArray(merchants.id, ids));
+  const found = await db.select({ id: merchants.id }).from(merchants).where(sql`${merchants.id} IN (SELECT value FROM json_each(${JSON.stringify(ids)}))`);
   if (found.length === 0) return { updated: 0 };
   const name = category?.trim() || null;
   const idList = JSON.stringify(found.map((r) => r.id));

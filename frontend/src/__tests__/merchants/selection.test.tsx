@@ -30,6 +30,14 @@ describe("selecting merchants", () => {
     expect(screen.queryByRole("region", { name: "Selected merchants" })).not.toBeInTheDocument();
   });
 
+  it("keeps the selection when only the sort changes", async () => {
+    renderMerchants("/merchants", api(rows));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select Corner Shop" }));
+    await userEvent.click(screen.getByRole("button", { name: /Merchant/ }));
+    expect(screen.getByRole("checkbox", { name: "Select Corner Shop" })).toBeChecked();
+    expect(bar()).toHaveTextContent("1 selected");
+  });
+
   it("clears the category on the selection", async () => {
     const mock = renderMerchants("/merchants", api(rows, {
       "POST /api/merchants/category": () => ({ body: { updated: 1 } }),

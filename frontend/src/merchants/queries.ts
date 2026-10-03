@@ -15,11 +15,11 @@ export function useRuleLookup(raw: string | null) {
   });
 }
 
-export function useAliasPreview(pattern: string, alias: string) {
+export function useAliasPreview(pattern: string, alias: string, open = true) {
   return useQuery({
-    queryKey: ["alias-preview", pattern, alias],
-    queryFn: () => getJson<AliasPreviewResponse>(`/api/merchants/preview?${new URLSearchParams({ pattern, alias })}`),
-    enabled: pattern.trim() !== "",
+    queryKey: ["alias-preview", pattern, alias.trim()],
+    queryFn: () => getJson<AliasPreviewResponse>(`/api/merchants/preview?${new URLSearchParams({ pattern, alias: alias.trim() })}`),
+    enabled: open && pattern.trim() !== "",
     placeholderData: keepPreviousData,
   });
 }

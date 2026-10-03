@@ -63,6 +63,8 @@ class FakeStatement {
   }
 
   bind(...params: Param[]) {
+    // D1 refuses a statement with more than 100 bound parameters.
+    if (params.length > 100) throw new Error("D1_ERROR: too many SQL variables");
     return new FakeBound(this.sqlite, this.sql, params);
   }
 }

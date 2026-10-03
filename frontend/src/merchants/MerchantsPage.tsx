@@ -35,7 +35,9 @@ export function MerchantsPage() {
     () => (all ? sortMerchants(filterMerchants(all, params), params.sort, params.dir) : []),
     [all, search], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  useEffect(() => { setSelected(new Set()); }, [search]);
+  // Sorting reorders the same rows, so only a filter change drops the selection.
+  const filterKey = JSON.stringify([params.q, params.category, params.attention, params.type]);
+  useEffect(() => { setSelected(new Set()); }, [filterKey]);
 
   // Only rows still shown count: a filter or refetch drops the rest from the selection.
   const selectedIds = rows.filter((r) => selected.has(r.id)).map((r) => r.id).sort((a, b) => a - b);

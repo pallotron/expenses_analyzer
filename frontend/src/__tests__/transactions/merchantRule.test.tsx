@@ -13,8 +13,10 @@ const preview: Route = (_b, url) => ({
     : { matched: 2, totalCents: 700, currentCategories: { Groceries: 2 }, merchants: { "SHOP 3": 1, "SHOP 2": 1 } },
 });
 
-function page(rule: Route = () => ({ body: { rule: null, merchant: "SHOP 3", category: null } }), extra: Record<string, Route> = {}) {
+function page(rule: Route = () => ({ body: { rule: null, merchant: "SHOP 3", category: null } }), extra: Record<string, Route> = {},
+  getGate?: () => Promise<void> | undefined) {
   return renderAt(URL_SEPT, api({
+    getGate,
     rows: [row(3, "2026-09-29", 100), row(2, "2026-09-28", 100)],
     lookups: { essentialCategories: ["Groceries"] },
     routes: {
@@ -147,5 +149,60 @@ describe("the merchant editor from a transaction", () => {
     await userEvent.click(within(sheet).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(within(sheet).getByRole("textbox", { name: "Pattern" })).toHaveValue("^SHOP"));
     expect(within(sheet).getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+  it("waits for a fresh rule when reopened from the cache, never showing the stale one", async () => {
+    let name = "A";
+    let hold: Promise<void> | undefined;
+    const { client } = page(
+      () => ({ body: { rule: { id: 4, pattern: `^${name}` }, merchant: name, category: null } }),
+      {}, () => hold,
+    );
+    let sheet = await openEditor();
+    const patternBox = () => within(sheet).getByRole("textbox", { name: "Pattern" });
+    await waitFor(() => expect(patternBox()).toHaveValue("^A"));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+    const edit = screen.queryByRole("dialog", { name: "Edit transaction" });
+    if (edit) await userEvent.click(within(edit).getByRole("button", { name: "Close" }));
+
+    // Another tab renamed the rule; a merchant write here would invalidate the lookup.
+    name = "B";
+    let release!: () => void;
+    hold = new Promise<void>((r) => { release = r; });
+    await client.invalidateQueries({ queryKey: ["merchant-rule"], refetchType: "none" });
+    sheet = await openEditor();
+    expect(patternBox()).not.toHaveValue("^A");
+    expect(within(sheet).getByRole("button", { name: "Save" })).toBeDisabled();
+    release();
+    await waitFor(() => expect(patternBox()).toHaveValue("^B"));
+    expect(within(sheet).getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+  it("sends the pattern as typed, trailing space included", async () => {
+    const { mock } = page();
+    const sheet = await openEditor();
+    const box = within(sheet).getByRole("textbox", { name: "Pattern" });
+    await waitFor(() => expect(box).toHaveValue("SHOP.*"));
+    await userEvent.clear(box);
+    await userEvent.type(box, "SHOP ");
+    await userEvent.type(within(sheet).getByRole("textbox", { name: "Display name" }), "Shop");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted(mock, "/api/merchants/decision")).toEqual([{ pattern: "SHOP ", alias: "Shop" }]));
+  });
+
+  it("stops previewing once the sheet closes", async () => {
+    const { client } = page();
+    const sheet = await openEditor();
+    await within(sheet).findByRole("region", { name: "Preview" });
+    const active = () => client.getQueryCache().findAll({ queryKey: ["alias-preview"] }).filter((q) => q.isActive()).length;
+    expect(active()).toBe(1);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(active()).toBe(0));
+  });
+
+  it("shows the pattern shorthand in code elements", async () => {
+    page();
+    const sheet = await openEditor();
+    expect(Array.from(sheet.querySelectorAll("code")).map((c) => c.textContent)).toEqual([".*", "\\d", "\\s"]);
   });
 });

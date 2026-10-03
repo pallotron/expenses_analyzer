@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { suggestPattern } from "../../lib/suggestPattern";
 
 // Hand-written. The Python escaped "." before "\" and so doubled the backslash
-// ("APPLE\\.COM"), which never matched the name it came from.
+// ("SHOP\\.EXAMPLE"), which never matched the name it came from.
 const CASES: [string, string][] = [
-  ["POS APPLE.COM/BI 02/08 1", "POS\\s+APPLE\\.COM/BI.*"],
+  ["POS SHOP.EXAMPLE/BI 02/08 1", "POS\\s+SHOP\\.EXAMPLE/BI.*"],
   ["CORNER SHOP  12/31", "CORNER\\s+SHOP.*"],
   ["ACME (UK) LTD 1234", "ACME\\s+\\(UK\\)\\s+LTD.*"],
   ["PAY*COFFEE+CO", "PAY\\*COFFEE\\+CO.*"],

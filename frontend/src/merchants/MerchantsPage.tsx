@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { Segmented } from "../lib/Segmented";
@@ -6,11 +6,15 @@ import { StickyPanel } from "../lib/StickyPanel";
 import { Toast, useToast } from "../lib/Toast";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 import { useLookups } from "../transactions/queries";
+import { MerchantActionBar } from "./MerchantActionBar";
 import { MerchantCards } from "./MerchantCards";
 import { MerchantEditor, type EditorTarget } from "./MerchantEditor";
 import { MerchantTable } from "./MerchantTable";
+import { merchantCount } from "./count";
+import { useSetMerchantCategory } from "./mutations";
 import { filterMerchants, parseMerchantParams, sortMerchants, toMerchantSearch, type MerchantParams } from "./params";
 import { useMerchants } from "./queries";
+import { SetCategorySheet } from "./SetCategorySheet";
 
 const field = "rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900";
 
@@ -22,17 +26,35 @@ export function MerchantsPage() {
   const lookups = useLookups();
   const { toast, notify, dismiss } = useToast();
   const [editing, setEditing] = useState<EditorTarget | null>(null);
+  const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
+  const [setting, setSetting] = useState<number[] | null>(null);
+  const clear = useSetMerchantCategory();
 
   const all = list.data?.merchants;
   const rows = useMemo(
     () => (all ? sortMerchants(filterMerchants(all, params), params.sort, params.dir) : []),
     [all, search], // eslint-disable-line react-hooks/exhaustive-deps
   );
+  useEffect(() => { setSelected(new Set()); }, [search]);
+
+  // Only rows still shown count: a filter or refetch drops the rest from the selection.
+  const selectedIds = rows.filter((r) => selected.has(r.id)).map((r) => r.id).sort((a, b) => a - b);
+  const effective = new Set(selectedIds);
+  const toggle = (id: number) => setSelected((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
+  const toggleShown = (ids: number[], on: boolean) => setSelected((s) => {
+    const n = new Set(s);
+    for (const id of ids) { if (on) n.add(id); else n.delete(id); }
+    return n;
+  });
+  const clearCategory = (ids: number[]) => !clear.isPending && clear.mutate({ ids, category: null }, {
+    onSuccess: ({ updated }) => { notify({ message: `Cleared the category on ${merchantCount(updated)}` }); setSelected(new Set()); },
+    onError: (e) => notify({ message: `Couldn't clear: ${e.message}`, action: { label: "Retry", run: () => clearCategory(ids) } }),
+  });
   const update = (patch: Partial<MerchantParams>) => setSearch(toMerchantSearch({ ...params, ...patch }), { replace: true });
   const open = (merchant: Extract<EditorTarget, { kind: "merchant" }>["merchant"]) => setEditing({ kind: "merchant", merchant });
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
+    <main className={`mx-auto flex max-w-6xl flex-col gap-4 p-4 ${selectedIds.length > 0 ? "pb-28 md:pb-4" : ""}`}>
       <StickyPanel label="Merchant controls">
         <h1 className="text-lg font-semibold">Merchants</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -50,8 +72,14 @@ export function MerchantsPage() {
         </div>
         {all && (
           <p className="text-sm text-slate-500">
-            {rows.length} merchants · {rows.filter((r) => r.category === null).length} uncategorized
+            {merchantCount(rows.length)} · {rows.filter((r) => r.category === null).length} uncategorized
           </p>
+        )}
+        {selectedIds.length > 0 && (
+          <MerchantActionBar count={selectedIds.length} total={rows.length}
+            onSelectAll={() => setSelected(new Set(rows.map((r) => r.id)))}
+            busy={clear.isPending} onSetCategory={() => setSetting(selectedIds)} onClearCategory={() => clearCategory(selectedIds)}
+            onCancel={() => setSelected(new Set())} />
         )}
       </StickyPanel>
 
@@ -68,14 +96,16 @@ export function MerchantsPage() {
           <button type="button" onClick={() => setSearch(new URLSearchParams())} className="underline">Clear filters</button>
         </p>
       ) : desktop ? (
-        <MerchantTable rows={rows} sort={params.sort} dir={params.dir} onOpen={open}
+        <MerchantTable rows={rows} sort={params.sort} dir={params.dir} selected={effective} onToggle={toggle} onToggleShown={toggleShown} onOpen={open}
           onSort={(sort, dir) => update({ sort, dir })} />
       ) : (
-        <MerchantCards rows={rows} onOpen={open} />
+        <MerchantCards rows={rows} selected={effective} onToggle={toggle} onOpen={open} />
       ))}
 
       <MerchantEditor target={editing} lookups={lookups.data} onClose={() => setEditing(null)}
         onDone={(message) => notify({ message })} />
+      <SetCategorySheet ids={setting} categories={lookups.data?.categories ?? []} onClose={() => setSetting(null)}
+        onDone={(message) => { notify({ message }); setSelected(new Set()); }} />
       <Toast toast={toast} onDismiss={dismiss} />
     </main>
   );

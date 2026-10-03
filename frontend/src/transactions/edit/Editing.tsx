@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
-import { Toast, type ToastState } from "../../lib/Toast";
+import { useMemo, useState } from "react";
+import { MerchantEditor } from "../../merchants/MerchantEditor";
+import { Toast, useToast } from "../../lib/Toast";
 import type { LookupsResponse, TransactionRow } from "../../lib/types";
 import { ActionBar } from "./ActionBar";
 import { BulkEditSheet } from "./BulkEditSheet";
@@ -13,17 +14,17 @@ export function Editing(props: {
   selectedIds: number[];
   onSelectAll: () => void;
   onClearSelection: () => void;
+  onDeselect: (ids: number[]) => void;
   open: TransactionRow | null;
   onCloseOpen: () => void;
   lookups: LookupsResponse | undefined;
 }) {
-  const [toast, setToast] = useState<ToastState | null>(null);
-  // A counter, not Date.now(): two toasts in one millisecond must still restart the timer.
-  const nextId = useRef(0);
-  const notify = (t: Omit<ToastState, "id">) => setToast({ ...t, id: ++nextId.current });
+  const { toast, notify, dismiss } = useToast();
   const [tagMode, setTagMode] = useState<"add" | "remove" | null>(null);
   const [bulkIds, setBulkIds] = useState<number[] | null>(null);
-  const deleting = useDeleteFlow({ rows: props.rows, notify, onDeleted: props.onClearSelection });
+  const [ruleRaw, setRuleRaw] = useState<string | null>(null);
+  const ruleTarget = useMemo(() => (ruleRaw === null ? null : { kind: "raw" as const, raw: ruleRaw }), [ruleRaw]);
+  const deleting = useDeleteFlow({ rows: props.rows, notify, onDeleted: props.onDeselect });
   return (
     <>
       {props.selectedIds.length > 0 && (
@@ -35,9 +36,12 @@ export function Editing(props: {
         onClose={() => setTagMode(null)} onDone={(message) => notify({ message })} />
       <BulkEditSheet ids={bulkIds} lookups={props.lookups} onClose={() => setBulkIds(null)}
         onDone={(message) => { notify({ message }); props.onClearSelection(); }} />
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
+      <Toast toast={toast} onDismiss={dismiss} />
       <EditSheet row={props.open} lookups={props.lookups} onClose={props.onCloseOpen} onSaved={() => notify({ message: "Saved" })}
-        onDelete={(id) => { props.onCloseOpen(); deleting.start([id]); }} />
+        onDelete={(id) => { props.onCloseOpen(); deleting.start([id]); }}
+        onMerchantRule={(raw) => { props.onCloseOpen(); setRuleRaw(raw); }} />
+      <MerchantEditor target={ruleTarget} lookups={props.lookups}
+        onClose={() => setRuleRaw(null)} onDone={(message) => notify({ message })} />
     </>
   );
 }

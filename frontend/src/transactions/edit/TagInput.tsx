@@ -10,7 +10,7 @@ export function splitTags(text: string): string[] {
 export function TagInput(props: {
   value: string[]; onChange: (tags: string[]) => void;
   draft: string; onDraft: (text: string) => void;
-  suggestions: string[]; label: string;
+  suggestions: string[]; label: string; autoFocus?: boolean;
 }) {
   const listId = useId();
   const commit = (text: string) => {
@@ -22,11 +22,15 @@ export function TagInput(props: {
     <div className="flex flex-col gap-2 text-sm">
       <label className="flex flex-col gap-1">
         <span className="text-xs text-slate-500">{props.label}</span>
-        <input list={listId} value={props.draft}
+        <input list={listId} value={props.draft} autoFocus={props.autoFocus}
           className="rounded-md border border-slate-300 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-900"
           onChange={(e) => {
             const v = e.target.value;
-            if (v.includes(",")) commit(v); else props.onDraft(v);
+            // A datalist pick replaces the text in one step, as a plain change
+            // or an "insertReplacementText" input; typing arrives as insertText.
+            const native = e.nativeEvent as InputEvent;
+            const picked = native.inputType === undefined || native.inputType === "insertReplacementText";
+            if (v.includes(",") || (picked && props.suggestions.includes(v))) commit(v); else props.onDraft(v);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") { e.preventDefault(); commit(props.draft); }

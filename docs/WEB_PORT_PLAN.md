@@ -117,7 +117,8 @@ thing that was verified.
     Saving re-points every row whose name the new table changes, which the
     Python got for free by re-deriving names on each load. Only rows the
     edited pattern matches are resolved: a full pass took ~140ms of CPU, too
-    much for a Worker.
+    much for a Worker. `repointRows` is the one place rows change merchant;
+    `deleteMerchantRule` and `setMerchantCategory` sit beside it.
   - All held to the Python by new sections of `python_vectors.json`. On real
     data, re-saving each of the 180 existing rules moves nothing, and the
     list totals exactly what `v_live` totals.
@@ -139,7 +140,8 @@ below was taken from the TUI on 2026-09-30 so that nothing is lost at cutover.
 Each line is a TUI feature, where it lives, and what the web does with it.
 
 **Order**, one PR each unless noted: Transactions (read) → Transactions
-(edit) → Summary drill-down + hidden-tag editor → Categorize + Gemini →
+(edit) → Summary drill-down + hidden-tag editor → Merchants page (done) +
+Gemini →
 Import → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
 
 #### Summary (`summary_screen.py`) — core done in PR #30
@@ -195,19 +197,34 @@ Edit PR A (row actions) and PR B (merchant editor, budget type):
   allows local dev ports. A per-transaction category override, new and not in the TUI,
   is stored separately and resolved on read. Row selection shows an action bar (Tag,
   Untag, Edit, Delete) with bulk-edit sheets; delete asks for confirmation above 20
-  rows and offers an Undo toast.
+  rows and offers an Undo toast. PR B also: edit sheet shows dot decimals and
+  refuses a signed amount ("use Expense/Income for the direction"); Undo
+  restores only rows actually deleted; tagging skips deleted rows;
+  delete-confirm total is signed; phone checkboxes have 44px tap targets.
 
-- Edit merchant (`e`, `edit_merchant_screen.py`): regex pattern, display
+- ~~Edit merchant (`e`, `edit_merchant_screen.py`): regex pattern, display
   alias, category, tags, live preview of affected rows →
   `previewAliasChange` / `saveMerchantDecision`. Suggests a pattern from the
-  raw name (`_suggest_pattern`). (PR B)
-- Cycle a category's budget type from a row (`x`). (PR B)
+  raw name (`_suggest_pattern`).~~ Done: `MerchantEditor`, from a
+  transaction's edit sheet ("Merchant rule…") and from the Merchants page;
+  rules can also be deleted. `suggestPattern` cuts the raw name at its first
+  " dd/dd" stamp (as `normalizeMerchantName` does), drops a trailing number,
+  escapes once, and always appends `.*`, so a suggestion always matches the
+  name it came from.
+- ~~`x` cycles the budget type filter from a row (All → Essential →
+  Discretionary).~~ Done: the Budget filter. Changing a category's type
+  belongs to Budget types; the merchant editor shows it read-only and will
+  offer it once that service exists.
 - Export PDF (`p`): step 4.
 
-#### Categorize (`categorize_screen.py`)
+#### Merchants page (`/merchants`) (replaces Categorize)
 
-- Merchant list with its category, filter by merchant and by category,
-  multi-select, assign an existing category or type a new one.
+- ~~Merchant list with its category, filter by merchant and by category,
+  multi-select, assign an existing category or type a new one.~~ Done: columns
+  (category, budget, count, signed total, last seen, rules); filters (name,
+  category, needs attention: uncategorized/suggested, type); sortable columns;
+  multi-select to set or clear the category on many merchants; "→" links to
+  the merchant's transactions (exact match).
 - "Auto-categorize uncategorized" → Gemini, below.
 
 #### Gemini categorization (`gemini_utils.py`)
@@ -243,6 +260,8 @@ names are sent, as today.
 
 - Toggle each category essential/discretionary; set the annual essential and
   discretionary budgets (`spending_type_budgets`). Small settings screen.
+- Also make the budget type editable in the merchant editor, under its
+  category.
 
 #### Payslips (`y`, `payslips_screen.py`)
 

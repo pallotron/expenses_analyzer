@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
-import { ApiError } from "../../lib/api";
 import { Sheet } from "../../lib/Sheet";
+import { SheetError, useSheetSubmit } from "../../lib/useSheetSubmit";
 import type { BulkEdit, LookupsResponse, TransactionType } from "../../lib/types";
 import { CategorySelect, KEEP, toCategoryEdit } from "./CategorySelect";
 import { useBulkEdit } from "./mutations";
@@ -16,12 +16,14 @@ export function BulkEditSheet(props: {
   const [type, setType] = useState<"" | TransactionType>("");
   const [source, setSource] = useState("");
   const [category, setCategory] = useState(KEEP);
-  const [error, setError] = useState<string | null>(null);
-  // Set when the request never got an answer, so trying again can work.
-  const [retryable, setRetryable] = useState(false);
+  const submitter = useSheetSubmit(save, ({ updated }, { ids }) => {
+    const gone = ids.length - updated;
+    props.onDone(gone > 0 ? `Updated ${updated} of ${ids.length} (${was(gone)} already gone)` : `Updated ${updated}`);
+    props.onClose();
+  });
   const sourcesId = useId();
   useEffect(() => {
-    setMerchant(""); setType(""); setSource(""); setCategory(KEEP); setError(null); setRetryable(false);
+    setMerchant(""); setType(""); setSource(""); setCategory(KEEP); submitter.reset();
   }, [props.ids]);
 
   // Only the fields set away from "Leave unchanged"; spaces alone count as unchanged.
@@ -35,21 +37,8 @@ export function BulkEditSheet(props: {
   const changed = Object.keys(edit).length > 0;
 
   const submit = () => {
-    if (!props.ids || !changed || save.isPending) return;
-    const ids = props.ids;
-    setError(null);
-    setRetryable(false);
-    save.mutate({ ids, edit }, {
-      onSuccess: ({ updated }) => {
-        const gone = ids.length - updated;
-        props.onDone(gone > 0 ? `Updated ${updated} of ${ids.length} (${was(gone)} already gone)` : `Updated ${updated}`);
-        props.onClose();
-      },
-      onError: (e) => {
-        setError(e instanceof ApiError ? e.message : `Couldn't save: ${e.message}`);
-        setRetryable(!(e instanceof ApiError));
-      },
-    });
+    if (!props.ids || !changed) return;
+    submitter.run({ ids: props.ids, edit });
   };
 
   return (
@@ -73,12 +62,7 @@ export function BulkEditSheet(props: {
           <datalist id={sourcesId}>{props.lookups?.sources.map((s) => <option key={s} value={s} />)}</datalist>
         </label>
         <CategorySelect value={category} onChange={setCategory} categories={props.lookups?.categories ?? []} allowKeep />
-        {error && (
-          <p role="alert" className="text-expense">
-            {error}
-            {retryable && <button type="button" onClick={submit} className="ml-2 underline">Retry</button>}
-          </p>
-        )}
+        <SheetError submit={submitter} onRetry={submit} />
         <div className="flex justify-end">
           <button type="submit" disabled={!changed || save.isPending}
             className="rounded-md bg-slate-900 px-4 py-1.5 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">

@@ -56,6 +56,21 @@ describe("PATCH /api/transactions/:id", () => {
     expect(one(sqlite, `SELECT category FROM v_live WHERE id = 1`)).toEqual({ category: "Eating out" });
   });
 
+  it("replaces the tags", async () => {
+    const { send, sqlite } = setup();
+    sqlite.prepare(`INSERT INTO tags (name) VALUES ('old')`).run();
+    sqlite.prepare(`INSERT INTO transaction_tags (transaction_id, tag_id) VALUES (1, 1)`).run();
+    const res = await send("PATCH", "/api/transactions/1", { tags: [" Gift ", "trip"] });
+    expect(res.status).toBe(200);
+    expect(sqlite.prepare(`SELECT g.name FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.transaction_id = 1 ORDER BY 1`).all())
+      .toEqual([{ name: "gift" }, { name: "trip" }]);
+  });
+
+  it("refuses tags in a bulk edit", async () => {
+    const { send } = setup();
+    expect((await send("POST", "/api/transactions/bulk-edit", { ids: [1], edit: { tags: ["a"] } })).status).toBe(400);
+  });
+
   it("answers 404 for a transaction that does not exist", async () => {
     const { send } = setup();
     const res = await send("PATCH", "/api/transactions/99", { type: "income" });
@@ -125,10 +140,17 @@ describe("bulk routes", () => {
 
   it("deletes and restores", async () => {
     const { send, sqlite } = setup();
-    expect(await (await send("POST", "/api/transactions/delete", { ids: [1, 2] })).json()).toEqual({ deleted: 2 });
-    expect(await (await send("POST", "/api/transactions/delete", { ids: [1, 2] })).json()).toEqual({ deleted: 0 });
+    expect(await (await send("POST", "/api/transactions/delete", { ids: [1, 2] })).json()).toEqual({ deleted: 2, ids: [1, 2] });
+    expect(await (await send("POST", "/api/transactions/delete", { ids: [1, 2] })).json()).toEqual({ deleted: 0, ids: [] });
     expect(await (await send("POST", "/api/transactions/restore", { ids: [1] })).json()).toEqual({ restored: 1 });
     expect(one(sqlite, `SELECT COUNT(*) AS n FROM transactions WHERE deleted_at IS NULL`)).toEqual({ n: 1 });
+  });
+
+  it("tags only live rows, and counts only those", async () => {
+    const { send, sqlite } = setup();
+    await send("POST", "/api/transactions/delete", { ids: [2] });
+    expect(await (await send("POST", "/api/transactions/tags", { ids: [1, 2], tags: ["trip"], mode: "add" })).json()).toEqual({ tagged: 1 });
+    expect(one(sqlite, `SELECT COUNT(*) AS n FROM transaction_tags WHERE transaction_id = 2`)).toEqual({ n: 0 });
   });
 
   it("tags and untags", async () => {

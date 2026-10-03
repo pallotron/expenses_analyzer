@@ -7,6 +7,7 @@ import { api, bar, posted, renderAt, row, URL_SEPT, useHarness } from "./pageHar
 
 useHarness();
 
+const idsOf = (body: unknown) => (body as { ids: number[] }).ids;
 const many = (n: number) => Array.from({ length: n }, (_, i) => row(i + 1, "2026-09-10", 100));
 
 describe("deleting", () => {
@@ -87,5 +88,48 @@ describe("deleting", () => {
     await userEvent.click(within(await screen.findByRole("status")).getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Couldn't restore"));
     expect(within(screen.getByRole("status")).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("Undo restores only the rows that were deleted", async () => {
+    const { mock } = renderAt(URL_SEPT, api({ deletedCount: 1 }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 of 2 deleted"));
+    await userEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(posted(mock, "/api/transactions/restore")).toEqual([{ ids: [3] }]));
+  });
+
+  it("shows the confirm total signed, a refund lowering it", async () => {
+    const rows = [...many(20), row(99, "2026-09-11", 500, "income")];
+    renderAt(URL_SEPT, api({ rows }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Delete" }));
+    expect(screen.getByRole("dialog", { name: "Delete 21 transactions?" })).toHaveTextContent("total −€15.00");
+  });
+
+  it("shows a failed confirmed delete inside the sheet, with Retry", async () => {
+    let fail = true;
+    const { mock } = renderAt(URL_SEPT, api({
+      rows: many(21),
+      routes: { "POST /api/transactions/delete": (b) => (fail ? { status: 500, body: { error: "boom" } } : { body: { deleted: 21, ids: idsOf(b) } }) },
+    }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Delete" }));
+    const sheet = screen.getByRole("dialog", { name: "Delete 21 transactions?" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Delete 21" }));
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent("boom");
+    fail = false;
+    await userEvent.click(within(sheet).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("21 deleted"));
+    expect(posted(mock, "/api/transactions/delete")).toHaveLength(2);
+  });
+
+  it("deleting one row from its edit sheet keeps the rest of the selection", async () => {
+    renderAt(URL_SEPT);
+    await userEvent.click(await screen.findByRole("checkbox", { name: /Select Shop 2/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit Shop 3" }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Edit transaction" })).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 deleted"));
+    expect(bar()).toHaveTextContent("1 selected");
   });
 });

@@ -28,6 +28,8 @@ export type ApiOptions = {
   rowsRef?: { value: TransactionRow[] };
   /** Awaited before answering any POST or PATCH, never a GET. */
   gate?: Promise<void>;
+  /** Awaited before answering a GET of /api/merchants/rule, to hold the rule lookup. */
+  getGate?: Promise<void> | (() => Promise<void> | undefined);
   /** Answers for write routes, keyed "METHOD /path". An unlisted write gets `{}`. */
   routes?: Record<string, Route>;
   /** What delete reports as removed; default is every id sent. */
@@ -46,7 +48,10 @@ const idsOf = (body: unknown) => (body as { ids: number[] }).ids;
 
 /** The delete, restore, tag and bulk-edit answers, built on `routes`; an explicit route wins. */
 const deleteRoutes = (opts: ApiOptions): Record<string, Route> => ({
-  "POST /api/transactions/delete": (b) => ({ body: { deleted: opts.deletedCount ?? idsOf(b).length } }),
+  "POST /api/transactions/delete": (b) => {
+    const ids = idsOf(b).slice(0, opts.deletedCount ?? idsOf(b).length);
+    return { body: { deleted: ids.length, ids } };
+  },
   "POST /api/transactions/restore": (b) =>
     opts.restoreFails ? { status: 500, body: { error: "boom" } } : { body: { restored: idsOf(b).length } },
   "POST /api/transactions/bulk-edit": (b) => ({ body: { updated: opts.updatedCount ?? idsOf(b).length } }),
@@ -64,6 +69,7 @@ export function api(opts: ApiOptions = {}) {
     calls.push({ path: url.pathname, method, body });
     const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
     if (method !== "GET") await opts.gate;
+    if (method === "GET" && url.pathname.startsWith("/api/merchants/rule")) await (typeof opts.getGate === "function" ? opts.getGate() : opts.getGate);
     const patchId = method === "PATCH" ? /^\/api\/transactions\/(\d+)$/.exec(url.pathname)?.[1] : undefined;
     if (patchId) {
       const r = opts.patch?.(Number(patchId), body) ?? { body: { ok: true } };
@@ -75,7 +81,7 @@ export function api(opts: ApiOptions = {}) {
       return json(r.body, r.status);
     }
     if (url.pathname === "/api/summary/periods") return json(periods);
-    if (url.pathname === "/api/lookups") return json({ categories: ["Eating out", "Groceries", "Other"], tags: [], sources: periods.sources, ...opts.lookups });
+    if (url.pathname === "/api/lookups") return json({ categories: ["Eating out", "Groceries", "Other"], tags: [], essentialCategories: [], sources: periods.sources, ...opts.lookups });
     if (url.pathname === "/api/transactions" && method === "GET") {
       const rows = opts.rowsRef?.value ?? opts.rows ?? [row(3, "2026-09-29", 100), row(2, "2026-09-28", 100)];
       const res: TransactionsResponse = {

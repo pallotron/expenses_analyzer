@@ -98,10 +98,10 @@ describe("delete and restore by id", () => {
     const { sqlite, db } = store();
     seed(sqlite, [MUSEUM, MUSEUM], vectors.imports.aliases);
 
-    expect(await softDeleteTransactions(db, [1], USER)).toBe(1);
+    expect(await softDeleteTransactions(db, [1], USER)).toEqual([1]);
     expect(count(sqlite, "deleted_at IS NULL")).toBe(1);
     expect(sqlite.prepare(`SELECT deleted_by FROM transactions WHERE id = 1`).get()).toEqual({ deleted_by: USER });
-    expect(await softDeleteTransactions(db, [1], USER)).toBe(0);
+    expect(await softDeleteTransactions(db, [1], USER)).toEqual([]);
     sqlite.close();
   });
 
@@ -136,7 +136,7 @@ describe("delete and restore by id", () => {
 });
 
 describe("tagging", () => {
-  it("adds and removes normalised tags, on live and deleted rows alike", async () => {
+  it("adds and removes normalised tags on live rows, skipping deleted ones", async () => {
     const { sqlite, db } = store();
     seed(sqlite, [
       { date: "2026-01-01", merchant: "TESCO STORES 1", amount: 5, deleted: false },
@@ -146,12 +146,12 @@ describe("tagging", () => {
       SELECT tt.transaction_id, g.name FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id ORDER BY 1, 2
     `).raw().all();
 
-    expect(await tagTransactions(db, [1, 2, 99], ["Emergency", "trip:Paris"], "add", USER)).toBe(2);
+    expect(await tagTransactions(db, [1, 2, 99], ["Emergency", "trip:Paris"], "add", USER)).toBe(1);
     expect(await tagTransactions(db, [1], ["emergency"], "add", USER)).toBe(1);
-    expect(tagsOf()).toEqual([[1, "emergency"], [1, "trip:paris"], [2, "emergency"], [2, "trip:paris"]]);
+    expect(tagsOf()).toEqual([[1, "emergency"], [1, "trip:paris"]]);
 
     expect(await tagTransactions(db, [1], ["EMERGENCY"], "remove", USER)).toBe(1);
-    expect(tagsOf()).toEqual([[1, "trip:paris"], [2, "emergency"], [2, "trip:paris"]]);
+    expect(tagsOf()).toEqual([[1, "trip:paris"]]);
 
     expect(await tagTransactions(db, [1], ["!!!"], "add", USER)).toBe(0);
     sqlite.close();

@@ -47,7 +47,7 @@ export function TopBar(props: { hostname?: string }) {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 text-sm sm:py-5">
         <span className="flex items-center gap-4">
           <span className="flex items-center gap-3 text-lg font-semibold"><Logo size={32} /><span className="hidden sm:inline">Expenses</span></span>
-          {([["/", "Summary"], ["/transactions", "Transactions"]] as const).map(([to, label]) => (
+          {([["/", "Summary"], ["/transactions", "Transactions"], ["/merchants", "Merchants"]] as const).map(([to, label]) => (
             <NavLink key={to} to={to} end={to === "/"}
               className={({ isActive }) => (isActive ? "font-semibold underline" : "text-slate-600 dark:text-slate-400")}>
               {label}

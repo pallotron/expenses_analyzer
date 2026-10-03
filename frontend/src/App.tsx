@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router";
 
 import { ApiError } from "./lib/api";
+import { MerchantsPage } from "./merchants/MerchantsPage";
 import { SummaryPage } from "./summary/SummaryPage";
 import { TransactionsPage } from "./transactions/TransactionsPage";
 import { TopBar } from "./TopBar";
@@ -15,6 +16,7 @@ export default function App() {
         <TopBar />
         <Routes>
           <Route path="/transactions" element={<TransactionsPage />} />
+          <Route path="/merchants" element={<MerchantsPage />} />
           <Route path="*" element={<SummaryPage />} />
         </Routes>
       </BrowserRouter>

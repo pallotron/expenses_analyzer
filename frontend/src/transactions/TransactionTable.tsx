@@ -45,9 +45,11 @@ export function TransactionTable(props: {
         <thead>
           <tr className="text-left text-xs text-slate-500">
             <th scope="col" className={`bg-white px-2 py-1 font-normal shadow-[inset_0_-1px_0_theme(colors.slate.200)] md:sticky md:top-[calc(var(--topbar-h,0px)+var(--controls-h,0px))] md:z-10 dark:bg-slate-950 dark:shadow-[inset_0_-1px_0_theme(colors.slate.800)] w-8`}>
-              <input type="checkbox" aria-label="Select all shown" checked={allShown}
-                ref={(el) => { if (el) el.indeterminate = someShown && !allShown; }}
-                onChange={(e) => props.onToggleShown(props.rows.map((r) => r.id), e.target.checked)} />
+              <label className="-m-2 inline-flex h-11 w-11 items-center justify-center">
+                <input type="checkbox" className="h-4 w-4" aria-label="Select all shown" checked={allShown}
+                  ref={(el) => { if (el) el.indeterminate = someShown && !allShown; }}
+                  onChange={(e) => props.onToggleShown(props.rows.map((r) => r.id), e.target.checked)} />
+              </label>
             </th>
             {COLUMNS.map(([key, label]) => (
               <th key={key} scope="col" className={`bg-white px-2 py-1 font-normal shadow-[inset_0_-1px_0_theme(colors.slate.200)] md:sticky md:top-[calc(var(--topbar-h,0px)+var(--controls-h,0px))] md:z-10 dark:bg-slate-950 dark:shadow-[inset_0_-1px_0_theme(colors.slate.800)] ${key === "amount" ? "text-right" : ""}`}
@@ -64,8 +66,10 @@ export function TransactionTable(props: {
             <tr key={r.id} aria-selected={props.selected.has(r.id) || undefined} onClick={() => props.onOpen(r)}
               className={`cursor-pointer ${props.selected.has(r.id) ? "!bg-slate-200 dark:!bg-slate-800" : ""} odd:bg-white even:bg-slate-100 odd:hover:bg-slate-200 even:hover:bg-slate-200 dark:odd:bg-slate-950 dark:even:bg-slate-900 dark:odd:hover:bg-slate-800 dark:even:hover:bg-slate-800`}>
               <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                <input type="checkbox" aria-label={`Select ${r.merchant}, ${r.date}, ${signedAmount(r).text}`}
-                  checked={props.selected.has(r.id)} onChange={() => props.onToggle(r.id)} />
+                <label className="-m-2 inline-flex h-11 w-11 items-center justify-center">
+                  <input type="checkbox" className="h-4 w-4" aria-label={`Select ${r.merchant}, ${r.date}, ${signedAmount(r).text}`}
+                    checked={props.selected.has(r.id)} onChange={() => props.onToggle(r.id)} onClick={(e) => e.stopPropagation()} />
+                </label>
               </td>
               <td className="px-2 py-2 whitespace-nowrap">{r.date}</td>
               <td className="max-w-32 truncate px-2 py-2 lg:max-w-64" title={r.merchantRaw}>

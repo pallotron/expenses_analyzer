@@ -9,8 +9,9 @@ import { describe, expect, it } from "vitest";
 import { atomic } from "../../db/atomic";
 import { createDb } from "../../db/client";
 import { listTransactions } from "../../queries/transactions";
+import { deleteMerchantRule, saveMerchantDecision, setMerchantCategory } from "../../services/merchants";
 import {
-  restoreTransactions, softDeleteTransactions, tagTransactions, updateTransactions,
+  importTransactions, restoreTransactions, softDeleteTransactions, tagTransactions, updateTransactions,
 } from "../../services/transactions";
 import { fakeD1 } from "../helpers/fakeD1";
 import { USER, categorise, seed, store } from "../helpers/store";
@@ -66,7 +67,7 @@ describe("write services on the D1 driver", () => {
     const { sqlite, db } = d1Store();
     seed(sqlite, [SHOP], []);
     const deletedAt = () => (sqlite.prepare(`SELECT deleted_at AS d FROM transactions WHERE id = 1`).get() as { d: number | null }).d;
-    expect(await softDeleteTransactions(db, [1], USER)).toBe(1);
+    expect(await softDeleteTransactions(db, [1], USER)).toEqual([1]);
     expect(deletedAt()).not.toBeNull();
     expect(await restoreTransactions(db, [1], USER)).toBe(1);
     expect(deletedAt()).toBeNull();
@@ -90,7 +91,7 @@ describe("write services on the D1 driver", () => {
     seed(sqlite, Array.from({ length: n }, () => SHOP), []);
     const ids = Array.from({ length: n }, (_, i) => i + 1);
     const started = performance.now();
-    expect(await softDeleteTransactions(db, ids, USER)).toBe(n);
+    expect(await softDeleteTransactions(db, ids, USER)).toEqual(ids);
     expect(await restoreTransactions(db, ids, USER)).toBe(n);
     const elapsedMs = performance.now() - started;
     expect(sqlite.prepare(`SELECT COUNT(*) AS c, COUNT(DISTINCT occurrence) AS d FROM transactions WHERE deleted_at IS NULL`).get())
@@ -126,6 +127,92 @@ describe("write services on the D1 driver", () => {
     const list = await listTransactions(db);
     expect(list.rows.map((r) => r.merchant).sort()).toEqual(["Cafe", "Shop"]);
     expect(list.rows).toHaveLength(2);
+    sqlite.close();
+  });
+
+  it("saves a merchant decision: rule, category, re-point and tags", async () => {
+    const { sqlite, db } = d1Store();
+    seed(sqlite, [
+      { date: "2026-03-01", merchant: "CAFE ONE", amount: 4, deleted: false },
+      { date: "2026-03-01", merchant: "CAFE TWO", amount: 4, deleted: false },
+    ], []);
+    const result = await saveMerchantDecision(db, { pattern: "^CAFE", alias: "Cafe", category: "Eating out", tags: ["coffee"] }, USER);
+    expect(result).toEqual({ repointed: 2, tagged: 2 });
+    expect(sqlite.prepare(`
+      SELECT m.canonical_name AS m, t.occurrence AS o FROM transactions t
+      JOIN merchants m ON m.id = t.merchant_id ORDER BY t.id
+    `).all()).toEqual([{ m: "Cafe", o: 0 }, { m: "Cafe", o: 1 }]);
+    expect(tagsOf(sqlite, 1)).toEqual(["coffee"]);
+    sqlite.close();
+  });
+
+  it("deletes a rule and sets a category", async () => {
+    const { sqlite, db } = d1Store();
+    sqlite.exec(`INSERT INTO merchants (canonical_name) VALUES ('Cafe')`);
+    sqlite.exec(`INSERT INTO merchant_aliases (pattern, priority, merchant_id) VALUES ('^CAFE', 0, 1)`);
+    seed(sqlite, [{ date: "2026-03-01", merchant: "CAFE ONE", amount: 4, deleted: false }], [["^CAFE", "Cafe"]]);
+    expect(await deleteMerchantRule(db, 1, USER)).toEqual({ repointed: 1 });
+    const id = (sqlite.prepare(`SELECT merchant_id AS m FROM transactions WHERE id = 1`).get() as { m: number }).m;
+    expect(await setMerchantCategory(db, [id], "Eating out", USER)).toEqual({ updated: 1 });
+    expect(sqlite.prepare(`SELECT category FROM v_live WHERE id = 1`).get()).toEqual({ category: "Eating out" });
+    sqlite.close();
+  });
+
+  it("sets a category on 150 merchants within D1's parameter limit", async () => {
+    const { sqlite, db } = d1Store();
+    const ids = Array.from({ length: 150 }, (_, i) => {
+      sqlite.prepare(`INSERT INTO merchants (canonical_name) VALUES (?)`).run(`SHOP ${i}`);
+      return i + 1;
+    });
+    expect(await setMerchantCategory(db, ids, "Groceries", USER)).toEqual({ updated: 150 });
+    expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM merchants WHERE category_id IS NOT NULL`).get()).toEqual({ n: 150 });
+    sqlite.close();
+  });
+
+  it("clears a category with null", async () => {
+    const { sqlite, db } = d1Store();
+    sqlite.exec(`INSERT INTO merchants (canonical_name) VALUES ('Cafe')`);
+    await setMerchantCategory(db, [1], "Eating out", USER);
+    expect(await setMerchantCategory(db, [1], null, USER)).toEqual({ updated: 1 });
+    expect(sqlite.prepare(`SELECT category_id AS c FROM merchants WHERE id = 1`).get()).toEqual({ c: null });
+    sqlite.close();
+  });
+
+  it("updates an existing rule's alias and re-points its rows", async () => {
+    const { sqlite, db } = d1Store();
+    seed(sqlite, [{ date: "2026-03-01", merchant: "CAFE ONE", amount: 4, deleted: false }], []);
+    await saveMerchantDecision(db, { pattern: "^CAFE", alias: "Cafe", tags: [] }, USER);
+    await saveMerchantDecision(db, { pattern: "^CAFE", alias: "Coffee", tags: [] }, USER);
+    expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM merchant_aliases WHERE pattern = '^CAFE'`).get()).toEqual({ n: 1 });
+    expect(sqlite.prepare(`
+      SELECT m.canonical_name AS m FROM transactions t JOIN merchants m ON m.id = t.merchant_id
+    `).all()).toEqual([{ m: "Coffee" }]);
+    sqlite.close();
+  });
+
+  it("deletes a rule whose stored pattern JavaScript cannot compile", async () => {
+    const { sqlite, db } = d1Store();
+    sqlite.exec(`INSERT INTO merchants (canonical_name) VALUES ('Cafe')`);
+    sqlite.exec(`INSERT INTO merchant_aliases (pattern, priority, merchant_id) VALUES ('(?P<x>CAFE)', 0, 1)`);
+    expect(await deleteMerchantRule(db, 1, USER)).toEqual({ repointed: 0 });
+    expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM merchant_aliases`).get()).toEqual({ n: 0 });
+    sqlite.close();
+  });
+
+  it("replaces a row's tags", async () => {
+    const { sqlite, db } = d1Store();
+    seed(sqlite, [SHOP], []);
+    await updateTransactions(db, [1], { tags: ["a"] }, USER);
+    await updateTransactions(db, [1], { tags: ["b", "c"] }, USER);
+    expect(tagsOf(sqlite, 1)).toEqual(["b", "c"]);
+    sqlite.close();
+  });
+
+  it("imports, deduplicating against what is stored", async () => {
+    const { sqlite, db } = d1Store();
+    const rows = [{ date: "2026-03-01", merchant: "CAFE ONE", amountCents: 400 }];
+    expect(await importTransactions(db, rows, { source: "Test", userId: USER })).toMatchObject({ inserted: 1 });
+    expect(await importTransactions(db, rows, { source: "Test", userId: USER })).toMatchObject({ inserted: 0, duplicates: 1 });
     sqlite.close();
   });
 });

@@ -14,7 +14,9 @@ import * as schema from "../../db/schema";
 import type { Db } from "../../db/types";
 import { ValidationError } from "../../domain/validation";
 import { listTransactions } from "../../queries/transactions";
-import { previewAliasChange, saveMerchantDecision } from "../../services/merchants";
+import {
+  deleteMerchantRule, previewAliasChange, saveMerchantDecision, setMerchantCategory, UnknownRuleError,
+} from "../../services/merchants";
 import {
   importTransactions, loadAliasRules, tagTransactions,
 } from "../../services/transactions";
@@ -78,7 +80,7 @@ describe("saving an alias re-points the rows it claims", () => {
 
     const result = await saveMerchantDecision(db, { pattern: "TESCO", alias: "Tesco", category: "Supermarket" }, USER);
 
-    expect(result).toEqual({ repointed: 1 });
+    expect(result).toEqual({ repointed: 1, tagged: 0 });
     expect(merchantOf(sqlite, expressId)).toBe("Tesco");
     expect(merchantOf(sqlite, 4)).toBe("Tesco");
     expect((await loadAliasRules(db)).map((r) => r.pattern)).toEqual([
@@ -99,7 +101,7 @@ describe("saving an alias re-points the rows it claims", () => {
   it("editing an existing rule keeps its priority and renames every row it decides", async () => {
     const { sqlite, db } = editorStore();
     const result = await saveMerchantDecision(db, { pattern: "STARBUCKS.*", alias: "Starbucks Coffee Co" }, USER);
-    expect(result).toEqual({ repointed: 3 });
+    expect(result).toEqual({ repointed: 3, tagged: 0 });
     expect((await loadAliasRules(db))[0]).toEqual({ pattern: "STARBUCKS.*", canonicalName: "Starbucks Coffee Co" });
     expect([1, 2, 3].map((id) => merchantOf(sqlite, id))).toEqual(Array(3).fill("Starbucks Coffee Co"));
     sqlite.close();
@@ -108,7 +110,7 @@ describe("saving an alias re-points the rows it claims", () => {
   it("saving what is already in force moves nothing", async () => {
     const { sqlite, db } = editorStore();
     expect(await saveMerchantDecision(db, { pattern: "^AMZN|AMAZON", alias: "Amazon" }, USER))
-      .toEqual({ repointed: 0 });
+      .toEqual({ repointed: 0, tagged: 0 });
     sqlite.close();
   });
 
@@ -124,7 +126,7 @@ describe("saving an alias re-points the rows it claims", () => {
     ], rules);
 
     expect(await saveMerchantDecision(db, { pattern: "SBUX", alias: "Starbucks" }, USER))
-      .toEqual({ repointed: 3 });
+      .toEqual({ repointed: 3, tagged: 0 });
     const live = sqlite.prepare(`
       SELECT m.canonical_name AS m, t.occurrence AS o FROM transactions t
       JOIN merchants m ON m.id = t.merchant_id WHERE t.deleted_at IS NULL ORDER BY t.occurrence
@@ -147,6 +149,34 @@ describe("saving an alias re-points the rows it claims", () => {
     await expect(saveMerchantDecision(db, { pattern: "[bad", alias: "X" }, USER)).rejects.toThrow();
     await expect(saveMerchantDecision(db, { pattern: "TESCO", alias: "  " }, USER)).rejects.toThrow();
     expect(await loadAliasRules(db)).toHaveLength(3);
+    sqlite.close();
+  });
+
+  it("adds tags to the live rows that display as the alias, not deleted ones", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [
+      { date: "2026-04-12", merchant: "CORNER SHOP 1", amount: 3, deleted: false },
+      { date: "2026-04-13", merchant: "CORNER SHOP 2", amount: 4, deleted: false },
+      { date: "2026-04-14", merchant: "CORNER SHOP 3", amount: 5, deleted: true },
+      { date: "2026-04-14", merchant: "OTHER PLACE", amount: 5, deleted: false },
+    ], []);
+    const result = await saveMerchantDecision(db, { pattern: "CORNER\\s+SHOP", alias: "Corner Shop", tags: ["Local", "local"] }, USER);
+    expect(result).toEqual({ repointed: 3, tagged: 2 });
+    const tagged = sqlite.prepare(`
+      SELECT t.merchant_raw AS raw FROM transaction_tags tt
+      JOIN transactions t ON t.id = tt.transaction_id JOIN tags g ON g.id = tt.tag_id
+      WHERE g.name = 'local' ORDER BY t.id
+    `).all();
+    expect(tagged).toEqual([{ raw: "CORNER SHOP 1" }, { raw: "CORNER SHOP 2" }]);
+    sqlite.close();
+  });
+
+  it("tags rows already under the alias even when nothing moves", async () => {
+    const rules = [["CORNER", "Corner Shop"]];
+    const { sqlite, db } = store(rules);
+    seed(sqlite, [{ date: "2026-04-12", merchant: "CORNER SHOP 1", amount: 3, deleted: false }], rules);
+    expect(await saveMerchantDecision(db, { pattern: "CORNER", alias: "Corner Shop", tags: ["local"] }, USER))
+      .toEqual({ repointed: 0, tagged: 1 });
     sqlite.close();
   });
 });
@@ -215,7 +245,7 @@ describe.runIf(REAL_DB)("on real data (CROSSCHECK_DB)", () => {
   it("re-saving every existing rule as it stands moves nothing", async () => {
     for (const rule of await loadAliasRules(db)) {
       const result = await saveMerchantDecision(db, { pattern: rule.pattern, alias: rule.canonicalName }, USER);
-      expect(result, rule.pattern).toEqual({ repointed: 0 });
+      expect(result, rule.pattern).toEqual({ repointed: 0, tagged: 0 });
     }
   });
 
@@ -225,5 +255,101 @@ describe.runIf(REAL_DB)("on real data (CROSSCHECK_DB)", () => {
       { n: number; total: number };
     expect(list.rows).toHaveLength(live.n);
     expect(list.totalCents).toBe(live.total);
+  });
+});
+
+const ruleId = (sqlite: Database.Database, pattern: string) =>
+  (sqlite.prepare(`SELECT id FROM merchant_aliases WHERE pattern = ?`).get(pattern) as { id: number }).id;
+
+describe("deleting a rule", () => {
+  const rules = [["^CAFE ONE$", "Cafe One"], ["^CAFE", "Cafe"]];
+  function cafes() {
+    const s = store(rules);
+    seed(s.sqlite, [
+      { date: "2026-04-12", merchant: "CAFE ONE", amount: 4, deleted: false },
+      { date: "2026-04-12", merchant: "CAFE TWO", amount: 4, deleted: false },
+      { date: "2026-04-12", merchant: "CAFE ONE", amount: 4, deleted: true },
+    ], rules);
+    return s;
+  }
+
+  it("lets a later rule take over, with a free occurrence", async () => {
+    const { sqlite, db } = cafes();
+    expect(await deleteMerchantRule(db, ruleId(sqlite, "^CAFE ONE$"), USER)).toEqual({ repointed: 2 });
+    expect((await loadAliasRules(db)).map((r) => r.pattern)).toEqual(["^CAFE"]);
+    expect(sqlite.prepare(`
+      SELECT t.id, m.canonical_name AS m, t.occurrence AS o FROM transactions t
+      JOIN merchants m ON m.id = t.merchant_id ORDER BY t.id
+    `).all()).toEqual([
+      { id: 1, m: "Cafe", o: 1 },
+      { id: 2, m: "Cafe", o: 0 },
+      { id: 3, m: "Cafe", o: 0 }, // deleted rows keep their occurrence
+    ]);
+    sqlite.close();
+  });
+
+  it("deleting the only rule creates the raw-name merchants", async () => {
+    const only = [["^CORNER", "Corner Shop"]];
+    const { sqlite, db } = store(only);
+    seed(sqlite, [{ date: "2026-04-12", merchant: "CORNER SHOP 12/04 7", amount: 3, deleted: false }], only);
+    expect(await deleteMerchantRule(db, ruleId(sqlite, "^CORNER"), USER)).toEqual({ repointed: 1 });
+    expect(merchantOf(sqlite, 1)).toBe("CORNER SHOP");
+    // The merchant the rule pointed at stays, as another rule may still use it.
+    expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM merchants WHERE canonical_name = 'Corner Shop'`).get()).toEqual({ n: 1 });
+    sqlite.close();
+  });
+
+  it("refuses an id that is not a rule, changing nothing", async () => {
+    const { sqlite, db } = cafes();
+    await expect(deleteMerchantRule(db, 999, USER)).rejects.toBeInstanceOf(UnknownRuleError);
+    expect(await loadAliasRules(db)).toHaveLength(2);
+    sqlite.close();
+  });
+
+  it("deletes a stored pattern JavaScript cannot compile, moving nothing", async () => {
+    const { sqlite, db } = store([]);
+    sqlite.exec(`INSERT INTO merchants (canonical_name) VALUES ('Odd')`);
+    sqlite.exec(`INSERT INTO merchant_aliases (pattern, priority, merchant_id) VALUES ('(?P<x>a)', 0, 1)`);
+    expect(await deleteMerchantRule(db, 1, USER)).toEqual({ repointed: 0 });
+    expect(await loadAliasRules(db)).toHaveLength(0);
+    sqlite.close();
+  });
+});
+
+describe("setting merchant categories", () => {
+  it("sets, creating the category, and clears the suggestion flag", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [
+      { date: "2026-04-12", merchant: "CAFE ONE", amount: 4, deleted: false },
+      { date: "2026-04-12", merchant: "CAFE TWO", amount: 4, deleted: false },
+    ], []);
+    sqlite.exec(`UPDATE merchants SET category_suggested = 1`);
+    expect(await setMerchantCategory(db, [1, 2, 99], "Eating out", USER)).toEqual({ updated: 2 });
+    expect(sqlite.prepare(`
+      SELECT m.canonical_name AS m, c.name AS c, m.category_suggested AS s, m.category_set_by AS by
+      FROM merchants m JOIN categories c ON c.id = m.category_id ORDER BY m.id
+    `).all()).toEqual([
+      { m: "CAFE ONE", c: "Eating out", s: 0, by: USER },
+      { m: "CAFE TWO", c: "Eating out", s: 0, by: USER },
+    ]);
+    sqlite.close();
+  });
+
+  it("trims the category name and reuses an existing one", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [{ date: "2026-04-12", merchant: "CAFE ONE", amount: 4, deleted: false }], []);
+    categorise(sqlite, { "CAFE ONE": "Eating out" });
+    await setMerchantCategory(db, [1], "  Eating out ", USER);
+    expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM categories`).get()).toEqual({ n: 1 });
+    sqlite.close();
+  });
+
+  it("clears with null", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [{ date: "2026-04-12", merchant: "CAFE ONE", amount: 4, deleted: false }], []);
+    categorise(sqlite, { "CAFE ONE": "Eating out" });
+    expect(await setMerchantCategory(db, [1], null, USER)).toEqual({ updated: 1 });
+    expect(sqlite.prepare(`SELECT category_id AS c FROM merchants WHERE id = 1`).get()).toEqual({ c: null });
+    sqlite.close();
   });
 });

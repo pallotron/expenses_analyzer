@@ -25,14 +25,54 @@ describe("editing one transaction", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it.each(["0", "-5", "abc"])("refuses the amount %j without a request", async (typed) => {
+  it("pre-fills the amount with dot decimals", async () => {
+    renderAt(URL_SEPT, api({ rows: [row(3, "2026-09-29", 121136)] }));
+    const sheet = await openShop3();
+    const amount = within(sheet).getByLabelText("Amount");
+    expect(amount).toHaveValue("1211.36");
+  });
+
+  it.each(["0", "abc"])("refuses the amount %j without a request", async (typed) => {
     const { mock } = renderAt(URL_SEPT);
     const sheet = await openShop3();
     const amount = within(sheet).getByLabelText("Amount");
     await userEvent.clear(amount);
     await userEvent.type(amount, typed);
     await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
-    expect(within(sheet).getByRole("alert")).toHaveTextContent("Enter an amount more than zero, like 12,50");
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("Enter an amount more than zero, like 12.50");
+    expect(patched(mock)).toEqual([]);
+  });
+
+  it("refuses a minus-signed amount without a request", async () => {
+    const { mock } = renderAt(URL_SEPT);
+    const sheet = await openShop3();
+    const amount = within(sheet).getByLabelText("Amount");
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "-15");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("Amounts are always positive; use Expense/Income for the direction");
+    expect(patched(mock)).toEqual([]);
+  });
+
+  it("refuses a Unicode-minus amount without a request", async () => {
+    const { mock } = renderAt(URL_SEPT);
+    const sheet = await openShop3();
+    const amount = within(sheet).getByLabelText("Amount");
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "−15");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("Amounts are always positive; use Expense/Income for the direction");
+    expect(patched(mock)).toEqual([]);
+  });
+
+  it("refuses a plus-signed amount without a request", async () => {
+    const { mock } = renderAt(URL_SEPT);
+    const sheet = await openShop3();
+    const amount = within(sheet).getByLabelText("Amount");
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "+15");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("Amounts are always positive; use Expense/Income for the direction");
     expect(patched(mock)).toEqual([]);
   });
 
@@ -130,5 +170,51 @@ describe("editing one transaction", () => {
     const sheet = await openShop3();
     expect(within(sheet).getByLabelText("Statement text")).toHaveValue("SHOP 3");
     expect(sheet).toHaveTextContent("Shows as: Shop 3");
+  });
+
+  describe("tags", () => {
+    const tagged = () => api({ rows: [{ ...row(3, "2026-09-29", 100), tags: "gift,travel" }] });
+    const save = (sheet: HTMLElement) => userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+
+    it("opens with the row's tags as chips", async () => {
+      renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      const chips = within(within(sheet).getByRole("list", { name: "Chosen tags" }));
+      expect(chips.getByText("gift")).toBeInTheDocument();
+      expect(chips.getByText("travel")).toBeInTheDocument();
+    });
+
+    it("sends the remaining tags after removing one", async () => {
+      const { mock } = renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      await userEvent.click(within(sheet).getByRole("button", { name: "Remove gift" }));
+      await save(sheet);
+      await waitFor(() => expect(patched(mock)).toEqual([{ id: 3, body: { tags: ["travel"] } }]));
+    });
+
+    it("counts text left in the box", async () => {
+      const { mock } = renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      await userEvent.type(within(sheet).getByLabelText("Tags"), "trip");
+      await save(sheet);
+      await waitFor(() => expect(patched(mock)).toHaveLength(1));
+      expect([...(patched(mock)[0].body as { tags: string[] }).tags].sort()).toEqual(["gift", "travel", "trip"]);
+    });
+
+    it("does not send tags when only the amount changed", async () => {
+      const { mock } = renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      const amount = within(sheet).getByLabelText("Amount");
+      await userEvent.clear(amount);
+      await userEvent.type(amount, "5");
+      await save(sheet);
+      await waitFor(() => expect(patched(mock)).toEqual([{ id: 3, body: { amountCents: 500 } }]));
+    });
+
+    it("keeps Save disabled while the tags are unchanged", async () => {
+      renderAt(URL_SEPT, tagged());
+      const sheet = await openShop3();
+      expect(within(sheet).getByRole("button", { name: "Save" })).toBeDisabled();
+    });
   });
 });

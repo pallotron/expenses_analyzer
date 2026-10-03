@@ -4,14 +4,24 @@ import type { TransactionRow } from "../../lib/types";
 
 /** Asks before a big delete, saying how many rows and how much money they hold. */
 export function DeleteSheet(props: {
-  ids: number[] | null; rows: TransactionRow[]; busy: boolean; onConfirm: () => void; onClose: () => void;
+  ids: number[] | null; rows: TransactionRow[]; busy: boolean; error: string | null;
+  onConfirm: () => void; onRetry: () => void; onClose: () => void;
 }) {
   const n = props.ids?.length ?? 0;
   const chosen = new Set(props.ids ?? []);
-  const total = props.rows.filter((r) => chosen.has(r.id)).reduce((a, r) => a + r.amountCents, 0);
+  // Signed like the table: a refund among the rows lowers what is being deleted.
+  const net = props.rows.filter((r) => chosen.has(r.id))
+    .reduce((a, r) => a + (r.type === "income" ? r.amountCents : -r.amountCents), 0);
+  const total = `${net < 0 ? "−" : net > 0 ? "+" : ""}${formatCents(Math.abs(net))}`;
   return (
     <Sheet title={`Delete ${n} transactions?`} open={props.ids !== null} onClose={props.onClose} busy={props.busy}>
-      <p className="text-sm">These {n} transactions total {formatCents(total)}. You can undo this straight after.</p>
+      <p className="text-sm">These {n} transactions total {total}. You can undo this straight after.</p>
+      {props.error && (
+        <p role="alert" className="text-sm text-expense">
+          {props.error}
+          <button type="button" onClick={props.onRetry} disabled={props.busy} className="ml-2 underline">Retry</button>
+        </p>
+      )}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={props.onClose} disabled={props.busy} className="rounded-md px-3 py-1.5 underline disabled:opacity-40">Cancel</button>
         <button type="button" onClick={props.onConfirm} disabled={props.busy}

@@ -288,16 +288,16 @@ export async function importTransactions(
 const idsIn = (ids: number[]) =>
   sql`${transactions.id} IN (SELECT value FROM json_each(${json(ids)}))`;
 
-/** Soft-delete by id. Returns how many were live and are now deleted. */
+/** Soft-delete by id. Returns the ids that were live and are now deleted, ascending. */
 export async function softDeleteTransactions(
   db: Db, ids: number[], userId: number,
-): Promise<number> {
-  if (ids.length === 0) return 0;
+): Promise<number[]> {
+  if (ids.length === 0) return [];
   const live = await db
     .select({ id: transactions.id })
     .from(transactions)
     .where(and(idsIn(ids), isNull(transactions.deletedAt)));
-  if (live.length === 0) return 0;
+  if (live.length === 0) return [];
 
   await atomic(db, [sql`
     UPDATE transactions
@@ -305,7 +305,7 @@ export async function softDeleteTransactions(
     WHERE id IN (SELECT value FROM json_each(${json(live.map((r) => r.id))}))
       AND deleted_at IS NULL
   `]);
-  return live.length;
+  return live.map((r) => r.id).sort((a, b) => a - b);
 }
 
 /**
@@ -390,8 +390,8 @@ export async function restoreTransactions(
 }
 
 /**
- * tag_transactions: add or remove tags on transactions by id, live or deleted.
- * Returns how many of the ids exist. Tags that normalise to nothing are
+ * tag_transactions: add or remove tags on transactions by id. Soft-deleted rows are
+ * neither tagged nor counted. Returns how many of the ids are live. Tags that normalise to nothing are
  * ignored, and nothing at all happens if none are left.
  */
 export async function tagTransactions(
@@ -400,7 +400,8 @@ export async function tagTransactions(
   const clean = normalizeTags(tags);
   if (clean.length === 0 || ids.length === 0) return 0;
 
-  const found = await db.select({ id: transactions.id }).from(transactions).where(idsIn(ids));
+  const found = await db.select({ id: transactions.id }).from(transactions)
+    .where(and(idsIn(ids), isNull(transactions.deletedAt)));
   if (found.length === 0) return 0;
   const idList = json(found.map((r) => r.id));
   const tagList = json(clean);
@@ -529,7 +530,23 @@ export async function updateTransactions(
     UPDATE transactions SET ${sql.join(sets, sql`, `)}
     WHERE id IN (SELECT value FROM json_each(${json(current.map((r) => r.id))}))
   `);
-  await atomic(db, [...statements, ...afterMainUpdate]);
+
+  const replaceTags: SQL[] = [];
+  if (edit.tags !== undefined) {
+    const idList = json(current.map((r) => r.id));
+    const tagList = json(normalizeTags(edit.tags));
+    replaceTags.push(
+      sql`DELETE FROM transaction_tags WHERE transaction_id IN (SELECT value FROM json_each(${idList}))`,
+      sql`INSERT OR IGNORE INTO tags (name) SELECT value FROM json_each(${tagList})`,
+      sql`
+        INSERT OR IGNORE INTO transaction_tags (transaction_id, tag_id, tagged_by)
+        SELECT i.value, g.id, ${userId}
+        FROM json_each(${idList}) i
+        JOIN tags g ON g.name IN (SELECT value FROM json_each(${tagList}))
+      `,
+    );
+  }
+  await atomic(db, [...statements, ...afterMainUpdate, ...replaceTags]);
   return current.length;
 }
 

@@ -16,6 +16,7 @@ import { transactions } from "./db/schema";
 import type { Db } from "./db/types";
 import { summaryRoutes } from "./routes/summary";
 import { transactionRoutes } from "./routes/transactions";
+import { merchantRoutes } from "./routes/merchants";
 import { transactionEditRoutes } from "./routes/transactionEdits";
 
 export interface AppBindings {
@@ -109,6 +110,7 @@ export function createApp<B extends AppBindings>(makeDb: (env: B) => Db, auth: A
   app.route("/api/summary", summaryRoutes<B>());
   app.route("/api", transactionRoutes<B>());
   app.route("/api", transactionEditRoutes<B>());
+  app.route("/api", merchantRoutes<B>());
 
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 

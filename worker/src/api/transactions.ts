@@ -42,6 +42,8 @@ export interface LookupsResponse {
   categories: string[];
   tags: string[];
   sources: string[];
+  /** Categories whose spending type is essential. */
+  essentialCategories: string[];
 }
 
 /** The filters as they travel in a URL. Text exactly as typed; "quoted" is exact. */
@@ -126,12 +128,14 @@ export interface TransactionEdit {
   source?: string;
   /** A category name sets the override, null clears it, absent leaves it. */
   category?: string | null;
+  /** Replaces the row's tags; absent leaves them. */
+  tags?: string[];
 }
 export type BulkEdit = Pick<TransactionEdit, "merchant" | "type" | "source" | "category">;
 export interface BulkEditRequest { ids: number[]; edit: BulkEdit }
 export interface IdsRequest { ids: number[] }
 export interface TagRequest { ids: number[]; tags: string[]; mode: "add" | "remove" }
 export interface UpdatedResponse { updated: number }
-export interface DeletedResponse { deleted: number }
+export interface DeletedResponse { deleted: number; ids: number[] }
 export interface RestoredResponse { restored: number }
 export interface TaggedResponse { tagged: number }

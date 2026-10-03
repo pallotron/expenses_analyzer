@@ -85,9 +85,12 @@ export async function listLookups(db: Db): Promise<LookupsResponse> {
     .innerJoin(transactionTags, eq(transactionTags.tagId, tags.id))
     .innerJoin(vLive, eq(vLive.id, transactionTags.transactionId))
     .orderBy(asc(tags.name));
+  const essential = await db.select({ name: categories.name }).from(categories)
+    .where(eq(categories.spendingType, "essential")).orderBy(asc(categories.name));
   return {
     categories: categoryNames,
     tags: tagNames.map((r) => r.name),
     sources: sources.map((r) => r.name),
+    essentialCategories: essential.map((r) => r.name),
   };
 }

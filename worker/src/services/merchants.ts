@@ -17,13 +17,14 @@
  * merchant, and imports would no longer see them as duplicates of new ones.
  */
 
-import { asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { atomic } from "../db/atomic";
-import { categories, merchants, transactions } from "../db/schema";
+import { categories, merchantAliases, merchants, transactions } from "../db/schema";
 import type { Db } from "../db/types";
 import {
   compileAliases, resolveMerchantName, type AliasRule,
 } from "../domain/merchants";
+import { normalizeTags } from "../domain/tags";
 import { loadAliasRules } from "./transactions";
 
 /** Stands in for an alias not typed yet, so the preview works mid-edit. */
@@ -121,31 +122,30 @@ export interface MerchantDecision {
   alias: string;
   /** Set on the alias's merchant. Omit to leave its category alone. */
   category?: string;
+  /** Added to the live rows that display as the alias once saved. */
+  tags?: string[];
 }
 
 export interface MerchantDecisionResult {
   /** Rows, live or deleted, now pointing at a different merchant. */
   repointed: number;
+  /** Live rows under the alias the tags were added to; 0 with no tags. */
+  tagged: number;
 }
 
 /**
- * apply_merchant_decision, saved: the rule, the alias's category, and every
- * transaction whose name the new table changes.
+ * Move every row `pattern` matches whose name `rulesAfter` changes, in one
+ * atomic batch with `steps.before` ahead of the move and `steps.after` behind.
  *
- * The old merchant is left in place with its category, as the Python left the
- * old category key: another rule may still resolve to it.
+ * Only rows the pattern matches can change name (see previewAliasChange). A
+ * live row moving to another merchant needs an occurrence free at its new
+ * identity, above every live row that stays put there; deleted rows keep
+ * theirs. Returns how many rows moved.
  */
-export async function saveMerchantDecision(
-  db: Db, decision: MerchantDecision, userId: number,
-): Promise<MerchantDecisionResult> {
-  const { pattern, alias, category } = decision;
-  if (!pattern.trim()) throw new Error("a merchant rule needs a pattern");
-  if (!alias.trim()) throw new Error("a merchant rule needs an alias");
-  checkPattern(pattern);
-
-  const rules = await loadAliasRules(db);
-  const table = compileAliases(withRule(rules, pattern, alias));
-
+export async function repointRows(
+  db: Db, rulesAfter: AliasRule[], pattern: string, steps: { before: SQL[]; after: SQL[] }, userId: number,
+): Promise<number> {
+  const table = compileAliases(rulesAfter);
   const rows = await db
     .select({
       id: transactions.id,
@@ -160,7 +160,6 @@ export async function saveMerchantDecision(
     .leftJoin(merchants, eq(merchants.id, transactions.merchantId))
     .orderBy(asc(transactions.id));
 
-  // Only rows the pattern matches can change name (see previewAliasChange).
   const edited = new RegExp(pattern, "i");
   const moves = rows
     .filter((row) => edited.test(row.raw))
@@ -168,8 +167,6 @@ export async function saveMerchantDecision(
     .filter((row) => row.to !== row.merchant);
   const movingIds = new Set(moves.map((m) => m.id));
 
-  // A live row moving to another merchant needs an occurrence free at its new
-  // identity, above every live row that stays put there.
   const keyOf = (date: number, merchant: string | null, cents: number) =>
     JSON.stringify([date, merchant, cents]);
   const next = new Map<string, number>();
@@ -187,13 +184,60 @@ export async function saveMerchantDecision(
     }
     return { id: move.id, merchant: move.to, occurrence };
   }));
-
-  const names = JSON.stringify([...new Set([alias, ...moves.map((m) => m.to)])]);
-  const aliasId = sql`(SELECT id FROM merchants WHERE canonical_name = ${alias})`;
-  const isNew = !rules.some((r) => r.pattern === pattern);
+  const names = JSON.stringify([...new Set(moves.map((m) => m.to))]);
 
   await atomic(db, [
-    sql`INSERT OR IGNORE INTO merchants (canonical_name) SELECT value FROM json_each(${names})`,
+    ...steps.before,
+    ...(moves.length ? [
+      sql`INSERT OR IGNORE INTO merchants (canonical_name) SELECT value FROM json_each(${names})`,
+      // Park the moving rows first. The unique index is checked row by row, so
+      // a row arriving at an identity could otherwise meet one not yet gone.
+      sql`
+        UPDATE transactions SET occurrence = -id
+        WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(${payload}))
+      `,
+      // One join, not a subquery per row: correlated json_each is quadratic.
+      sql`
+        UPDATE transactions
+        SET merchant_id = j.merchant_id, occurrence = j.occurrence,
+            updated_at = unixepoch(), updated_by = ${userId}
+        FROM (
+          SELECT json_extract(e.value, '$.id') AS id, m.id AS merchant_id,
+                 json_extract(e.value, '$.occurrence') AS occurrence
+          FROM json_each(${payload}) e
+          JOIN merchants m ON m.canonical_name = json_extract(e.value, '$.merchant')
+        ) AS j
+        WHERE transactions.id = j.id
+      `,
+    ] : []),
+    ...steps.after,
+  ]);
+  return moves.length;
+}
+
+/**
+ * apply_merchant_decision, saved: the rule, the alias's category, every
+ * transaction whose name the new table changes, and the tags.
+ *
+ * The old merchant is left in place with its category, as the Python left the
+ * old category key: another rule may still resolve to it.
+ */
+export async function saveMerchantDecision(
+  db: Db, decision: MerchantDecision, userId: number,
+): Promise<MerchantDecisionResult> {
+  const { pattern, alias, category } = decision;
+  if (!pattern.trim()) throw new Error("a merchant rule needs a pattern");
+  if (!alias.trim()) throw new Error("a merchant rule needs an alias");
+  checkPattern(pattern);
+  const tags = normalizeTags(decision.tags ?? []);
+
+  const rules = await loadAliasRules(db);
+  const aliasId = sql`(SELECT id FROM merchants WHERE canonical_name = ${alias})`;
+  const isNew = !rules.some((r) => r.pattern === pattern);
+  const tagList = JSON.stringify(tags);
+
+  const before: SQL[] = [
+    sql`INSERT OR IGNORE INTO merchants (canonical_name) VALUES (${alias})`,
     ...(category ? [
       sql`INSERT OR IGNORE INTO categories (name) VALUES (${category})`,
       sql`
@@ -209,29 +253,81 @@ export async function saveMerchantDecision(
         VALUES (${pattern}, (SELECT COALESCE(MAX(priority), -1) + 1 FROM merchant_aliases), ${aliasId}, ${userId})
       `
       : sql`UPDATE merchant_aliases SET merchant_id = ${aliasId} WHERE pattern = ${pattern}`,
-    ...(moves.length ? [
-      // Park the moving rows first. The unique index is checked row by row, so
-      // a row arriving at an identity could otherwise meet one not yet gone.
-      sql`
-        UPDATE transactions SET occurrence = -id
-        WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(${payload}))
-      `,
-      sql`
-        UPDATE transactions
-        SET merchant_id = (
-              SELECT m.id FROM json_each(${payload}) j
-              JOIN merchants m ON m.canonical_name = json_extract(j.value, '$.merchant')
-              WHERE json_extract(j.value, '$.id') = transactions.id
-            ),
-            occurrence = (
-              SELECT json_extract(value, '$.occurrence') FROM json_each(${payload})
-              WHERE json_extract(value, '$.id') = transactions.id
-            ),
-            updated_at = unixepoch(), updated_by = ${userId}
-        WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(${payload}))
-      `,
-    ] : []),
-  ]);
+  ];
+  // Runs after the move, so it sees the rows that just arrived at the alias.
+  const after: SQL[] = tags.length ? [
+    sql`INSERT OR IGNORE INTO tags (name) SELECT value FROM json_each(${tagList})`,
+    sql`
+      INSERT OR IGNORE INTO transaction_tags (transaction_id, tag_id, tagged_by)
+      SELECT t.id, g.id, ${userId}
+      FROM transactions t
+      JOIN merchants m ON m.id = t.merchant_id AND m.canonical_name = ${alias}
+      JOIN tags g ON g.name IN (SELECT value FROM json_each(${tagList}))
+      WHERE t.deleted_at IS NULL
+    `,
+  ] : [];
 
-  return { repointed: moves.length };
+  const repointed = await repointRows(db, withRule(rules, pattern, alias), pattern, { before, after }, userId);
+  let tagged = 0;
+  if (tags.length) {
+    const [row] = await db
+      .select({ n: sql<number>`COUNT(*)`.mapWith(Number) })
+      .from(transactions)
+      .innerJoin(merchants, eq(merchants.id, transactions.merchantId))
+      .where(and(eq(merchants.canonicalName, alias), isNull(transactions.deletedAt)));
+    tagged = row.n;
+  }
+  return { repointed, tagged };
+}
+
+export class UnknownRuleError extends Error {
+  constructor(id: number) {
+    super(`There is no merchant rule ${id}`);
+    this.name = "UnknownRuleError";
+  }
+}
+
+/**
+ * Drop one rule and re-point the rows it decided: to the next rule that
+ * matches, or to their own normalised names. The merchant it pointed at stays,
+ * with its category, since another rule may still resolve to it.
+ */
+export async function deleteMerchantRule(db: Db, ruleId: number, userId: number): Promise<{ repointed: number }> {
+  const [rule] = await db.select({ pattern: merchantAliases.pattern })
+    .from(merchantAliases).where(eq(merchantAliases.id, ruleId));
+  if (!rule) throw new UnknownRuleError(ruleId);
+  const drop = sql`DELETE FROM merchant_aliases WHERE id = ${ruleId}`;
+  try {
+    checkPattern(rule.pattern);
+  } catch {
+    // Stored patterns came from Python and may not compile here. Such a rule
+    // never matched a row in JavaScript, so it decided none of them.
+    await atomic(db, [drop]);
+    return { repointed: 0 };
+  }
+  const rules = (await loadAliasRules(db)).filter((r) => r.pattern !== rule.pattern);
+  const repointed = await repointRows(db, rules, rule.pattern, { before: [drop], after: [] }, userId);
+  return { repointed };
+}
+
+/** The Merchants page's bulk assign. Null clears; a new name is created. */
+export async function setMerchantCategory(
+  db: Db, merchantIds: number[], category: string | null, userId: number,
+): Promise<{ updated: number }> {
+  const ids = [...new Set(merchantIds)];
+  if (ids.length === 0) return { updated: 0 };
+  const found = await db.select({ id: merchants.id }).from(merchants).where(sql`${merchants.id} IN (SELECT value FROM json_each(${JSON.stringify(ids)}))`);
+  if (found.length === 0) return { updated: 0 };
+  const name = category?.trim() || null;
+  const idList = JSON.stringify(found.map((r) => r.id));
+  await atomic(db, [
+    ...(name ? [sql`INSERT OR IGNORE INTO categories (name) VALUES (${name})`] : []),
+    sql`
+      UPDATE merchants
+      SET category_id = ${name ? sql`(SELECT id FROM categories WHERE name = ${name})` : sql`NULL`},
+          category_suggested = 0, category_set_by = ${userId}, category_set_at = unixepoch()
+      WHERE id IN (SELECT value FROM json_each(${idList}))
+    `,
+  ]);
+  return { updated: found.length };
 }

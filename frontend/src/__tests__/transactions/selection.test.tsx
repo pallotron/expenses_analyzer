@@ -57,4 +57,20 @@ describe("selecting transactions", () => {
     await userEvent.click(await screen.findByRole("checkbox", { name: /Select Shop 3/ }));
     expect(bar()).toHaveTextContent("1 selected");
   });
+
+  it("puts phone checkboxes in a 44px tap target", async () => {
+    setDesktop(false);
+    renderAt(URL_SEPT);
+    const box = await screen.findByRole("checkbox", { name: /Select Shop 3/ });
+    expect(box.closest("label")).toHaveClass("h-11");
+  });
+
+  it("tapping the label padding on a phone selects without opening the sheet", async () => {
+    setDesktop(false);
+    renderAt(URL_SEPT);
+    const label = (await screen.findByRole("checkbox", { name: /Select Shop 3/ })).closest("label")!;
+    await userEvent.click(label);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(bar()).toHaveTextContent("1 selected");
+  });
 });

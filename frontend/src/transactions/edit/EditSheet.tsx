@@ -5,20 +5,27 @@ import { formatCents } from "../../lib/money";
 import { Segmented } from "../../lib/Segmented";
 import { Sheet } from "../../lib/Sheet";
 import type { LookupsResponse, TransactionEdit, TransactionRow, TransactionType } from "../../lib/types";
+import { SheetError, useSheetSubmit } from "../../lib/useSheetSubmit";
 import { parseEuros } from "../amount";
 import { CategorySelect, toCategoryEdit } from "./CategorySelect";
 import { useEditOne } from "./mutations";
+import { splitTags, TagInput } from "./TagInput";
 
-interface Form { date: string; merchant: string; amount: string; type: TransactionType; source: string; category: string }
+interface Form { date: string; merchant: string; amount: string; type: TransactionType; source: string; category: string; tags: string[]; tagDraft: string }
 
 const formOf = (r: TransactionRow): Form => ({
   date: r.date,
   merchant: r.merchantRaw,
-  amount: (r.amountCents / 100).toFixed(2).replace(".", ","),
+  amount: (r.amountCents / 100).toFixed(2),
   type: r.type,
   source: r.source,
   category: r.categoryOverridden ? r.category : "",
+  tags: splitTags(r.tags),
+  tagDraft: "",
 });
+
+/** Chips plus what is typed in the box, sorted so two sets compare by value. */
+const tagsOfForm = (f: Form) => [...new Set([...f.tags, ...splitTags(f.tagDraft)])].sort();
 
 /** Only what differs from the row, as the PATCH body. Null when the amount does not parse. */
 function diff(r: TransactionRow, f: Form): TransactionEdit | null {
@@ -34,6 +41,8 @@ function diff(r: TransactionRow, f: Form): TransactionEdit | null {
   if (f.type !== start.type) edit.type = f.type;
   if (f.source.trim() !== start.source.trim()) edit.source = f.source.trim();
   if (f.category !== start.category) edit.category = toCategoryEdit(f.category);
+  const tags = tagsOfForm(f);
+  if (tags.join(",") !== tagsOfForm(start).join(",")) edit.tags = tags;
   return edit;
 }
 
@@ -42,16 +51,22 @@ const field = "rounded-md border border-slate-300 px-2 py-1.5 dark:border-slate-
 export function EditSheet(props: {
   row: TransactionRow | null; lookups: LookupsResponse | undefined;
   onClose: () => void; onSaved: () => void; onDelete: (id: number) => void;
+  onMerchantRule: (raw: string) => void;
 }) {
   const save = useEditOne();
   const client = useQueryClient();
   const [form, setForm] = useState<Form | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Set when the request never got an answer, so trying again can work.
-  const [retryable, setRetryable] = useState(false);
+  const submitter = useSheetSubmit(
+    save,
+    () => { props.onSaved(); props.onClose(); },
+    (e) => {
+      // Gone elsewhere: refresh so the stale row drops out of the list.
+      if (e instanceof ApiError && e.status === 404) void client.invalidateQueries({ queryKey: ["transactions"] });
+    },
+  );
   const hintId = useId();
   const sourcesId = useId();
-  useEffect(() => { setForm(props.row ? formOf(props.row) : null); setError(null); setRetryable(false); }, [props.row?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setForm(props.row ? formOf(props.row) : null); submitter.reset(); }, [props.row?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const r = props.row;
   const set = (patch: Partial<Form>) => setForm((f) => (f ? { ...f, ...patch } : f));
@@ -61,20 +76,18 @@ export function EditSheet(props: {
 
   const submit = () => {
     if (!r || !form || save.isPending) return;
-    if (edit === null) { setError("Enter an amount more than zero, like 12,50"); return; }
-    if (form.merchant.trim() === "") { setError("Statement text cannot be empty"); return; }
-    if (form.source.trim() === "") { setError("Source cannot be empty"); return; }
-    setError(null);
-    setRetryable(false);
-    save.mutate({ id: r.id, edit }, {
-      onSuccess: () => { props.onSaved(); props.onClose(); },
-      onError: (e) => {
-        setError(e instanceof ApiError ? e.message : `Couldn't save: ${e.message}`);
-        setRetryable(!(e instanceof ApiError));
-        // Gone elsewhere: refresh so the stale row drops out of the list.
-        if (e instanceof ApiError && e.status === 404) void client.invalidateQueries({ queryKey: ["transactions"] });
-      },
-    });
+    if (edit === null) {
+      const trimmed = form.amount.trim();
+      if (trimmed.startsWith("-") || trimmed.startsWith("−") || trimmed.startsWith("+")) {
+        submitter.fail("Amounts are always positive; use Expense/Income for the direction");
+      } else {
+        submitter.fail("Enter an amount more than zero, like 12.50");
+      }
+      return;
+    }
+    if (form.merchant.trim() === "") { submitter.fail("Statement text cannot be empty"); return; }
+    if (form.source.trim() === "") { submitter.fail("Source cannot be empty"); return; }
+    submitter.run({ id: r.id, edit });
   };
 
   return (
@@ -91,6 +104,8 @@ export function EditSheet(props: {
               <input value={form.merchant} onChange={(e) => set({ merchant: e.target.value })} className={field} />
             </label>
             <span className="text-xs text-slate-500">Shows as: {r.merchant}. Changing the text may change the merchant, and with it the category unless one is set below.</span>
+            <button type="button" onClick={() => props.onMerchantRule(r.merchantRaw)} disabled={save.isPending}
+              className="self-start text-xs underline disabled:opacity-40">Merchant rule…</button>
           </div>
           <div className="flex items-end gap-3">
             <label className="flex flex-1 flex-col gap-1">
@@ -101,7 +116,7 @@ export function EditSheet(props: {
             <Segmented label="Type" value={form.type} onChange={(t) => t && set({ type: t })}
               options={[["expense", "Expense"], ["income", "Income"]]} />
           </div>
-          <span id={hintId} className="sr-only">Euros, for example 12,50. Currently {formatCents(r.amountCents)}.</span>
+          <span id={hintId} className="sr-only">Euros, for example 12.50. Currently {formatCents(r.amountCents)}.</span>
           <label className="flex flex-col gap-1">
             <span className="text-xs text-slate-500">Source</span>
             <input list={sourcesId} value={form.source} onChange={(e) => set({ source: e.target.value })} className={field} />
@@ -109,12 +124,9 @@ export function EditSheet(props: {
           </label>
           <CategorySelect value={form.category} onChange={(category) => set({ category })}
             categories={props.lookups?.categories ?? []} merchantCategory={r.merchantCategory} />
-          {error && (
-            <p role="alert" className="text-expense">
-              {error}
-              {retryable && <button type="button" onClick={submit} className="ml-2 underline">Retry</button>}
-            </p>
-          )}
+          <TagInput label="Tags" value={form.tags} onChange={(tags) => set({ tags })}
+            draft={form.tagDraft} onDraft={(tagDraft) => set({ tagDraft })} suggestions={props.lookups?.tags ?? []} />
+          <SheetError submit={submitter} onRetry={submit} />
           <div className="flex items-center justify-between gap-2 pt-1">
             <button type="button" onClick={() => props.onDelete(r.id)} disabled={save.isPending}
               className="px-1 text-expense underline disabled:opacity-40">Delete</button>

@@ -4,7 +4,7 @@
  * message the screen shows as is.
  */
 
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { z } from "zod";
 
 import type { AppBindings, AppEnv } from "../app";
@@ -15,6 +15,7 @@ import { normalizeTags } from "../domain/tags";
 import {
   restoreTransactions, softDeleteTransactions, tagTransactions, UnknownCategoryError, updateTransactions,
 } from "../services/transactions";
+import { parseBody } from "./parseBody";
 
 const MAX_IDS = 10_000;
 const MAX_CENTS = 100_000_000;
@@ -56,6 +57,7 @@ const Edit = z.object({
   type: Type,
   source: text("Source").optional(),
   category: Category,
+  tags: z.array(z.string()).transform(normalizeTags).optional(),
 }).strict().refine((e) => Object.keys(e).length > 0, "Nothing to change");
 
 const BulkEdit = z.object({
@@ -72,19 +74,6 @@ const TagBody = z.object({
   tags: z.array(z.string()).transform(normalizeTags).refine((t) => t.length > 0, "Give at least one tag"),
   mode: z.enum(["add", "remove"], "mode must be add or remove"),
 });
-
-type Parsed<T> = { ok: true; data: T } | { ok: false; error: string };
-
-async function parseBody<T>(c: Context, schema: z.ZodType<T>): Promise<Parsed<T>> {
-  let raw: unknown;
-  try {
-    raw = await c.req.json();
-  } catch {
-    return { ok: false, error: "The request body must be JSON" };
-  }
-  const parsed = schema.safeParse(raw);
-  return parsed.success ? { ok: true, data: parsed.data } : { ok: false, error: parsed.error.issues[0].message };
-}
 
 export function transactionEditRoutes<B extends AppBindings>() {
   const routes = new Hono<AppEnv<B>>();
@@ -119,8 +108,8 @@ export function transactionEditRoutes<B extends AppBindings>() {
   routes.post("/transactions/delete", async (c) => {
     const body = await parseBody(c, IdsBody);
     if (!body.ok) return c.json({ error: body.error }, 400);
-    const deleted = await softDeleteTransactions(c.get("db"), body.data.ids, c.get("user").id);
-    return c.json({ deleted } satisfies DeletedResponse);
+    const ids = await softDeleteTransactions(c.get("db"), body.data.ids, c.get("user").id);
+    return c.json({ deleted: ids.length, ids } satisfies DeletedResponse);
   });
 
   routes.post("/transactions/restore", async (c) => {

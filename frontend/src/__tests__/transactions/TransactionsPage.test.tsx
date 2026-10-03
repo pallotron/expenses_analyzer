@@ -26,7 +26,7 @@ function api(opts: { periodsFail?: { value: boolean }; rows?: TransactionRow[]; 
     calls.push(url);
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
     if (url.pathname === "/api/summary/periods") return opts.periodsFail?.value ? json({ error: "periods down" }, 500) : json(periods);
-    if (url.pathname === "/api/lookups") return json({ categories: ["Groceries"], tags: [], sources: periods.sources });
+    if (url.pathname === "/api/lookups") return json({ categories: ["Groceries"], tags: [], essentialCategories: [], sources: periods.sources });
     if (opts.error) return json(opts.error.body, opts.error.status);
     const rows = opts.rows ?? [row(2, "2026-09-29", 5420), row(1, "2026-09-27", 500000, "income")];
     const body: TransactionsResponse = {

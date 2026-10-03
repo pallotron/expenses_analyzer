@@ -1,4 +1,5 @@
 import type { SQL } from "drizzle-orm";
+import { SQLiteAsyncDialect } from "drizzle-orm/sqlite-core";
 import type { Db } from "./types";
 
 /**
@@ -11,6 +12,12 @@ import type { Db } from "./types";
  *
  * Statements cannot see each other's results from JavaScript, so write them to
  * find what earlier ones inserted in SQL (by natural key, not returned ids).
+ *
+ * On D1 this builds the prepared statements itself instead of calling drizzle's
+ * `batch`. In drizzle 0.44 that method binds parameters through the prepared
+ * query's `.stmt`, which `db.run(sql)` items do not have, so any statement with
+ * parameters fails with "Cannot read properties of undefined (reading 'bind')".
+ * Do not simplify this back to `db.batch(statements.map(db.run))`.
  */
 export async function atomic(db: Db, statements: SQL[]): Promise<void> {
   if (statements.length === 0) return;
@@ -19,7 +26,17 @@ export async function atomic(db: Db, statements: SQL[]): Promise<void> {
     batch?: (items: unknown[]) => Promise<unknown>;
   };
   if (typeof batching.batch === "function") {
-    await batching.batch(statements.map((s) => db.run(s)));
+    // drizzle's D1 driver keeps the D1Database on $client, and its dialect
+    // turns each SQL into the text and params D1 wants. D1's own batch is
+    // atomic: if one statement fails, none of them apply.
+    const client = (db as unknown as { $client: D1Database }).$client;
+    const dialect = new SQLiteAsyncDialect();
+    await client.batch(
+      statements.map((s) => {
+        const { sql, params } = dialect.sqlToQuery(s);
+        return client.prepare(sql).bind(...params);
+      }),
+    );
     return;
   }
 

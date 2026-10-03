@@ -38,10 +38,11 @@ describe("TopBar", () => {
     expect(await screen.findByRole("link", { name: /sign out/i })).toBeInTheDocument();
   });
 
-  it("links to both screens and marks the current one", async () => {
+  it("links to every screen and marks the current one", async () => {
     renderBar("expenses.example.com", undefined, "/transactions");
     expect(screen.getByRole("link", { name: "Summary" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Merchants" })).toHaveAttribute("href", "/merchants");
   });
 
   it("publishes the measured bar height as --topbar-h", () => {

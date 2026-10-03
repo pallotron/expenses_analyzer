@@ -110,3 +110,24 @@ export function toTransactionsSearch(q: TransactionsQuery): URLSearchParams {
   if (q.excludeHidden) sp.set("excludeHidden", "1");
   return sp;
 }
+
+export interface TransactionEdit {
+  /** YYYY-MM-DD. */
+  date?: string;
+  /** Raw statement text; the merchant is re-resolved through the aliases. */
+  merchant?: string;
+  /** Positive; the sign is `type`. */
+  amountCents?: number;
+  type?: TransactionType;
+  source?: string;
+  /** A category name sets the override, null clears it, absent leaves it. */
+  category?: string | null;
+}
+export type BulkEdit = Pick<TransactionEdit, "merchant" | "type" | "source" | "category">;
+export interface BulkEditRequest { ids: number[]; edit: BulkEdit }
+export interface IdsRequest { ids: number[] }
+export interface TagRequest { ids: number[]; tags: string[]; mode: "add" | "remove" }
+export interface UpdatedResponse { updated: number }
+export interface DeletedResponse { deleted: number }
+export interface RestoredResponse { restored: number }
+export interface TaggedResponse { tagged: number }

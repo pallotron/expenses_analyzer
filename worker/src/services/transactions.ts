@@ -29,9 +29,10 @@
 import {
   and, asc, eq, gte, isNotNull, isNull, lte, sql, type SQL,
 } from "drizzle-orm";
+import type { TransactionEdit } from "../api/transactions";
 import { atomic } from "../db/atomic";
 import {
-  importBatches, merchantAliases, merchants, transactions,
+  categories, importBatches, merchantAliases, merchants, transactions,
 } from "../db/schema";
 import type { Db } from "../db/types";
 import {
@@ -40,6 +41,8 @@ import {
 import { epochDay } from "../domain/money";
 import { normalizeTags } from "../domain/tags";
 import { validateImportRows, ValidationError, type ValidationLimits } from "../domain/validation";
+
+export type { TransactionEdit };
 
 export type TransactionType = "expense" | "income";
 
@@ -420,75 +423,98 @@ export async function tagTransactions(
   return found.length;
 }
 
-export interface TransactionEdit {
-  date?: string;
-  /** Raw statement text; the merchant is re-resolved through the aliases. */
-  merchant?: string;
-  amountCents?: number;
-  type?: TransactionType;
-  source?: string;
+export class UnknownCategoryError extends Error {
+  constructor(name: string) {
+    super(`There is no category called "${name}"`);
+    this.name = "UnknownCategoryError";
+  }
 }
 
 /**
- * update_single_transaction, by id. Changing date, merchant or amount moves
- * the row to another identity, so a live row gets an occurrence free there.
- * Returns false if there is no such transaction.
+ * update_single_transaction for many ids at once, in one atomic batch.
+ * Changing date, merchant or amount moves a live row to another identity, so
+ * each moving live row gets an occurrence free there; freeOccurrences counts
+ * the rows placed in this same call, so rows moving together never collide.
+ * Deleted rows keep their occurrence. Returns how many of the ids exist.
  */
-export async function updateTransaction(
-  db: Db, id: number, edit: TransactionEdit, userId: number,
-): Promise<boolean> {
-  const [current] = await db
+export async function updateTransactions(
+  db: Db, ids: number[], edit: TransactionEdit, userId: number,
+): Promise<number> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return 0;
+  const current = await db
     .select({
+      id: transactions.id,
       date: transactions.date,
-      merchantRaw: transactions.merchantRaw,
       merchantId: transactions.merchantId,
       cents: transactions.amountCents,
-      type: transactions.type,
-      source: transactions.source,
       deleted: sql<number>`${transactions.deletedAt} IS NOT NULL`.mapWith(Boolean),
     })
     .from(transactions)
-    .where(eq(transactions.id, id));
-  if (!current) return false;
+    .where(idsIn(unique))
+    .orderBy(asc(transactions.id));
+  if (current.length === 0) return 0;
 
-  const date = edit.date !== undefined ? epochDay(edit.date) : current.date;
-  const merchantRaw = edit.merchant ?? current.merchantRaw;
-  const cents = edit.amountCents ?? current.cents;
-  const type = edit.type ?? current.type;
-  const source = edit.source ?? current.source;
+  let categoryId: number | null | undefined;
+  if (edit.category === null) categoryId = null;
+  else if (edit.category !== undefined) {
+    const [found] = await db.select({ id: categories.id }).from(categories).where(eq(categories.name, edit.category));
+    if (!found) throw new UnknownCategoryError(edit.category);
+    categoryId = found.id;
+  }
 
-  let canonical: string | null = null;
   const statements: SQL[] = [];
+  const sets: SQL[] = [];
+  let canonical: string | null = null;
   if (edit.merchant !== undefined) {
-    canonical = resolveMerchantName(merchantRaw, await loadAliases(db));
+    canonical = resolveMerchantName(edit.merchant, await loadAliases(db));
     statements.push(...createMerchants([canonical]));
+    sets.push(sql`merchant_raw = ${edit.merchant}`,
+      sql`merchant_id = (SELECT id FROM merchants WHERE canonical_name = ${canonical})`);
+  }
+  const date = edit.date !== undefined ? epochDay(edit.date) : undefined;
+  if (date !== undefined) sets.push(sql`date = ${date}`);
+  if (edit.amountCents !== undefined) sets.push(sql`amount_cents = ${edit.amountCents}`);
+  if (edit.type !== undefined) sets.push(sql`type = ${edit.type}`);
+  if (edit.source !== undefined) sets.push(sql`source = ${edit.source}`);
+  if (categoryId !== undefined) sets.push(sql`category_override_id = ${categoryId}`);
+
+  // A merchant that does not exist yet has no rows to clash with; -1 stands
+  // for it, and freeOccurrences still spaces the rows placed in this call.
+  const moving = date !== undefined || edit.amountCents !== undefined || canonical !== null;
+  if (moving) {
+    let target: number | undefined;
+    if (canonical !== null) {
+      const [found] = await db.select({ id: merchants.id }).from(merchants).where(eq(merchants.canonicalName, canonical));
+      target = found?.id ?? -1;
+    }
+    const occurrences = await freeOccurrences(db, current.filter((r) => !r.deleted).map((r) => ({
+      id: r.id,
+      date: date ?? r.date,
+      merchantId: target ?? r.merchantId ?? -1,
+      cents: edit.amountCents ?? r.cents,
+    })));
+    if (occurrences.size > 0) {
+      const payload = json([...occurrences].map(([id, occurrence]) => ({ id, occurrence })));
+      sets.push(sql`occurrence = COALESCE((
+        SELECT json_extract(value, '$.occurrence') FROM json_each(${payload})
+        WHERE json_extract(value, '$.id') = transactions.id
+      ), occurrence)`);
+    }
   }
 
-  const merchantSql = canonical !== null
-    ? sql`(SELECT id FROM merchants WHERE canonical_name = ${canonical})`
-    : sql`${current.merchantId}`;
-
-  // The occurrence has to be free at the row's new identity. The merchant may
-  // not exist yet, so look it up by name: a new merchant has no rows to clash.
-  let occurrence: SQL = sql`occurrence`;
-  const moved = date !== current.date || cents !== current.cents || canonical !== null;
-  if (moved && !current.deleted) {
-    const [target] = canonical !== null
-      ? await db.select({ id: merchants.id }).from(merchants).where(eq(merchants.canonicalName, canonical))
-      : [{ id: current.merchantId ?? -1 }];
-    const free = target
-      ? (await freeOccurrences(db, [{ id, date, merchantId: target.id, cents }])).get(id) ?? 0
-      : 0;
-    occurrence = sql`${free}`;
-  }
-
+  sets.push(sql`updated_at = ${now}`, sql`updated_by = ${userId}`);
   statements.push(sql`
-    UPDATE transactions
-    SET date = ${date}, merchant_raw = ${merchantRaw}, merchant_id = ${merchantSql},
-        amount_cents = ${cents}, type = ${type}, source = ${source},
-        occurrence = ${occurrence}, updated_at = ${now}, updated_by = ${userId}
-    WHERE id = ${id}
+    UPDATE transactions SET ${sql.join(sets, sql`, `)}
+    WHERE id IN (SELECT value FROM json_each(${json(current.map((r) => r.id))}))
   `);
   await atomic(db, statements);
-  return true;
+  return current.length;
+}
+
+/** One transaction by id; false if there is no such transaction. */
+export async function updateTransaction(
+  db: Db, id: number, edit: TransactionEdit, userId: number,
+): Promise<boolean> {
+  return (await updateTransactions(db, [id], edit, userId)) === 1;
 }

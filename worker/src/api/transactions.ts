@@ -134,6 +134,6 @@ export interface BulkEditRequest { ids: number[]; edit: BulkEdit }
 export interface IdsRequest { ids: number[] }
 export interface TagRequest { ids: number[]; tags: string[]; mode: "add" | "remove" }
 export interface UpdatedResponse { updated: number }
-export interface DeletedResponse { deleted: number }
+export interface DeletedResponse { deleted: number; ids: number[] }
 export interface RestoredResponse { restored: number }
 export interface TaggedResponse { tagged: number }

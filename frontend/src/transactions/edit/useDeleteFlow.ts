@@ -9,15 +9,16 @@ export const CONFIRM_ABOVE = 20;
 
 const plural = (n: number) => `${n} ${n === 1 ? "was" : "were"}`;
 
-/** Deletes at once up to CONFIRM_ABOVE ids, else asks; Undo restores the same ids. */
+/** Deletes at once up to CONFIRM_ABOVE ids, else asks; Undo restores the ids the server deleted. */
 export function useDeleteFlow(opts: {
   rows: TransactionRow[];
   notify: (t: Omit<ToastState, "id">) => void;
-  onDeleted: () => void;
+  onDeleted: (ids: number[]) => void;
 }): { start: (ids: number[]) => void; sheet: ReactNode } {
   const del = useDelete();
   const restore = useRestore();
   const [confirming, setConfirming] = useState<number[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const undo = (ids: number[]) => {
     // The toast keeps its Undo button while the restore runs, and only the
@@ -33,25 +34,37 @@ export function useDeleteFlow(opts: {
 
   const run = (ids: number[]) => {
     if (del.isPending) return;
+    // Read now: the callbacks below close over this render, not the sheet's state when the request ends.
+    const inSheet = confirming !== null;
+    setError(null);
     del.mutate(ids, {
-      onSuccess: ({ deleted }) => {
+      onSuccess: ({ deleted, ids: gone }) => {
         setConfirming(null);
-        opts.onDeleted();
-        const gone = ids.length - deleted;
+        opts.onDeleted(gone);
+        const missing = ids.length - deleted;
         opts.notify({
-          message: gone > 0 ? `${deleted} of ${ids.length} deleted (${plural(gone)} already gone)` : `${deleted} deleted`,
-          action: deleted > 0 ? { label: "Undo", run: () => undo(ids) } : undefined,
+          message: missing > 0 ? `${deleted} of ${ids.length} deleted (${plural(missing)} already gone)` : `${deleted} deleted`,
+          action: deleted > 0 ? { label: "Undo", run: () => undo(gone) } : undefined,
         });
       },
-      onError: (e) => opts.notify({ message: `Couldn't delete: ${e.message}`, action: { label: "Retry", run: () => run(ids) } }),
+      onError: (e) => {
+        // A toast cannot show above a modal dialog, so a confirmed delete reports in its sheet.
+        if (inSheet) setError(`Couldn't delete: ${e.message}`);
+        else opts.notify({ message: `Couldn't delete: ${e.message}`, action: { label: "Retry", run: () => run(ids) } });
+      },
     });
   };
 
-  const start = (ids: number[]) => (ids.length > CONFIRM_ABOVE ? setConfirming(ids) : run(ids));
+  const start = (ids: number[]) => {
+    if (ids.length <= CONFIRM_ABOVE) return run(ids);
+    setError(null);
+    setConfirming(ids);
+  };
 
   const sheet = createElement(DeleteSheet, {
-    ids: confirming, rows: opts.rows, busy: del.isPending,
-    onConfirm: () => confirming && run(confirming), onClose: () => setConfirming(null),
+    ids: confirming, rows: opts.rows, busy: del.isPending, error,
+    onConfirm: () => confirming && run(confirming), onRetry: () => confirming && run(confirming),
+    onClose: () => { setConfirming(null); setError(null); },
   });
   return { start, sheet };
 }

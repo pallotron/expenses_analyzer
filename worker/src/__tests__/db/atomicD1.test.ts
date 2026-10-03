@@ -67,7 +67,7 @@ describe("write services on the D1 driver", () => {
     const { sqlite, db } = d1Store();
     seed(sqlite, [SHOP], []);
     const deletedAt = () => (sqlite.prepare(`SELECT deleted_at AS d FROM transactions WHERE id = 1`).get() as { d: number | null }).d;
-    expect(await softDeleteTransactions(db, [1], USER)).toBe(1);
+    expect(await softDeleteTransactions(db, [1], USER)).toEqual([1]);
     expect(deletedAt()).not.toBeNull();
     expect(await restoreTransactions(db, [1], USER)).toBe(1);
     expect(deletedAt()).toBeNull();
@@ -91,7 +91,7 @@ describe("write services on the D1 driver", () => {
     seed(sqlite, Array.from({ length: n }, () => SHOP), []);
     const ids = Array.from({ length: n }, (_, i) => i + 1);
     const started = performance.now();
-    expect(await softDeleteTransactions(db, ids, USER)).toBe(n);
+    expect(await softDeleteTransactions(db, ids, USER)).toEqual(ids);
     expect(await restoreTransactions(db, ids, USER)).toBe(n);
     const elapsedMs = performance.now() - started;
     expect(sqlite.prepare(`SELECT COUNT(*) AS c, COUNT(DISTINCT occurrence) AS d FROM transactions WHERE deleted_at IS NULL`).get())

@@ -101,6 +101,7 @@ export function TransactionsPage() {
         )}
         <Editing rows={data?.rows ?? []} selectedIds={selectedIds} lookups={lookups.data}
           onSelectAll={() => setSelected(new Set(data?.rows.map((r) => r.id)))} onClearSelection={() => setSelected(new Set())}
+          onDeselect={(ids) => setSelected((s) => { const n = new Set(s); for (const id of ids) n.delete(id); return n; })}
           open={open} onCloseOpen={() => setOpen(null)} />
       </StickyPanel>
       {badRequest && <p role="alert" className="text-sm text-expense">{badRequest}</p>}

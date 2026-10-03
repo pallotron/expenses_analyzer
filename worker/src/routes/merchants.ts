@@ -20,7 +20,7 @@ import { parseBody } from "./parseBody";
 const Decision = z.object({
   pattern: z.string().trim().min(1, "Enter a pattern"),
   alias: z.string().trim().min(1, "Enter a display name"),
-  category: z.string().trim().min(1).optional(),
+  category: z.string().trim().min(1, "Category cannot be empty").optional(),
   tags: z.array(z.string()).optional(),
 }).strict().superRefine((d, ctx) => {
   try { new RegExp(d.pattern, "i"); } catch (e) {

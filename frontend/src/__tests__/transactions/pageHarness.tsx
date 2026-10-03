@@ -46,7 +46,10 @@ const idsOf = (body: unknown) => (body as { ids: number[] }).ids;
 
 /** The delete, restore, tag and bulk-edit answers, built on `routes`; an explicit route wins. */
 const deleteRoutes = (opts: ApiOptions): Record<string, Route> => ({
-  "POST /api/transactions/delete": (b) => ({ body: { deleted: opts.deletedCount ?? idsOf(b).length } }),
+  "POST /api/transactions/delete": (b) => {
+    const ids = idsOf(b).slice(0, opts.deletedCount ?? idsOf(b).length);
+    return { body: { deleted: ids.length, ids } };
+  },
   "POST /api/transactions/restore": (b) =>
     opts.restoreFails ? { status: 500, body: { error: "boom" } } : { body: { restored: idsOf(b).length } },
   "POST /api/transactions/bulk-edit": (b) => ({ body: { updated: opts.updatedCount ?? idsOf(b).length } }),

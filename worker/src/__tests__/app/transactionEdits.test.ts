@@ -125,10 +125,17 @@ describe("bulk routes", () => {
 
   it("deletes and restores", async () => {
     const { send, sqlite } = setup();
-    expect(await (await send("POST", "/api/transactions/delete", { ids: [1, 2] })).json()).toEqual({ deleted: 2 });
-    expect(await (await send("POST", "/api/transactions/delete", { ids: [1, 2] })).json()).toEqual({ deleted: 0 });
+    expect(await (await send("POST", "/api/transactions/delete", { ids: [1, 2] })).json()).toEqual({ deleted: 2, ids: [1, 2] });
+    expect(await (await send("POST", "/api/transactions/delete", { ids: [1, 2] })).json()).toEqual({ deleted: 0, ids: [] });
     expect(await (await send("POST", "/api/transactions/restore", { ids: [1] })).json()).toEqual({ restored: 1 });
     expect(one(sqlite, `SELECT COUNT(*) AS n FROM transactions WHERE deleted_at IS NULL`)).toEqual({ n: 1 });
+  });
+
+  it("tags only live rows, and counts only those", async () => {
+    const { send, sqlite } = setup();
+    await send("POST", "/api/transactions/delete", { ids: [2] });
+    expect(await (await send("POST", "/api/transactions/tags", { ids: [1, 2], tags: ["trip"], mode: "add" })).json()).toEqual({ tagged: 1 });
+    expect(one(sqlite, `SELECT COUNT(*) AS n FROM transaction_tags WHERE transaction_id = 2`)).toEqual({ n: 0 });
   });
 
   it("tags and untags", async () => {

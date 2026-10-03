@@ -13,6 +13,7 @@ export function Editing(props: {
   selectedIds: number[];
   onSelectAll: () => void;
   onClearSelection: () => void;
+  onDeselect: (ids: number[]) => void;
   open: TransactionRow | null;
   onCloseOpen: () => void;
   lookups: LookupsResponse | undefined;
@@ -23,7 +24,7 @@ export function Editing(props: {
   const notify = (t: Omit<ToastState, "id">) => setToast({ ...t, id: ++nextId.current });
   const [tagMode, setTagMode] = useState<"add" | "remove" | null>(null);
   const [bulkIds, setBulkIds] = useState<number[] | null>(null);
-  const deleting = useDeleteFlow({ rows: props.rows, notify, onDeleted: props.onClearSelection });
+  const deleting = useDeleteFlow({ rows: props.rows, notify, onDeleted: props.onDeselect });
   return (
     <>
       {props.selectedIds.length > 0 && (

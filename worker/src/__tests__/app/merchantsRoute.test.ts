@@ -73,6 +73,13 @@ describe("merchant writes", () => {
     expect((await send("POST", "/api/merchants/decision", { pattern: "CORNER", alias: " " })).status).toBe(400);
   });
 
+  it("answers 400 for a whitespace-only category", async () => {
+    const { send } = setup();
+    const res = await send("POST", "/api/merchants/decision", { pattern: "CORNER", alias: "Corner Shop", category: "  " });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe("Category cannot be empty");
+  });
+
   it("deletes a rule, and answers 404 the second time", async () => {
     const { send, sqlite } = setup();
     const { id } = sqlite.prepare(`SELECT id FROM merchant_aliases`).get() as { id: number };

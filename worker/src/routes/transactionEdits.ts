@@ -107,8 +107,8 @@ export function transactionEditRoutes<B extends AppBindings>() {
   routes.post("/transactions/delete", async (c) => {
     const body = await parseBody(c, IdsBody);
     if (!body.ok) return c.json({ error: body.error }, 400);
-    const deleted = await softDeleteTransactions(c.get("db"), body.data.ids, c.get("user").id);
-    return c.json({ deleted } satisfies DeletedResponse);
+    const ids = await softDeleteTransactions(c.get("db"), body.data.ids, c.get("user").id);
+    return c.json({ deleted: ids.length, ids } satisfies DeletedResponse);
   });
 
   routes.post("/transactions/restore", async (c) => {

@@ -5,6 +5,7 @@ import { formatCents } from "../../lib/money";
 import { Segmented } from "../../lib/Segmented";
 import { Sheet } from "../../lib/Sheet";
 import type { LookupsResponse, TransactionEdit, TransactionRow, TransactionType } from "../../lib/types";
+import { SheetError, useSheetSubmit } from "../../lib/useSheetSubmit";
 import { parseEuros } from "../amount";
 import { CategorySelect, toCategoryEdit } from "./CategorySelect";
 import { useEditOne } from "./mutations";
@@ -46,12 +47,17 @@ export function EditSheet(props: {
   const save = useEditOne();
   const client = useQueryClient();
   const [form, setForm] = useState<Form | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Set when the request never got an answer, so trying again can work.
-  const [retryable, setRetryable] = useState(false);
+  const submitter = useSheetSubmit(
+    save,
+    () => { props.onSaved(); props.onClose(); },
+    (e) => {
+      // Gone elsewhere: refresh so the stale row drops out of the list.
+      if (e instanceof ApiError && e.status === 404) void client.invalidateQueries({ queryKey: ["transactions"] });
+    },
+  );
   const hintId = useId();
   const sourcesId = useId();
-  useEffect(() => { setForm(props.row ? formOf(props.row) : null); setError(null); setRetryable(false); }, [props.row?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setForm(props.row ? formOf(props.row) : null); submitter.reset(); }, [props.row?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const r = props.row;
   const set = (patch: Partial<Form>) => setForm((f) => (f ? { ...f, ...patch } : f));
@@ -64,25 +70,15 @@ export function EditSheet(props: {
     if (edit === null) {
       const trimmed = form.amount.trim();
       if (trimmed.startsWith("-") || trimmed.startsWith("−") || trimmed.startsWith("+")) {
-        setError("Amounts are always positive; use Expense/Income for the direction");
+        submitter.fail("Amounts are always positive; use Expense/Income for the direction");
       } else {
-        setError("Enter an amount more than zero, like 12.50");
+        submitter.fail("Enter an amount more than zero, like 12.50");
       }
       return;
     }
-    if (form.merchant.trim() === "") { setError("Statement text cannot be empty"); return; }
-    if (form.source.trim() === "") { setError("Source cannot be empty"); return; }
-    setError(null);
-    setRetryable(false);
-    save.mutate({ id: r.id, edit }, {
-      onSuccess: () => { props.onSaved(); props.onClose(); },
-      onError: (e) => {
-        setError(e instanceof ApiError ? e.message : `Couldn't save: ${e.message}`);
-        setRetryable(!(e instanceof ApiError));
-        // Gone elsewhere: refresh so the stale row drops out of the list.
-        if (e instanceof ApiError && e.status === 404) void client.invalidateQueries({ queryKey: ["transactions"] });
-      },
-    });
+    if (form.merchant.trim() === "") { submitter.fail("Statement text cannot be empty"); return; }
+    if (form.source.trim() === "") { submitter.fail("Source cannot be empty"); return; }
+    submitter.run({ id: r.id, edit });
   };
 
   return (
@@ -117,12 +113,7 @@ export function EditSheet(props: {
           </label>
           <CategorySelect value={form.category} onChange={(category) => set({ category })}
             categories={props.lookups?.categories ?? []} merchantCategory={r.merchantCategory} />
-          {error && (
-            <p role="alert" className="text-expense">
-              {error}
-              {retryable && <button type="button" onClick={submit} className="ml-2 underline">Retry</button>}
-            </p>
-          )}
+          <SheetError submit={submitter} onRetry={submit} />
           <div className="flex items-center justify-between gap-2 pt-1">
             <button type="button" onClick={() => props.onDelete(r.id)} disabled={save.isPending}
               className="px-1 text-expense underline disabled:opacity-40">Delete</button>

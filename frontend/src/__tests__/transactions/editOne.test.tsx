@@ -54,6 +54,17 @@ describe("editing one transaction", () => {
     expect(patched(mock)).toEqual([]);
   });
 
+  it("refuses a Unicode-minus amount without a request", async () => {
+    const { mock } = renderAt(URL_SEPT);
+    const sheet = await openShop3();
+    const amount = within(sheet).getByLabelText("Amount");
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "−15");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("Amounts are always positive; use Expense/Income for the direction");
+    expect(patched(mock)).toEqual([]);
+  });
+
   it("refuses a plus-signed amount without a request", async () => {
     const { mock } = renderAt(URL_SEPT);
     const sheet = await openShop3();

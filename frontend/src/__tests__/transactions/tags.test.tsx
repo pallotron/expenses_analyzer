@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { splitTags } from "../../transactions/edit/TagInput";
 import { api, bar, posted, renderAt, row, URL_SEPT, useHarness } from "./pageHarness";
@@ -22,6 +22,58 @@ describe("splitTags", () => {
 });
 
 describe("tagging", () => {
+  it("focuses the tag box when the sheet opens", async () => {
+    page();
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Tag" }));
+    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Tags" })).toHaveFocus();
+  });
+
+  it("turns a picked suggestion into a chip at once", async () => {
+    page();
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Tag" }));
+    const sheet = screen.getByRole("dialog");
+    const box = within(sheet).getByRole("combobox", { name: "Tags" });
+    // A datalist pick arrives as a plain change, not typed input.
+    fireEvent.change(box, { target: { value: "emergency" } });
+    expect(within(sheet).getByRole("list", { name: "Chosen tags" })).toHaveTextContent("emergency");
+    expect(box).toHaveValue("");
+  });
+
+  it("does not chip a suggestion while it is still being typed", async () => {
+    page();
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Tag" }));
+    const sheet = screen.getByRole("dialog");
+    const box = within(sheet).getByRole("combobox", { name: "Tags" });
+    await userEvent.type(box, "emerg");
+    expect(within(sheet).queryByRole("list", { name: "Chosen tags" })).not.toBeInTheDocument();
+    expect(box).toHaveValue("emerg");
+    // Typing the whole word letter by letter stays typing too.
+    await userEvent.type(box, "ency");
+    expect(within(sheet).queryByRole("list", { name: "Chosen tags" })).not.toBeInTheDocument();
+  });
+
+  it("offers Retry when tagging never got an answer", async () => {
+    const { mock } = page();
+    const real = mock.fetch;
+    let fail = true;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (fail && init?.method === "POST") throw new TypeError("Failed to fetch");
+      return real(input, init);
+    }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Tag" }));
+    const sheet = screen.getByRole("dialog");
+    await userEvent.type(within(sheet).getByRole("combobox", { name: "Tags" }), "trip{Enter}");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Add tags" }));
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent("Couldn't save: Failed to fetch");
+    fail = false;
+    await userEvent.click(within(sheet).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Tagged 2"));
+  });
+
   it("adds typed and chosen tags, including text not yet turned into a chip", async () => {
     const { mock } = page();
     await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));

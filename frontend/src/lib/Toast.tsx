@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export const TOAST_MS = 10_000;
 
@@ -29,4 +29,15 @@ export function Toast(props: { toast: ToastState | null; onDismiss: () => void }
       )}
     </div>
   );
+}
+
+export function useToast() {
+  const [toast, setToast] = useState<ToastState | null>(null);
+  // A counter, not Date.now(): two toasts in one millisecond must still restart the timer.
+  const nextId = useRef(0);
+  return {
+    toast,
+    notify: (t: Omit<ToastState, "id">) => setToast({ ...t, id: ++nextId.current }),
+    dismiss: () => setToast(null),
+  };
 }

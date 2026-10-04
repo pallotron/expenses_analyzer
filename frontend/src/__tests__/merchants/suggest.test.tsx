@@ -86,4 +86,56 @@ describe("the Suggest categories button", () => {
     await waitFor(() => expect(toast).toHaveTextContent("Suggested categories for 1 merchant"));
     expect(attempts).toBe(2);
   });
+
+  it("Retry goes away while the retried request is in flight, and sends one extra POST", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let attempts = 0;
+    const mock = api(rows, { "GET /api/lookups": lookups(true) });
+    const flaky = async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/api/merchants/suggest")) {
+        if (++attempts === 1) {
+          return new Response(JSON.stringify({ error: "Gemini didn't answer (HTTP 429)" }),
+            { status: 502, headers: { "content-type": "application/json" } });
+        }
+        await gate;
+        return new Response(JSON.stringify({ asked: 1, suggested: 0, newCategories: [], unanswered: 1 }),
+          { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return mock.fetch(input, init);
+    };
+    renderMerchants("/merchants", { ...mock, fetch: flaky });
+    await userEvent.click(await screen.findByRole("button", { name: "Suggest categories" }));
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    await userEvent.click(retry);
+    expect(await screen.findByRole("button", { name: "Asking Gemini…" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(attempts).toBe(2);
+    release();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 got no answer"));
+    expect(attempts).toBe(2);
+  });
+
+  it("a second click on the main button while pending sends no extra POST", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let attempts = 0;
+    const mock = api(rows, { "GET /api/lookups": lookups(true) });
+    const slow = async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/api/merchants/suggest")) {
+        attempts++;
+        await gate;
+        return new Response(JSON.stringify({ asked: 1, suggested: 0, newCategories: [], unanswered: 1 }),
+          { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return mock.fetch(input, init);
+    };
+    renderMerchants("/merchants", { ...mock, fetch: slow });
+    await userEvent.click(await screen.findByRole("button", { name: "Suggest categories" }));
+    const pending = await screen.findByRole("button", { name: "Asking Gemini…" });
+    await userEvent.click(pending);
+    release();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 got no answer"));
+    expect(attempts).toBe(1);
+  });
 });

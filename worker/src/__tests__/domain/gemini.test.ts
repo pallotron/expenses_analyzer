@@ -43,6 +43,19 @@ describe("parseGeminiResponse beyond the Python", () => {
       .toEqual({ "Cafe One": "Eating out" });
   });
 
+  it("answers two names that differ only by case each with its own value", () => {
+    expect(parseGeminiResponse('{"AMAZON": "Shopping", "Amazon": "Books"}', ["AMAZON", "Amazon"]))
+      .toEqual({ AMAZON: "Shopping", Amazon: "Books" });
+  });
+
+  it("gives an inexact answer to the first matching asked name only", () => {
+    expect(parseGeminiResponse('{"amazon ": "Shopping"}', ["AMAZON", "Amazon"])).toEqual({ AMAZON: "Shopping" });
+  });
+
+  it("copes with asked names that are Object.prototype keys", () => {
+    expect(parseGeminiResponse('{"constructor": "Fuel"}', ["constructor"])).toEqual({ constructor: "Fuel" });
+  });
+
   it("trims categories and drops blank, non-string and Uncategorized answers", () => {
     expect(parseGeminiResponse(
       '{"A": "  Fuel ", "B": "", "C": 3, "D": null, "E": "uncategorized", "F": "UNCATEGORIZED "}',

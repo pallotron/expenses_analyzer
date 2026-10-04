@@ -14,6 +14,11 @@ describe("geminiClient", () => {
     warn.mockRestore();
   });
 
+  it("skips a null part instead of throwing", async () => {
+    const fetchImpl = vi.fn(async () => ok({ candidates: [{ content: { parts: [null, { text: "{}" }] } }] }));
+    expect(await geminiClient("k", "m", fetchImpl as unknown as typeof fetch)("hi")).toBe("{}");
+  });
+
   it("posts the prompt with the key in a header, and joins the answer's text parts", async () => {
     const fetchImpl = vi.fn(async () => ok({ candidates: [{ content: { parts: [{ text: '{"A":' }, { text: ' "B"}' }] } }] }));
     const generate = geminiClient("secret-key", "gemini-test", fetchImpl as unknown as typeof fetch);

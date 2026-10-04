@@ -22,7 +22,7 @@ export class GeminiCallError extends Error {
 }
 
 interface GenerateContentBody {
-  candidates?: { content?: { parts?: { text?: unknown }[] } }[];
+  candidates?: { content?: { parts?: ({ text?: unknown } | null)[] } }[];
 }
 
 export function geminiClient(apiKey: string, model: string, fetchImpl?: typeof fetch): GenerateText {
@@ -48,6 +48,6 @@ export function geminiClient(apiKey: string, model: string, fetchImpl?: typeof f
     const body = await res.json().catch(() => null) as GenerateContentBody | null;
     const parts = body?.candidates?.[0]?.content?.parts;
     if (!Array.isArray(parts)) throw new GeminiResponseError("no candidate");
-    return parts.map((p) => (typeof p.text === "string" ? p.text : "")).join("");
+    return parts.map((p) => (typeof p?.text === "string" ? p.text : "")).join("");
   };
 }

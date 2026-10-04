@@ -52,8 +52,8 @@ export function geminiPrompt(names: string[], guidance: string, type: Transactio
 const key = (s: string) => s.trim().toLowerCase();
 
 /**
- * _parse_gemini_response, then: keep names that were asked (matched ignoring
- * case and surrounding spaces, returned in the asked spelling), and non-blank
+ * _parse_gemini_response, then: keep names that were asked (an exact key first,
+ * else ignoring case and surrounding spaces, returned in the asked spelling, one answer per name), and non-blank
  * string categories, trimmed. "Uncategorized" means no answer.
  */
 export function parseGeminiResponse(text: string, asked: string[]): Record<string, string> {
@@ -66,14 +66,24 @@ export function parseGeminiResponse(text: string, asked: string[]): Record<strin
   }
   if (data === null || typeof data !== "object" || Array.isArray(data)) throw new GeminiResponseError("not an object");
 
-  const byKey = new Map(asked.map((n) => [key(n), n]));
   const out: Record<string, string> = {};
-  for (const [name, value] of Object.entries(data)) {
-    const askedName = byKey.get(key(name));
-    if (askedName === undefined || askedName in out || typeof value !== "string") continue;
+  const clean = (value: unknown) => {
+    if (typeof value !== "string") return null;
     const category = value.trim();
-    if (category === "" || category.toLowerCase() === "uncategorized") continue;
-    out[askedName] = category;
+    return category === "" || category.toLowerCase() === "uncategorized" ? null : category;
+  };
+  const answers = Object.entries(data);
+  // An answer keyed exactly like an asked name belongs to it; only the rest are matched loosely.
+  const loose: [string, string][] = [];
+  for (const [name, value] of answers) {
+    const category = clean(value);
+    if (category === null) continue;
+    if (!asked.includes(name)) loose.push([name, category]);
+    else if (!Object.hasOwn(out, name)) out[name] = category;
+  }
+  for (const [name, category] of loose) {
+    const askedName = asked.find((a) => key(a) === key(name) && !Object.hasOwn(out, a));
+    if (askedName !== undefined) out[askedName] = category;
   }
   return out;
 }

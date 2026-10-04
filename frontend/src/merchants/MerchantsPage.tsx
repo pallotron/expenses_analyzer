@@ -73,7 +73,7 @@ export function MerchantsPage() {
     }),
     onError: (e) => notify({
       message: e instanceof ApiError ? e.message : `Couldn't ask Gemini: ${e.message}`,
-      action: { label: "Retry", run: askGemini },
+      action: { label: "Retry", run: () => { dismiss(); askGemini(); } },
     }),
   });
 

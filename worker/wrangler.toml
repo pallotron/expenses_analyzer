@@ -35,7 +35,7 @@ migrations_dir = "drizzle"
 [vars]
 CF_ACCESS_TEAM_DOMAIN = "pallotron.cloudflareaccess.com"
 CF_ACCESS_AUD = "af6e9c488346fcaf590728ed831f2adbfb7300a2bc744cbb70464528801a3d76"
-# The model the Merchants page\'s "Suggest categories" asks.
+# The model the Merchants page's "Suggest categories" asks.
 GEMINI_MODEL = "gemini-2.5-flash"
 
 # Secret: TRUELAYER_CLIENT_ID     (npx wrangler secret put TRUELAYER_CLIENT_ID)

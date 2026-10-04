@@ -3680,5 +3680,89 @@
         ]
       }
     ]
+  },
+  "gemini": {
+    "guidance": [
+      [
+        [
+          "Groceries",
+          "Eating out",
+          "Transport"
+        ],
+        "expense",
+        "Please use one of the following expense categories if appropriate: Groceries, Eating out, Transport. If none are suitable, you may suggest a new, concise category."
+      ],
+      [
+        [
+          "Salary/Wages",
+          "Refunds"
+        ],
+        "income",
+        "Please use one of the following income categories if appropriate: Salary/Wages, Refunds. If none are suitable, you may suggest a new, concise category."
+      ],
+      [
+        [],
+        "expense",
+        ""
+      ],
+      [
+        [],
+        "income",
+        ""
+      ]
+    ],
+    "prompts": [
+      [
+        [
+          "Corner Shop",
+          "Cafe One"
+        ],
+        "Please use one of the following expense categories if appropriate: Groceries. If none are suitable, you may suggest a new, concise category.",
+        "expense",
+        "\n    You are an AI assistant that categorizes merchant names for expenses for personal finance tracking.\n    Given a list of names, return a single JSON object that maps each name\n    to a concise, relevant category. Please use one of the following expense categories if appropriate: Groceries. If none are suitable, you may suggest a new, concise category.\n\n    Example Input:\n    - Starbucks\n    - Whole Foods\n    - Shell\n    - Netflix\n\n    Example Output:\n    ```json\n    {\n        \"Starbucks\": \"Coffee\",\n        \"Whole Foods\": \"Groceries\",\n        \"Shell\": \"Fuel\",\n        \"Netflix\": \"Subscriptions\"\n    }\n    ```\n\n    Here is the list to categorize:\n    - Corner Shop\n- Cafe One\n\n    Return only the JSON object.\n    "
+      ],
+      [
+        [
+          "Acme Payroll"
+        ],
+        "",
+        "income",
+        "\n    You are an AI assistant that categorizes income sources for personal finance tracking.\n    Given a list of names, return a single JSON object that maps each name\n    to a concise, relevant category. \n\n    Example Input:\n    - ACME Corporation\n    - PayPal Transfer\n    - Dividend Payment\n\n    Example Output:\n    ```json\n    {\n        \"ACME Corporation\": \"Salary/Wages\",\n        \"PayPal Transfer\": \"Freelance Income\",\n        \"Dividend Payment\": \"Dividends\"\n    }\n    ```\n\n    Here is the list to categorize:\n    - Acme Payroll\n\n    Return only the JSON object.\n    "
+      ],
+      [
+        [
+          "Shop \"Quoted\"",
+          "Ünïcode Café"
+        ],
+        "",
+        "expense",
+        "\n    You are an AI assistant that categorizes merchant names for expenses for personal finance tracking.\n    Given a list of names, return a single JSON object that maps each name\n    to a concise, relevant category. \n\n    Example Input:\n    - Starbucks\n    - Whole Foods\n    - Shell\n    - Netflix\n\n    Example Output:\n    ```json\n    {\n        \"Starbucks\": \"Coffee\",\n        \"Whole Foods\": \"Groceries\",\n        \"Shell\": \"Fuel\",\n        \"Netflix\": \"Subscriptions\"\n    }\n    ```\n\n    Here is the list to categorize:\n    - Shop \"Quoted\"\n- Ünïcode Café\n\n    Return only the JSON object.\n    "
+      ]
+    ],
+    "parse": [
+      [
+        "{\"Corner Shop\": \"Groceries\", \"Cafe One\": \"Eating out\"}",
+        {
+          "Corner Shop": "Groceries",
+          "Cafe One": "Eating out"
+        }
+      ],
+      [
+        "```json\n{\"Corner Shop\": \"Groceries\"}\n```",
+        {
+          "Corner Shop": "Groceries"
+        }
+      ],
+      [
+        "  \n```json{\"Acme Payroll\": \"Salary/Wages\"}```  ",
+        {
+          "Acme Payroll": "Salary/Wages"
+        }
+      ],
+      [
+        "{}",
+        {}
+      ]
+    ]
   }
 }

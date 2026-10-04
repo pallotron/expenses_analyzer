@@ -10,7 +10,8 @@ Covers merchant normalisation and aliasing, amount parsing as the import
 pipeline stores it, the tag helpers, whole append_transactions scenarios
 (deduplication and soft-delete suppression), the Transactions screen's
 filters, import validation, the merchant editor's preview, and the Summary
-screen's monthly grid, anomaly flags and merchant lists.
+screen's monthly grid, anomaly flags and merchant lists, and the Gemini prompt
+and response parsing.
 
 Usage:
     PYTHONPATH=. python3 tools/crosscheck/vectors.py          # rewrite the file
@@ -31,6 +32,7 @@ from unittest.mock import patch
 import pandas as pd
 from rich.style import Style
 
+from expenses import gemini_utils
 from expenses import tags as tag_helpers
 from expenses.data_handler import (
     append_transactions,
@@ -557,6 +559,28 @@ MERCHANT_CASES = [
 # ------------------------------------------------------------------ build
 
 
+GUIDANCE_CASES = [
+    (["Groceries", "Eating out", "Transport"], "expense"),
+    (["Salary/Wages", "Refunds"], "income"),
+    ([], "expense"),
+    ([], "income"),
+]
+
+PROMPT_CASES = [
+    (["Corner Shop", "Cafe One"], "Please use one of the following expense categories if appropriate: "
+     "Groceries. If none are suitable, you may suggest a new, concise category.", "expense"),
+    (["Acme Payroll"], "", "income"),
+    (["Shop \"Quoted\"", "Ünïcode Café"], "", "expense"),
+]
+
+PARSE_CASES = [
+    '{"Corner Shop": "Groceries", "Cafe One": "Eating out"}',
+    '```json\n{"Corner Shop": "Groceries"}\n```',
+    '  \n```json{"Acme Payroll": "Salary/Wages"}```  ',
+    "{}",
+]
+
+
 def build() -> dict:
     stored_cents = (
         clean_amount(pd.Series(AMOUNTS)).round(2).apply(to_cents).tolist()
@@ -624,6 +648,11 @@ def build() -> dict:
                  "expected": run_merchants(summary_rows(), y, m, s, inc)}
                 for y, m, s, inc in MERCHANT_CASES
             ],
+        },
+        "gemini": {
+            "guidance": [[c, t, gemini_utils._build_category_guidance(c, t)] for c, t in GUIDANCE_CASES],
+            "prompts": [[n, g, t, gemini_utils._build_gemini_prompt(n, g, t)] for n, g, t in PROMPT_CASES],
+            "parse": [[s, gemini_utils._parse_gemini_response(s)] for s in PARSE_CASES],
         },
     }
 

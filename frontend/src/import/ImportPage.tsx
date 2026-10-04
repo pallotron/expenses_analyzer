@@ -3,12 +3,11 @@ import { useMemo, useReducer, useRef, useState } from "react";
 import { useLookups } from "../transactions/queries";
 import { FileRowView } from "./FileRow";
 import { readGrid } from "./grid";
-import { importList, type SavedMappings } from "./importList";
+import { importList, isReady, rowStatus, type SavedMappings } from "./importList";
+import { ImportResult } from "./ImportResult";
 import { useImportSources } from "./queries";
 import { useDryRun } from "./useDryRun";
-
-const day = (iso: string) => new Date(`${iso}T00:00:00Z`)
-  .toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+import { useImportAll } from "./useImportAll";
 
 /**
  * A month's statements at once: each file gets a source picked by hand and
@@ -20,7 +19,10 @@ export function ImportPage() {
   const [rows, dispatch] = useReducer(importList, []);
   const [dragging, setDragging] = useState(false);
   const nextId = useRef(0);
-  const running = false; // Task 7: true while the list imports
+  const [askGemini, setAskGemini] = useState(true);
+  const geminiOn = lookups.data?.gemini === true;
+  const run = useImportAll(rows, dispatch, geminiOn && askGemini);
+  const running = run.running;
   const dry = useDryRun(rows, dispatch, running);
 
   const saved = useMemo<SavedMappings>(() => Object.fromEntries(
@@ -55,6 +57,7 @@ export function ImportPage() {
     return <main className="mx-auto max-w-6xl p-4" aria-busy="true"><div className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900" /></main>;
   }
   const names = sources.data.sources.map((s) => s.name);
+  const lastDates = Object.fromEntries(sources.data.sources.map((s) => [s.name, s.lastDate]));
 
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
@@ -62,16 +65,6 @@ export function ImportPage() {
       <p className="-mt-2 text-sm text-slate-600 dark:text-slate-400">
         Pick each statement's account. Nothing is saved until you press Import.
       </p>
-      {sources.data.sources.length > 0 && (
-        <section aria-label="Where each source left off" className="text-sm">
-          <h2 className="mb-1 font-medium">Where each source left off</h2>
-          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-slate-600 dark:text-slate-400">
-            {sources.data.sources.map((s) => (
-              <li key={s.name}><span className="text-slate-900 dark:text-slate-100">{s.name}</span> {s.lastDate ? day(s.lastDate) : "no transactions"}</li>
-            ))}
-          </ul>
-        </section>
-      )}
       <label className="flex flex-col gap-1 text-sm">
         <span className="sr-only">Files</span>
         <span data-dropzone
@@ -93,12 +86,47 @@ export function ImportPage() {
         </span>
       </label>
       {rows.length > 0 && (
+        <>
         <ul aria-label="Files to import" className="flex flex-col">
           {rows.map((row) => (
-            <FileRowView key={row.id} row={row} sources={names} saved={saved} locked={running}
-              dispatch={dispatch} onRetryCheck={dry.retry} onRetryImport={() => {}} />
+            <FileRowView key={row.id} row={row} sources={names} saved={saved} locked={running} lastDates={lastDates}
+              dispatch={dispatch} onRetryCheck={dry.retry} onRetryImport={(id) => run.start([id])} />
           ))}
         </ul>
+          {(() => {
+            const ready = rows.filter(isReady);
+            const kinds = rows.map((r) => rowStatus(r).kind);
+            const checking = kinds.includes("checking") || kinds.includes("reading");
+            const leftOut = kinds.filter((k) => k === "leftOut" || k === "sameFile").length;
+            const attention = kinds.filter((k) => ["readFailed", "needsMapping", "nothing", "tooMany", "checkFailed", "refused", "importFailed"].includes(k)).length;
+            const total = ready.reduce((n, r) => n + (r.check.state === "done" ? r.check.counts.inserted : 0), 0);
+            const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+            return (
+              <div className="flex flex-col gap-2">
+                {geminiOn && (
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={askGemini} disabled={running} onChange={(e) => setAskGemini(e.target.checked)}
+                      aria-label="Suggest categories for new merchants" />
+                    Suggest categories for new merchants
+                  </label>
+                )}
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <button type="button" onClick={() => run.start(ready.map((r) => r.id))}
+                    disabled={ready.length === 0 || checking || running}
+                    className="rounded-md bg-slate-900 px-3 py-1.5 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
+                    {running ? "Importing…" : `Import ${plural(ready.length, "file")} · ${plural(total, "transaction")}`}
+                  </button>
+                  {leftOut > 0 && <span className="text-slate-600 dark:text-slate-400">{leftOut} left out</span>}
+                  {attention > 0 && <span className="text-expense">{attention} need attention</span>}
+                </div>
+              </div>
+            );
+          })()}
+        </>
+      )}
+      {run.lastRun && !running && (
+        <ImportResult rows={rows.filter((r) => run.lastRun?.includes(r.id))} gemini={run.gemini} asking={run.asking}
+          onAskAgain={run.askAgain} onStartOver={() => { run.clear(); dispatch({ type: "reset" }); }} />
       )}
     </main>
   );

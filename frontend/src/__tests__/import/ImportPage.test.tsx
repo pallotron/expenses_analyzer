@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ImportMapping, ImportSource } from "../../lib/types";
 import { addFiles, api, asNew, csvFile, renderImport, statusOf, useHarness } from "./harness";
@@ -17,11 +17,17 @@ const SOURCES: ImportSource[] = [
 const pickSource = (file: string, source: string) => userEvent.selectOptions(screen.getByLabelText(`Source for ${file}`), source);
 
 describe("the import list", () => {
-  it("shows where each source left off", async () => {
-    renderImport(api({ sources: SOURCES }));
-    const section = await screen.findByRole("region", { name: "Where each source left off" });
-    expect(within(section).getByText("Card").closest("li")).toHaveTextContent("Card 31 Aug 2026");
-    expect(within(section).getByText("Bank").closest("li")).toHaveTextContent("Bank no transactions");
+  it("shows where the chosen source left off on the file's row", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-04T12:00:00Z") });
+    try {
+      renderImport(api({ sources: SOURCES }));
+      await addFiles([csvFile("a,b\n1,2\n", "a.csv"), csvFile("a,b\n1,2\n", "b.csv")]);
+      await pickSource("a.csv", "Card");
+      await pickSource("b.csv", "Bank");
+      expect(screen.getByText("last 31 Aug")).toBeInTheDocument();
+      expect(screen.getByText("no transactions yet")).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Where each source left off" })).not.toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
   });
 
   it("lists several files, and checks one once its source's mapping fits", async () => {

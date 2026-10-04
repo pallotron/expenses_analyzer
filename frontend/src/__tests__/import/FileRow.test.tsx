@@ -47,14 +47,61 @@ describe("statusText", () => {
 });
 
 describe("a file's row", () => {
-  function show(row: FileRow, locked = false) {
+  function show(row: FileRow, locked = false, lastDates: Record<string, string | null> = {}) {
     const dispatch = vi.fn();
     const onRetryCheck = vi.fn();
     const onRetryImport = vi.fn();
-    render(<ul><FileRowView row={row} sources={["Card", "Cash"]} saved={{ Card: MAP }} locked={locked}
+    render(<ul><FileRowView row={row} sources={["Card", "Cash"]} saved={{ Card: MAP }} locked={locked} lastDates={lastDates}
       dispatch={dispatch} onRetryCheck={onRetryCheck} onRetryImport={onRetryImport} /></ul>);
     return { dispatch, onRetryCheck, onRetryImport };
   }
+
+  describe("the source's last date", () => {
+    const chosen = (choice: string) => rowAfter([...base, { type: "choose", id: "f1", choice, saved: { Card: MAP } }]);
+    afterEach(() => { vi.useRealTimers(); });
+    const today = () => vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-04T12:00:00Z") });
+
+    it("shows the day and month for a date this year", () => {
+      today();
+      show(chosen("Card"), false, { Card: "2026-08-31" });
+      expect(screen.getByText("last 31 Aug")).toBeInTheDocument();
+    });
+
+    it("adds the year for a date in another year", () => {
+      today();
+      show(chosen("Card"), false, { Card: "2025-03-30" });
+      expect(screen.getByText("last 30 Mar 2025")).toBeInTheDocument();
+    });
+
+    it("says no transactions yet for a source without a date", () => {
+      today();
+      show(chosen("Cash"), false, { Cash: null });
+      expect(screen.getByText("no transactions yet")).toBeInTheDocument();
+    });
+
+    it("says no transactions yet for a new source", () => {
+      today();
+      show(chosen("__new__"), false, {});
+      expect(screen.getByText("no transactions yet")).toBeInTheDocument();
+    });
+
+    it("shows nothing when no source is chosen", () => {
+      today();
+      show(rowAfter(base), false, { Card: "2026-08-31" });
+      expect(screen.queryByText(/^last /)).not.toBeInTheDocument();
+      expect(screen.queryByText("no transactions yet")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows a long file name in full, never truncated", () => {
+    const long = "account-statement_2026-09-01_2026-09-30_en-ie_abcdef --1.xls";
+    const row = rowAfter([{ type: "add", files: [{ id: "f1", file: new File(["x"], long) }] }]);
+    show(row);
+    const el = screen.getByText(long);
+    expect(el).toHaveTextContent(long);
+    expect(el.className).not.toContain("truncate");
+    expect(el.className).toMatch(/break-/);
+  });
 
   it("picks a source, removes, and opens", async () => {
     const { dispatch } = show(rowAfter(base));

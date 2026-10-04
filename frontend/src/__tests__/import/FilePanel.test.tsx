@@ -139,7 +139,7 @@ describe("the header row field", () => {
 describe("the row's warning", () => {
   const showRow = (csv: string) => {
     const row = rowFor(csv, "Card");
-    render(<ul><FileRowView row={row} sources={["Card"]} saved={{ Card: SAVED }} locked={false}
+    render(<ul><FileRowView row={row} sources={["Card"]} saved={{ Card: SAVED }} locked={false} lastDates={{}}
       dispatch={() => {}} onRetryCheck={() => {}} onRetryImport={() => {}} /></ul>);
   };
 

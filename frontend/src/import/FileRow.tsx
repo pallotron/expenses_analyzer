@@ -31,10 +31,19 @@ export function statusText(s: RowStatus): string {
   }
 }
 
+/** "last 31 Aug", with the year when it isn't this one; the source's newest transaction. */
+function lastLabel(source: string, lastDates: Record<string, string | null>): string {
+  const iso = Object.hasOwn(lastDates, source) ? lastDates[source] : null;
+  if (!iso) return "no transactions yet";
+  const date = new Date(`${iso}T00:00:00Z`);
+  const sameYear = date.getUTCFullYear() === new Date().getUTCFullYear();
+  return `last ${date.toLocaleDateString("en-IE", { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" })}`;
+}
+
 const ALERT = new Set<RowStatus["kind"]>(["readFailed", "needsMapping", "tooMany", "checkFailed", "refused", "importFailed"]);
 
 export function FileRowView(props: {
-  row: FileRow; sources: string[]; saved: SavedMappings; locked: boolean;
+  row: FileRow; sources: string[]; saved: SavedMappings; locked: boolean; lastDates: Record<string, string | null>;
   dispatch: (a: Action) => void; onRetryCheck: (id: string) => void; onRetryImport: (id: string) => void;
 }) {
   const { row, dispatch, locked } = props;
@@ -44,12 +53,12 @@ export function FileRowView(props: {
   const comma = row.grid && row.mapping && row.source ? commaDecimalSample(row.grid, row.mapping) : null;
   return (
     <li className="border-b border-slate-200 py-2 dark:border-slate-800">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <span className="flex min-w-0 items-center gap-2 sm:w-64">
-          <button type="button" aria-expanded={row.open} aria-label={`${row.open ? "Hide" : "Show"} ${name}`}
-            onClick={() => dispatch({ type: "toggle", id: row.id })} className="w-5 shrink-0">{row.open ? "▾" : "▸"}</button>
-          <span className="truncate text-sm" title={name}>{name}</span>
-        </span>
+      <div className="flex items-start gap-2">
+        <button type="button" aria-expanded={row.open} aria-label={`${row.open ? "Hide" : "Show"} ${name}`}
+          onClick={() => dispatch({ type: "toggle", id: row.id })} className="w-5 shrink-0">{row.open ? "▾" : "▸"}</button>
+        <span className="min-w-0 break-all text-sm">{name}</span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-2 pl-7">
         <span className="flex flex-wrap gap-2">
           <select aria-label={`Source for ${name}`} value={row.choice} disabled={locked}
             onChange={(e) => dispatch({ type: "choose", id: row.id, choice: e.target.value, saved: props.saved })}
@@ -65,6 +74,7 @@ export function FileRowView(props: {
               onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
           )}
         </span>
+        {row.source && <span className="text-sm text-slate-500 dark:text-slate-400">{lastLabel(row.source, props.lastDates)}</span>}
         <div aria-label={`Status of ${name}`} className={`flex-1 text-sm ${ALERT.has(status.kind) ? "text-expense" : ""}`}>
           <span>{statusText(status)}</span>
           {(status.kind === "checkFailed" || status.kind === "refused") && (
@@ -76,7 +86,7 @@ export function FileRowView(props: {
           {errors.length > 0 && <ul className="list-disc pl-5">{errors.map((e, i) => <li key={`${i}:${e}`}>{e}</li>)}</ul>}
         </div>
         <button type="button" aria-label={`Remove ${name}`} disabled={locked}
-          onClick={() => dispatch({ type: "remove", id: row.id })} className="self-start px-2 sm:self-auto">✕</button>
+          onClick={() => dispatch({ type: "remove", id: row.id })} className="px-2">✕</button>
       </div>
       {comma !== null && (
         <p role="alert" className="text-sm text-expense">

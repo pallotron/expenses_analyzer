@@ -10,8 +10,8 @@ Covers merchant normalisation and aliasing, amount parsing as the import
 pipeline stores it, the tag helpers, whole append_transactions scenarios
 (deduplication and soft-delete suppression), the Transactions screen's
 filters, import validation, the merchant editor's preview, and the Summary
-screen's monthly grid, anomaly flags and merchant lists, and the Gemini prompt
-and response parsing.
+screen's monthly grid, anomaly flags and merchant lists, the Gemini prompt
+and response parsing, and the import screen's date parsing and row processing.
 
 Usage:
     PYTHONPATH=. python3 tools/crosscheck/vectors.py          # rewrite the file
@@ -42,6 +42,7 @@ from expenses.data_handler import (
 )
 from expenses.merchant_editor import pattern_claiming, preview_alias_change
 from expenses.screens.summary_screen import SummaryScreen
+from expenses.screens.import_screen import ImportScreen
 from expenses.transaction_filter import apply_filters
 from expenses.validation import ValidationError, validate_transaction_dataframe
 
@@ -581,6 +582,22 @@ PARSE_CASES = [
 ]
 
 
+# Date shapes the web import accepts. The last two are known differences: the
+# TUI reads "." month-first and drops short dates like 1/9/26 (under 8 chars).
+IMPORT_DATES = [
+    "2026-09-01", "2026-09-01 12:34:19", "2026/09/01", "2026-9-1", "2026-09-01T12:00:00Z",
+    "01/09/2026", "1/9/2026", "01-09-2026", "13/01/2026", "01/09/26", "01/09/2026 10:00",
+    "31/02/2026", "12 Mar 2026", "12 March 2026", "Mar 12, 2026", "March 12 2026", "Sept 3 2026",
+    "", "garbage",
+    "01.09.2026", "1/9/26",
+]
+
+
+def run_import_date(raw: str):
+    parsed = ImportScreen._parse_date_smart(None, raw)
+    return None if pd.isna(parsed) else parsed.strftime("%Y-%m-%d")
+
+
 def build() -> dict:
     stored_cents = (
         clean_amount(pd.Series(AMOUNTS)).round(2).apply(to_cents).tolist()
@@ -653,6 +670,9 @@ def build() -> dict:
             "guidance": [[c, t, gemini_utils._build_category_guidance(c, t)] for c, t in GUIDANCE_CASES],
             "prompts": [[n, g, t, gemini_utils._build_gemini_prompt(n, g, t)] for n, g, t in PROMPT_CASES],
             "parse": [[s, gemini_utils._parse_gemini_response(s)] for s in PARSE_CASES],
+        },
+        "import": {
+            "dates": [[d, run_import_date(d)] for d in IMPORT_DATES],
         },
     }
 

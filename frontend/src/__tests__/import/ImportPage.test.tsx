@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -140,5 +140,63 @@ describe("the import page", () => {
     await screen.findByLabelText("Source");
     await userEvent.upload(screen.getByLabelText("File"), new File(["x"], "statement.pdf"), { applyAccept: false });
     expect(await screen.findByRole("alert")).toHaveTextContent("Choose a .csv, .xls or .xlsx file");
+  });
+
+  it("warns above the preview when amounts use a comma for decimals", async () => {
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    await pick(csvFile(CARD_CSV.replace("-6.55", '"-12,50"')));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      'Some amounts use a comma for decimals (e.g. "-12,50"); they would import 100 times too large. Fix the file\'s number format before importing.',
+    );
+  });
+
+  it("does not warn about dot decimals", async () => {
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    await pick(csvFile(CARD_CSV));
+    await screen.findByText(/Date ← Completed Date/);
+    expect(screen.queryByText(/comma for decimals/)).not.toBeInTheDocument();
+  });
+
+  it("clears the file input so the same file can be picked again", async () => {
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    await pick(csvFile(CARD_CSV));
+    await screen.findByText(/Date ← Completed Date/);
+    expect((screen.getByLabelText("File") as HTMLInputElement).files).toHaveLength(0);
+  });
+
+  describe("the header row field", () => {
+    async function openForm(csv = CARD_CSV) {
+      renderImport(api({ mappings: { Card: SAVED } }));
+      await screen.findByLabelText("Source");
+      await pick(csvFile(csv));
+      await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+      return screen.getByLabelText("Header row") as HTMLInputElement;
+    }
+
+    it("leaves the mapping alone for empty or non-numeric input", async () => {
+      const input = await openForm();
+      expect(input).toHaveValue(1);
+      fireEvent.change(input, { target: { value: "" } });
+      expect(input).toHaveValue(1);
+      expect(screen.getByText("2 to import (1 expense, 1 income)")).toBeInTheDocument();
+    });
+
+    it("clamps to the rows the file has", async () => {
+      const input = await openForm();
+      fireEvent.change(input, { target: { value: "99" } });
+      expect(input).toHaveValue(csvGrid(CARD_CSV).length);
+      fireEvent.change(input, { target: { value: "0" } });
+      expect(input).toHaveValue(1);
+    });
+
+    it("is empty, not 0, when no header was found", async () => {
+      renderImport(api());
+      await screen.findByLabelText("Source");
+      await pick(csvFile("a,b\n1,2\n"));
+      expect(await screen.findByLabelText("Header row")).toHaveValue(null);
+    });
   });
 });

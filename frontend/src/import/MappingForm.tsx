@@ -4,9 +4,11 @@ const field = "rounded-md border border-slate-300 bg-white px-2 py-1 dark:border
 
 /** Every choice re-parses at once; the page owns the mapping. */
 export function MappingForm(props: {
-  header: string[]; headerRow: number; mapping: ImportMapping; onChange: (m: ImportMapping) => void;
+  header: string[]; headerRow: number; gridRows: number; mapping: ImportMapping; onChange: (m: ImportMapping) => void;
 }) {
   const { mapping, header } = props;
+  // -1 when no header was found: the field is then empty rather than 0.
+  const headerRowShown = mapping.headerRow ?? props.headerRow;
   const set = (patch: Partial<ImportMapping>) => props.onChange({ ...mapping, ...patch });
   const column = (label: string, value: string, onPick: (v: string) => void, optional = false) => (
     <label className="flex flex-col gap-1 text-sm">
@@ -42,8 +44,13 @@ export function MappingForm(props: {
       </label>
       <label className="flex flex-col gap-1 text-sm">
         Header row
-        <input aria-label="Header row" type="number" min={1} value={(mapping.headerRow ?? props.headerRow) + 1}
-          onChange={(e) => set({ headerRow: Math.max(0, Number(e.target.value) - 1) })} className={field} />
+        <input aria-label="Header row" type="number" min={1} max={props.gridRows}
+          value={headerRowShown < 0 ? "" : headerRowShown + 1}
+          onChange={(e) => {
+            const n = e.target.valueAsNumber;
+            if (Number.isNaN(n)) return;
+            set({ headerRow: Math.min(Math.max(Math.round(n), 1), props.gridRows) - 1 });
+          }} className={field} />
       </label>
       <div className="flex flex-col gap-1 text-sm">
         <span>Only import rows where (optional)</span>

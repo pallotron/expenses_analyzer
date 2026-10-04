@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createApp, type AppBindings } from "../../app";
 import type { ImportMapping } from "../../api/import";
 import { createDb } from "../../db/client";
+import * as importMappings from "../../services/importMappings";
 import { fakeD1 } from "../helpers/fakeD1";
 import { store } from "../helpers/store";
 
@@ -44,6 +45,22 @@ describe("POST /api/import", () => {
     expect(await s.mappings()).toEqual({ mappings: { Card: MAPPING } });
   });
 
+  it("still answers 200 when only remembering the mapping fails", async () => {
+    const s = setup();
+    const save = vi.spyOn(importMappings, "saveImportMapping").mockRejectedValueOnce(new Error("settings write failed"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: ROWS });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ inserted: 2, duplicates: 0 });
+      expect(s.count()).toBe(2);
+      expect(log).toHaveBeenCalledOnce();
+    } finally {
+      save.mockRestore();
+      log.mockRestore();
+    }
+  });
+
   it("inserts nothing new when the same file comes again", async () => {
     const s = setup();
     await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: ROWS });
@@ -77,19 +94,19 @@ describe("POST /api/import", () => {
   });
 
   it.each([
-    ["no source", { mapping: MAPPING, rows: ROWS }],
-    ["blank source", { source: "  ", mapping: MAPPING, rows: ROWS }],
-    ["long source", { source: "x".repeat(101), mapping: MAPPING, rows: ROWS }],
-    ["no rows", { source: "Card", mapping: MAPPING, rows: [] }],
-    ["bad date", { source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], date: "01/09/2026" }] }],
-    ["negative cents", { source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], amountCents: -5 }] }],
-    ["bad type", { source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], type: "refund" }] }],
-    ["extra mapping field", { source: "Card", mapping: { ...MAPPING, colour: "red" }, rows: ROWS }],
-    ["bad type mode", { source: "Card", mapping: { ...MAPPING, typeMode: "sometimes" }, rows: ROWS }],
-  ])("refuses %s", async (_, body) => {
+    ["no source", { mapping: MAPPING, rows: ROWS }, "Invalid input: expected string, received undefined"],
+    ["blank source", { source: "  ", mapping: MAPPING, rows: ROWS }, "Choose a source"],
+    ["long source", { source: "x".repeat(101), mapping: MAPPING, rows: ROWS }, "A source name can be at most 100 characters"],
+    ["no rows", { source: "Card", mapping: MAPPING, rows: [] }, "Nothing to import"],
+    ["bad date", { source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], date: "01/09/2026" }] }, "Dates must be YYYY-MM-DD"],
+    ["negative cents", { source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], amountCents: -5 }] }, "Amounts are positive; the type says which way"],
+    ["bad type", { source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], type: "refund" }] }, "Invalid option: expected one of \"expense\"|\"income\""],
+    ["extra mapping field", { source: "Card", mapping: { ...MAPPING, colour: "red" }, rows: ROWS }, "Unrecognized key: \"colour\""],
+    ["bad type mode", { source: "Card", mapping: { ...MAPPING, typeMode: "sometimes" }, rows: ROWS }, "Invalid option: expected one of \"auto\"|\"expense\"|\"income\""],
+  ])("refuses %s", async (_, body, message) => {
     const res = await setup().send("POST", "/api/import", body);
     expect(res.status).toBe(400);
-    expect((await res.json() as { error: string }).error).toBeTruthy();
+    expect(await res.json()).toEqual({ error: message });
   });
 
   it("refuses more than 5,000 rows with the split message", async () => {

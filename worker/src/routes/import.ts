@@ -50,7 +50,12 @@ export function importRoutes<B extends AppBindings>() {
     const userId = c.get("user").id;
     try {
       const result = await importTransactions(c.get("db"), rows, { source, filename, userId });
-      await saveImportMapping(c.get("db"), source, mapping, userId);
+      // The rows are in: failing to remember the mapping must not read as a failed import.
+      try {
+        await saveImportMapping(c.get("db"), source, mapping, userId);
+      } catch (e) {
+        console.error("Import: could not save the column mapping", e instanceof Error ? e.message : "unknown error");
+      }
       return c.json(result satisfies ImportResponse);
     } catch (e) {
       if (e instanceof ValidationError) {

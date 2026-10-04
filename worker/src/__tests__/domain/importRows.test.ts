@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ImportMapping } from "../../api/import";
 import {
-  columnNames, findHeaderRow, missingColumns, processRows, type SkipReason,
+  columnNames, commaDecimalSample, findHeaderRow, missingColumns, processRows, type SkipReason,
 } from "../../domain/importRows";
 import rawVectors from "../fixtures/python_vectors.json";
 
@@ -70,6 +70,49 @@ describe("findHeaderRow", () => {
   });
 });
 
+describe("findHeaderRow with a pin", () => {
+  const saved = { date: "Date", merchant: "Description", amount: "Money In (€)", amountOut: "Money Out (€)" };
+  const table = [
+    ["Date", "", "Description", "Money In (€)", "Money Out (€)"],
+    ["01/09/2026", "", "Corner Shop", "", "-71.35"],
+  ];
+
+  it("ignores a stale pin and finds the moved header", () => {
+    const moved = [["Statement"], ["Period", "Sept"], ["Printed", "x"], ...table];
+    expect(findHeaderRow(moved, { ...saved, headerRow: 0 })).toBe(3);
+  });
+
+  it("lets a valid pin win over an earlier row that also has the names", () => {
+    const twice = [...table, ...table];
+    expect(findHeaderRow(twice, { ...saved, headerRow: 2 })).toBe(2);
+  });
+
+  it("keeps a pin in range when nothing is mapped", () => {
+    expect(findHeaderRow(table, { headerRow: 1 })).toBe(1);
+  });
+});
+
+describe("commaDecimalSample", () => {
+  const sample = (...cells: string[]) =>
+    commaDecimalSample([["Date", "Description", "Amount"], ...cells.map((c) => ["01/09/2026", "Shop", c])], mapping());
+
+  it("returns the first cell that uses a comma for decimals", () => {
+    expect(sample("-71.35", "-12,50", "3,5")).toBe("-12,50");
+    expect(sample("€1.234,56")).toBe("€1.234,56");
+    expect(sample("(12,50)")).toBe("(12,50)");
+  });
+
+  it("leaves dot decimals, thousands separators and blanks alone", () => {
+    expect(sample("1,234.56", "1,234", "-71.35", "", "  ")).toBeNull();
+  });
+
+  it("reads both columns of a two-column mapping, below the header only", () => {
+    const grid = [["Amount", "Out", "x"], ["1.00", "-2,50", ""]];
+    expect(commaDecimalSample(grid, mapping({ amount: "Amount", amountOut: "Out", date: "x", merchant: "x" }))).toBe("-2,50");
+    expect(commaDecimalSample([["Amount,5"], ["1"]], mapping())).toBeNull();
+  });
+});
+
 describe("missingColumns", () => {
   it("names each mapped column the header lacks", () => {
     expect(missingColumns(["Date", "Description", "Amount"], {
@@ -117,6 +160,15 @@ describe("processRows beyond the Python", () => {
   it("reads month-first dates when asked", () => {
     const parsed = processRows(grid("Date,Description,Amount\n09/01/2026,Shop,-1.00\n"), mapping({ dateOrder: "mdy" }));
     expect(parsed.rows[0].date).toBe("2026-09-01");
+  });
+
+  it("treats a filter with a blank value as no filter", () => {
+    const g = grid("Date,Description,Amount,State\n01/09/2026,Shop,-1.00,A\n02/09/2026,Cafe,-2.00,B\n");
+    for (const value of ["", "   "]) {
+      const parsed = processRows(g, mapping({ filter: { column: "State", value } }));
+      expect(parsed.rows).toHaveLength(2);
+      expect(parsed.skipped.filtered).toEqual([]);
+    }
   });
 
   it("returns nothing when no header is found or a mapped column is missing", () => {

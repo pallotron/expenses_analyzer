@@ -35,5 +35,8 @@ export async function sheetGrid(data: ArrayBuffer): Promise<string[][]> {
   const book = XLSX.read(data, { type: "array", cellDates: true, UTC: true });
   const sheet = book.Sheets[book.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: "", blankrows: true, UTC: true });
-  return rows.map((row) => row.map(cellText));
+  const text = rows.map((row) => row.map(cellText));
+  // sheet_to_json starts at the sheet's first used cell; line numbers must match the spreadsheet's.
+  const { s } = XLSX.utils.decode_range(sheet["!ref"] ?? "A1");
+  return [...Array.from({ length: s.r }, () => [] as string[]), ...text.map((row) => [...Array(s.c).fill(""), ...row])];
 }

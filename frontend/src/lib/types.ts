@@ -25,6 +25,6 @@ export type {
 export { MAX_IMPORT_ROWS } from "../../../worker/src/api/import";
 // The import page parses with the Worker's own rules; the modules are pure.
 export {
-  columnNames, findHeaderRow, missingColumns, processRows, SKIP_REASONS,
+  columnNames, commaDecimalSample, findHeaderRow, missingColumns, processRows, SKIP_REASONS,
 } from "../../../worker/src/domain/importRows";
 export type { ParsedImport, ParsedRow, SkipReason } from "../../../worker/src/domain/importRows";

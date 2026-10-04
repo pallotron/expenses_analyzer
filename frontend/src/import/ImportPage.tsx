@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { columnNames, findHeaderRow, processRows, type ImportMapping } from "../lib/types";
+import { columnNames, commaDecimalSample, findHeaderRow, processRows, type ImportMapping } from "../lib/types";
 import { useLookups } from "../transactions/queries";
 import { readGrid } from "./grid";
 import { MappingForm, mappingSummary } from "./MappingForm";
@@ -46,6 +46,7 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
   // The source name the current mapping was built for.
   const builtFor = useRef("");
   const parsed = useMemo(() => (grid && mapping ? processRows(grid, mapping) : null), [grid, mapping]);
+  const commaSample = useMemo(() => (grid && mapping ? commaDecimalSample(grid, mapping) : null), [grid, mapping]);
   const reset = () => {
     readId.current++;
     setAttempt((a) => a + 1);
@@ -114,7 +115,12 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
         <label className="flex flex-col gap-1 text-sm">
           File
           <input key={attempt} aria-label="File" type="file" accept=".csv,.xls,.xlsx"
-            onChange={(e) => onFile(e.target.files?.[0])} className="text-sm" />
+            onChange={(e) => {
+              const picked = e.target.files?.[0];
+              // Clear it so picking the same file again still fires onChange.
+              e.target.value = "";
+              onFile(picked);
+            }} className="text-sm" />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Source
@@ -138,11 +144,16 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
         <>
           {missing.map((c) => <p key={c} className="text-sm text-expense">{`This file has no '${c}' column`}</p>)}
           {editing ? (
-            <MappingForm header={parsed.header} headerRow={parsed.headerRow} mapping={mapping} onChange={setMapping} />
+            <MappingForm header={parsed.header} headerRow={parsed.headerRow} gridRows={grid?.length ?? 0} mapping={mapping} onChange={setMapping} />
           ) : (
             <p className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
               <span>{mappingSummary(mapping)}</span>
               <button type="button" onClick={() => setEditing(true)} className="underline">Edit</button>
+            </p>
+          )}
+          {commaSample !== null && (
+            <p role="alert" className="text-sm text-expense">
+              {`Some amounts use a comma for decimals (e.g. "${commaSample}"); they would import 100 times too large. Fix the file's number format before importing.`}
             </p>
           )}
           <Preview parsed={parsed} mapping={mapping} />

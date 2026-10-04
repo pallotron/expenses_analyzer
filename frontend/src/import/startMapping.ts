@@ -10,7 +10,7 @@ export function guessMapping(header: string[]): ImportMapping {
   return {
     date: find(header, /date/i),
     merchant: find(header, /description|merchant|payee|name|details/i),
-    amount: twoColumns ? moneyIn : find(header, /^amount$|amount/i),
+    amount: twoColumns ? moneyIn : find(header, /amount/i),
     ...(twoColumns && { amountOut: moneyOut }),
     typeMode: "auto",
     dateOrder: "dmy",

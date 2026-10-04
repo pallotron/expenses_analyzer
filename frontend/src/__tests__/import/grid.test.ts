@@ -42,6 +42,20 @@ describe("sheetGrid", () => {
   });
 });
 
+describe("sheetGrid offsets", () => {
+  it.each([["A3", 2, 0], ["C3", 2, 2]])("keeps line and column numbers when the sheet starts at %s", async (origin, row, col) => {
+    const sheet = XLSX.utils.sheet_add_aoa({}, [["Date", "Description"], ["01/09/2026", "Shop"]], { origin });
+    // aoa_to_sheet always starts the range at A1; real files start where their data does.
+    sheet["!ref"] = XLSX.utils.encode_range({ s: { r: row, c: col }, e: { r: row + 1, c: col + 1 } });
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "S");
+    const grid = await sheetGrid(XLSX.write(book, { type: "array", bookType: "xlsx" }));
+    expect(grid[row][col]).toBe("Date");
+    expect(grid[row + 1][col + 1]).toBe("Shop");
+    expect(grid.slice(0, row).every((r) => r.every((c) => c === ""))).toBe(true);
+  });
+});
+
 describe("readGrid", () => {
   it("reads by extension, ignoring case", async () => {
     expect(await readGrid(new File(["a,b,c\n1,2,3"], "Sept.CSV"))).toEqual([["a", "b", "c"], ["1", "2", "3"]]);

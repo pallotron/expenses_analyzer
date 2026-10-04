@@ -57,18 +57,21 @@ export function missingColumns(header: string[], mapping: Partial<ImportMapping>
 }
 
 /**
- * The header row: pinned, else the first row holding every mapped column,
- * else the first with three or more filled cells (summary rows above a bank's
- * table have at most two). -1 when none.
+ * The header row: pinned (when that row holds every mapped column, so a pin
+ * the bank's layout has moved past is not trusted), else the first row holding
+ * every mapped column, else the first with three or more filled cells (summary
+ * rows above a bank's table have at most two). -1 when none.
  */
 export function findHeaderRow(grid: string[][], mapping: Partial<ImportMapping> = {}): number {
-  if (mapping.headerRow !== undefined && mapping.headerRow < grid.length) return mapping.headerRow;
   const wanted = mappedColumns(mapping);
+  const hasAll = (row: string[]) => {
+    const names = new Set(columnNames(row));
+    return wanted.every((c) => names.has(c));
+  };
+  const pin = mapping.headerRow;
+  if (pin !== undefined && pin < grid.length && hasAll(grid[pin])) return pin;
   if (wanted.length > 0) {
-    const i = grid.findIndex((row) => {
-      const names = new Set(columnNames(row));
-      return wanted.every((c) => names.has(c));
-    });
+    const i = grid.findIndex(hasAll);
     if (i >= 0) return i;
   }
   return grid.findIndex((row) => filled(row) >= 3);
@@ -128,7 +131,7 @@ export function processRows(grid: string[][], mapping: ImportMapping): ParsedImp
       skipped.notDebit.push(line);
       continue;
     }
-    if (mapping.filter
+    if (mapping.filter && mapping.filter.value.trim() !== ""
       && cell(mapping.filter.column).trim().toLowerCase() !== mapping.filter.value.trim().toLowerCase()) {
       skipped.filtered.push(line);
       continue;
@@ -136,4 +139,30 @@ export function processRows(grid: string[][], mapping: ImportMapping): ParsedImp
     rows.push({ line, date, merchant, ...amount });
   }
   return { header, headerRow, rows, skipped };
+}
+
+const COMMA_DECIMAL = [
+  /^[^\d,.]*-?\(?\d{1,3}(?:\.\d{3})*,\d{1,2}\)?[^\d,.]*$/,
+  /^[^\d,.]*-?\(?\d+,\d{1,2}\)?[^\d,.]*$/,
+];
+
+/**
+ * The first amount cell written with a comma for decimals ("-12,50"), which
+ * parseAmountCents (like the Python) would read as -1250.00; null when none.
+ * "1,234" is a thousands separator and does not count.
+ */
+export function commaDecimalSample(grid: string[][], mapping: Partial<ImportMapping>): string | null {
+  const headerRow = findHeaderRow(grid, mapping);
+  if (headerRow < 0) return null;
+  const names = columnNames(grid[headerRow]);
+  const columns = [mapping.amount, mapping.amountOut]
+    .flatMap((c) => (c ? [names.indexOf(c)] : []))
+    .filter((i) => i >= 0);
+  for (const row of grid.slice(headerRow + 1)) {
+    for (const i of columns) {
+      const text = (row[i] ?? "").trim();
+      if (text !== "" && COMMA_DECIMAL.some((re) => re.test(text))) return text;
+    }
+  }
+  return null;
 }

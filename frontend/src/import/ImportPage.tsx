@@ -36,6 +36,7 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
   const [mapping, setMapping] = useState<ImportMapping | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   const source = choice === NEW_SOURCE ? newName.trim() : choice;
   // A read lands later than the render that started it: it must use the source
@@ -111,21 +112,14 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4">
       <h1 className="text-lg font-semibold">Import</h1>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          File
-          <input key={attempt} aria-label="File" type="file" accept=".csv,.xls,.xlsx"
-            onChange={(e) => {
-              const picked = e.target.files?.[0];
-              // Clear it so picking the same file again still fires onChange.
-              e.target.value = "";
-              onFile(picked);
-            }} className="text-sm" />
-        </label>
+      <p className="-mt-2 text-sm text-slate-600 dark:text-slate-400">
+        Pick the account, then its statement. Nothing is saved until you press Import.
+      </p>
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start">
         <label className="flex flex-col gap-1 text-sm">
           Source
-          <select aria-label="Source" value={choice} onChange={(e) => onSource(e.target.value)} className={field}>
-            <option value="" disabled>Choose a source</option>
+          <select aria-label="Source" value={choice} onChange={(e) => onSource(e.target.value)} className={`${field} h-10`}>
+            <option value="" disabled>Choose a source…</option>
             {lookups.data.sources.map((s) => <option key={s} value={s}>{s}</option>)}
             <option value={NEW_SOURCE}>New source…</option>
           </select>
@@ -133,10 +127,30 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
         {choice === NEW_SOURCE && (
           <label className="flex flex-col gap-1 text-sm">
             New source name
-            <input aria-label="New source name" value={newName} maxLength={100} className={field}
+            <input aria-label="New source name" value={newName} maxLength={100} className={`${field} h-10`}
               onChange={(e) => setNewName(e.target.value)} onBlur={() => newName.trim() !== builtFor.current && begin(grid, newName.trim())} />
           </label>
         )}
+        <label className="flex flex-col gap-1 text-sm">
+          File
+          <span data-dropzone
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setDragging(false); onFile(e.dataTransfer.files?.[0]); }}
+            className={`flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-dashed px-3 py-2 ${
+              dragging ? "border-slate-500 bg-slate-100 dark:border-slate-400 dark:bg-slate-800" : "border-slate-300 dark:border-slate-700"}`}>
+            <input key={attempt} aria-label="File" type="file" accept=".csv,.xls,.xlsx"
+              onChange={(e) => {
+                const picked = e.target.files?.[0];
+                // Clear it so picking the same file again still fires onChange.
+                e.target.value = "";
+                onFile(picked);
+              }}
+              className="w-56 text-sm file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-slate-300 file:bg-white file:px-3 file:py-1 file:text-sm hover:file:bg-slate-50 dark:file:border-slate-700 dark:file:bg-slate-900 dark:hover:file:bg-slate-800" />
+            <span>Drop a statement here or choose a file</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">.csv, .xls or .xlsx</span>
+          </span>
+        </label>
       </div>
       {readError && <p role="alert" className="text-sm text-expense">{readError}</p>}
 

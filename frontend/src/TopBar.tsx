@@ -44,9 +44,10 @@ export function TopBar(props: { hostname?: string }) {
 
   return (
     <nav ref={nav} className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 text-sm sm:py-5">
-        <span className="flex min-w-0 items-center gap-4 overflow-x-auto whitespace-nowrap">
-          <span className="flex shrink-0 items-center gap-3 text-lg font-semibold"><Logo size={32} /><span className="hidden sm:inline">Expenses</span></span>
+      {/* On a phone the links get their own row, so none is cut off. */}
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-4 text-sm sm:flex-nowrap sm:py-5">
+        <span className="flex shrink-0 items-center gap-3 text-lg font-semibold"><Logo size={32} /><span>Expenses</span></span>
+        <span className="order-last flex min-w-0 basis-full items-center gap-4 overflow-x-auto whitespace-nowrap sm:order-none sm:mr-auto sm:basis-auto">
           {([["/", "Summary"], ["/transactions", "Transactions"], ["/merchants", "Merchants"], ["/import", "Import"]] as const).map(([to, label]) => (
             <NavLink key={to} to={to} end={to === "/"}
               className={({ isActive }) => (isActive ? "font-semibold underline" : "text-slate-600 dark:text-slate-400")}>

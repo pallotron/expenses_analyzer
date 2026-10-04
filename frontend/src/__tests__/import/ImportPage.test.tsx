@@ -32,6 +32,39 @@ async function pick(file: File, source = "Card") {
 }
 
 describe("the import page", () => {
+  it("starts with no source chosen, and shows no mapping or preview until one is", async () => {
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    expect(screen.getByLabelText("Source")).toHaveValue("");
+    expect(screen.getByRole("option", { name: "Choose a source…" })).toHaveValue("");
+    expect(screen.getByRole("option", { name: "New source…" })).toBeInTheDocument();
+    await userEvent.upload(screen.getByLabelText("File"), csvFile(CARD_CSV));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("table", { name: "Preview" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Mapping" })).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Source"), "Card");
+    expect(await screen.findByRole("table", { name: "Preview" })).toBeInTheDocument();
+  });
+
+  it("puts Source before File and explains the page", async () => {
+    renderImport(api());
+    const source = await screen.findByLabelText("Source");
+    const file = screen.getByLabelText("File");
+    expect(source.compareDocumentPosition(file) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Pick the account, then its statement. Nothing is saved until you press Import.")).toBeInTheDocument();
+  });
+
+  it("reads a file dropped on the drop zone, the same as a chosen one", async () => {
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    await userEvent.selectOptions(screen.getByLabelText("Source"), "Card");
+    expect(screen.getByText(".csv, .xls or .xlsx")).toBeInTheDocument();
+    const zone = screen.getByText("Drop a statement here or choose a file").closest("[data-dropzone]")!;
+    fireEvent.drop(zone, { dataTransfer: { files: [csvFile(CARD_CSV)] } });
+    expect(await screen.findByText(/Date ← Completed Date/)).toBeInTheDocument();
+    expect(within(screen.getByRole("table", { name: "Preview" })).getByText("Corner Shop")).toBeInTheDocument();
+  });
+
   it("uses a saved mapping that fits, collapsed, and previews the parsed rows", async () => {
     renderImport(api({ mappings: { Card: SAVED } }));
     await screen.findByLabelText("Source");

@@ -39,6 +39,16 @@ const posts = (mock: ReturnType<typeof api>, path: string) =>
   mock.calls.filter((c) => c.method === "POST" && c.path === path).map((c) => c.body);
 
 describe("importing", () => {
+  it("offers no Import button until a source is chosen", async () => {
+    renderWithAction(api({ mappings: { Card: MAPPING } }));
+    await screen.findByLabelText("Source");
+    await userEvent.upload(screen.getByLabelText("File"), csvFile(CSV));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("button", { name: /^Import/ })).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Source"), "Card");
+    expect(await screen.findByRole("button", { name: "Import 2 transactions" })).toBeInTheDocument();
+  });
+
   it("sends the parsed rows with the source, file name and mapping, and shows the result", async () => {
     const mock = renderWithAction(api({ mappings: { Card: MAPPING }, routes: { "POST /api/import": () => ({ body: IMPORTED }) } }));
     await userEvent.click(await ready());

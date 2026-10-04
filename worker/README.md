@@ -146,7 +146,10 @@ the deploy logged. That also discards any writes made since, so do it quickly.
 Then `https://expenses.angelofailla.com/api/me` should log you in and return
 your user.
 
-**Secrets**, needed once bank sync and categorisation are ported:
+**Secrets**. `GEMINI_API_KEY` enables "Suggest categories" on the Merchants page; set it
+with `npx wrangler secret put GEMINI_API_KEY` in production and in `worker/.dev.vars`
+locally. `GEMINI_MODEL` in `[vars]` picks the model (default `gemini-2.5-flash`). The
+others are needed once bank sync is ported:
 
 ```sh
 npx wrangler secret put TRUELAYER_CLIENT_ID

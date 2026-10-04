@@ -44,6 +44,8 @@ export interface LookupsResponse {
   sources: string[];
   /** Categories whose spending type is essential. */
   essentialCategories: string[];
+  /** GEMINI_API_KEY is set, so "Suggest categories" can work. */
+  gemini: boolean;
 }
 
 /** The filters as they travel in a URL. Text exactly as typed; "quoted" is exact. */

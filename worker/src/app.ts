@@ -24,6 +24,10 @@ export interface AppBindings {
   CF_ACCESS_AUD: string;
   /** Local development only, from worker/.dev.vars. See AuthConfig. */
   DEV_USER_EMAIL?: string;
+  /** Secret. Unset: the Merchants page hides "Suggest categories". */
+  GEMINI_API_KEY?: string;
+  /** Defaults to DEFAULT_GEMINI_MODEL. */
+  GEMINI_MODEL?: string;
   ASSETS: { fetch(request: Request): Promise<Response> };
 }
 

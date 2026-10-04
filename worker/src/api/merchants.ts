@@ -41,3 +41,19 @@ export interface DecisionResponse { repointed: number; tagged: number }
 export interface RuleDeletedResponse { repointed: number }
 export interface MerchantCategoryRequest { ids: number[]; category: string | null }
 export interface MerchantCategoryResponse { updated: number }
+
+/** POST /api/merchants/suggest: what Gemini was asked and what was saved. */
+export interface SuggestResponse {
+  /** Uncategorized merchants (live rows or a rule) that were sent. */
+  asked: number;
+  /** Merchants that now carry a suggested category. */
+  suggested: number;
+  /** Categories created for these answers, in first-seen spelling. */
+  newCategories: string[];
+  /** asked - suggested. */
+  unanswered: number;
+}
+
+/** POST /api/merchants/confirm. Only merchants still flagged change. */
+export interface ConfirmRequest { ids: number[] }
+export interface ConfirmResponse { confirmed: number }

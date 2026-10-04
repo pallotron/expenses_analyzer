@@ -141,7 +141,7 @@ Each line is a TUI feature, where it lives, and what the web does with it.
 
 **Order**, one PR each unless noted: Transactions (read) → Transactions
 (edit) → Summary drill-down + hidden-tag editor (done) → Merchants page (done) +
-Gemini →
+Gemini (done) →
 Import → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
 
 #### Summary (`summary_screen.py`) — core done in PR #30
@@ -229,7 +229,7 @@ Edit PR A (row actions) and PR B (merchant editor, budget type):
   category, needs attention: uncategorized/suggested, type); sortable columns;
   multi-select to set or clear the category on many merchants; "→" links to
   the merchant's transactions (exact match).
-- "Auto-categorize uncategorized" → Gemini, below.
+- ~~"Auto-categorize uncategorized" → Gemini, below.~~ Done.
 
 #### Gemini categorization (`gemini_utils.py`)
 
@@ -239,15 +239,18 @@ the merchant names not yet in `categories.json` to Gemini in one call, with the
 existing categories as guidance (income and expense prompts differ), and
 merge the returned `{merchant: category}` map.
 
-Port: `worker/src/services/categorize.ts` calls the Gemini REST API with
-`fetch` from the Worker. The key is a Worker secret (`wrangler secret put
-GEMINI_API_KEY`), never sent to the browser. The model name becomes a
-`[vars]` entry (the TUI hardcodes `gemini-2.5-flash`; making it configurable
-was already on TODO.md). Prompt building and response parsing are pure
-functions held to the Python with a `gemini` section in `python_vectors.json`;
-the network call is mocked in tests. Suggestions are shown for review before
-they are saved, unlike the TUI, which saved them silently. Only merchant
-names are sent, as today.
+~~Port~~ Done: `worker/src/services/categorize.ts` calls the Gemini REST API
+(`services/gemini.ts`, key in the `x-goog-api-key` header) from the Worker.
+The key is a Worker secret (`wrangler secret put GEMINI_API_KEY`), never
+sent to the browser; `GEMINI_MODEL` in `[vars]` (default
+`gemini-2.5-flash`). Prompt building and parsing (`domain/gemini.ts`) are
+held to the Python by the `gemini` section of `python_vectors.json`.
+"Suggest categories" on the Merchants page sends every uncategorized
+merchant the page lists (live rows or a rule), 100 per call, and saves the
+answers at once flagged as suggested (`merchants.category_suggested`); the Suggested filter
+and the selection bar's Confirm review them. New categories are allowed.
+Import will reuse `suggestCategories` when it is ported. Only merchant and
+category names are sent, as today.
 
 #### Import (`import_screen.py`, `file_browser_screen.py`)
 

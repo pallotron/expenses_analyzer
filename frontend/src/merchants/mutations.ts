@@ -1,6 +1,7 @@
 import { send } from "../lib/api";
 import type {
-  DecisionRequest, DecisionResponse, MerchantCategoryRequest, MerchantCategoryResponse, RuleDeletedResponse,
+  ConfirmResponse, DecisionRequest, DecisionResponse, MerchantCategoryRequest, MerchantCategoryResponse,
+  RuleDeletedResponse, SuggestResponse,
 } from "../lib/types";
 import { useWrite } from "../transactions/edit/mutations";
 
@@ -13,3 +14,7 @@ export const useDeleteRule = () =>
   useWrite((id: number) => send<RuleDeletedResponse>("POST", `/api/merchants/rules/${id}/delete`, {}), MERCHANT_WRITES);
 export const useSetMerchantCategory = () =>
   useWrite((body: MerchantCategoryRequest) => send<MerchantCategoryResponse>("POST", "/api/merchants/category", body), MERCHANT_WRITES);
+export const useSuggestCategories = () =>
+  useWrite(() => send<SuggestResponse>("POST", "/api/merchants/suggest", {}), MERCHANT_WRITES);
+export const useConfirmSuggestions = () =>
+  useWrite((ids: number[]) => send<ConfirmResponse>("POST", "/api/merchants/confirm", { ids }), MERCHANT_WRITES);

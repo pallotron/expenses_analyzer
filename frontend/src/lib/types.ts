@@ -15,6 +15,7 @@ export type {
 export { normalizeTags } from "../../../worker/src/domain/tags";
 
 export type {
-  AliasPreviewResponse, DecisionRequest, DecisionResponse, MerchantCategoryRequest, MerchantCategoryResponse,
-  MerchantRow, MerchantRule, MerchantsResponse, RuleDeletedResponse, RuleLookupResponse,
+  AliasPreviewResponse, ConfirmRequest, ConfirmResponse, DecisionRequest, DecisionResponse, MerchantCategoryRequest,
+  MerchantCategoryResponse, MerchantRow, MerchantRule, MerchantsResponse, RuleDeletedResponse, RuleLookupResponse,
+  SuggestResponse,
 } from "../../../worker/src/api/merchants";

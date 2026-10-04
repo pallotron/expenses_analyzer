@@ -92,3 +92,41 @@ describe("selecting merchants", () => {
     expect(within(sheet).getByRole("button", { name: "Set category" })).toBeDisabled();
   });
 });
+
+describe("confirming suggestions", () => {
+  const flagged = [
+    merchant(1, "Corner Shop", { suggested: true }),
+    merchant(2, "Cafe One", { suggested: true, category: "Coffee" }),
+    merchant(3, "Bakery"),
+  ];
+
+  it("confirms only the selected merchants that are flagged", async () => {
+    const mock = renderMerchants("/merchants", api(flagged, {
+      "POST /api/merchants/confirm": (b) => ({ body: { confirmed: (b as { ids: number[] }).ids.length } }),
+    }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select Corner Shop" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Bakery" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(posts(mock)).toEqual([{ ids: [1] }]));
+    await waitFor(() => expect(screen.getByText("Confirmed 1 merchant")).toBeInTheDocument());
+    expect(screen.queryByRole("region", { name: "Selected merchants" })).not.toBeInTheDocument();
+  });
+
+  it("offers no Confirm when nothing selected is flagged", async () => {
+    renderMerchants("/merchants", api(flagged));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select Bakery" }));
+    expect(within(bar()).queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the selection and offers Retry when confirming fails", async () => {
+    renderMerchants("/merchants", api(flagged, {
+      "POST /api/merchants/confirm": () => ({ status: 500, body: { error: "Database is busy" } }),
+    }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select Corner Shop" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Confirm" }));
+    const toast = screen.getByRole("status");
+    await waitFor(() => expect(toast).toHaveTextContent("Database is busy"));
+    expect(within(toast).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(bar()).toHaveTextContent("1 selected");
+  });
+});

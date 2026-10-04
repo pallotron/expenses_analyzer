@@ -1,7 +1,7 @@
 /** Shown while merchants are selected: on phones pinned to the bottom, on desktop in the frozen controls. */
 export function MerchantActionBar(props: {
   count: number; total: number; busy?: boolean;
-  onSelectAll: () => void; onSetCategory: () => void; onClearCategory: () => void; onCancel: () => void;
+  onSelectAll: () => void; onSetCategory: () => void; onClearCategory: () => void; onCancel: () => void; onConfirm?: () => void;
 }) {
   const btn = "rounded-md disabled:opacity-50 border border-slate-300 px-3 py-1.5 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800";
   return (
@@ -12,6 +12,9 @@ export function MerchantActionBar(props: {
         <button type="button" onClick={props.onSelectAll} className="underline">Select all {props.total}</button>
       )}
       <span className="flex-1" />
+      {props.onConfirm && (
+        <button type="button" onClick={props.onConfirm} disabled={props.busy} className={btn}>Confirm</button>
+      )}
       <button type="button" onClick={props.onSetCategory} disabled={props.busy} className={btn}>Set category</button>
       <button type="button" onClick={props.onClearCategory} disabled={props.busy} className={btn}>Clear category</button>
       <button type="button" onClick={props.onCancel} className="px-2 py-1.5 underline">Cancel</button>

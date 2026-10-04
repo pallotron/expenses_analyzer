@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import type { AppBindings, AppEnv } from "../app";
-import type { TransactionsResponse } from "../api/transactions";
+import type { LookupsResponse, TransactionsResponse } from "../api/transactions";
 import { parseAmountFilter, type TransactionFilter } from "../domain/filters";
 import { listLookups, listTransactions } from "../queries/transactions";
 
@@ -70,7 +70,8 @@ export function transactionRoutes<B extends AppBindings>() {
     return c.json(body);
   });
 
-  routes.get("/lookups", async (c) => c.json(await listLookups(c.get("db"))));
+  routes.get("/lookups", async (c) =>
+    c.json({ ...(await listLookups(c.get("db"))), gemini: Boolean(c.env.GEMINI_API_KEY) } satisfies LookupsResponse));
 
   return routes;
 }

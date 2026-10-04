@@ -35,5 +35,14 @@ export interface ImportRequest { source: string; filename?: string; mapping: Imp
 export interface ImportResponse { batchId: number | null; inserted: number; duplicates: number; suppressedDeleted: number; newMerchants: string[] }
 export interface ImportMappingsResponse { mappings: Record<string, ImportMapping> }
 
+/** A source the import page offers: its saved mapping, and where its rows stop. */
+export interface ImportSource {
+  name: string;
+  /** YYYY-MM-DD of its latest live transaction; null when it has none. */
+  lastDate: string | null;
+  mapping: ImportMapping | null;
+}
+export interface ImportSourcesResponse { sources: ImportSource[] }
+
 /** D1 takes the rows as one JSON value, capped near 2 MB; 5,000 rows is about 600 KB. */
 export const MAX_IMPORT_ROWS = 5_000;

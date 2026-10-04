@@ -8,9 +8,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import type { AppBindings, AppEnv } from "../app";
-import { MAX_IMPORT_ROWS, type ImportMappingsResponse, type ImportResponse } from "../api/import";
+import { MAX_IMPORT_ROWS, type ImportMappingsResponse, type ImportResponse, type ImportSourcesResponse } from "../api/import";
 import { ValidationError } from "../domain/validation";
-import { loadImportMappings, saveImportMapping } from "../services/importMappings";
+import { loadImportMappings, listImportSources, saveImportMapping } from "../services/importMappings";
 import { importTransactions } from "../services/transactions";
 import { parseBody } from "./parseBody";
 
@@ -70,6 +70,9 @@ export function importRoutes<B extends AppBindings>() {
 
   routes.get("/import/mappings", async (c) =>
     c.json({ mappings: await loadImportMappings(c.get("db")) } satisfies ImportMappingsResponse));
+
+  routes.get("/import/sources", async (c) =>
+    c.json({ sources: await listImportSources(c.get("db")) } satisfies ImportSourcesResponse));
 
   return routes;
 }

@@ -4,6 +4,7 @@ import { createApp, type AppBindings } from "../../app";
 import type { ImportMapping, ImportResponse } from "../../api/import";
 import { createDb } from "../../db/client";
 import * as importMappings from "../../services/importMappings";
+import { saveImportMapping } from "../../services/importMappings";
 import { fakeD1 } from "../helpers/fakeD1";
 import { store } from "../helpers/store";
 
@@ -186,5 +187,37 @@ describe("POST /api/import with dryRun", () => {
 describe("GET /api/import/mappings", () => {
   it("is empty before any import", async () => {
     expect(await setup().mappings()).toEqual({ mappings: {} });
+  });
+});
+
+describe("GET /api/import/sources", () => {
+  const sources = async (s: ReturnType<typeof setup>) => (await (await s.send("GET", "/api/import/sources")).json());
+  const userId = (s: ReturnType<typeof setup>) => (s.sqlite.prepare(`SELECT id FROM users LIMIT 1`).get() as { id: number }).id;
+
+  it("is empty with no transactions and no mappings", async () => {
+    expect(await sources(setup())).toEqual({ sources: [] });
+  });
+
+  it("lists each source, sorted, with its last live date and its saved mapping", async () => {
+    const s = setup();
+    await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: ROWS });
+    await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], date: "2026-09-20", merchant: "Late Shop" }] });
+    await s.send("POST", "/api/import", { source: "Cash", mapping: MAPPING, rows: [{ ...ROWS[0], date: "2026-08-15", merchant: "Kiosk" }] });
+    // A deleted row is not where a source left off; a source with only deleted rows has no date.
+    s.sqlite.prepare(`UPDATE transactions SET deleted_at = unixepoch() WHERE merchant_raw IN ('Late Shop', 'Kiosk')`).run();
+    await saveImportMapping(s.db, "Bank", { ...MAPPING, amountOut: "Out" }, userId(s));
+    expect(await sources(s)).toEqual({
+      sources: [
+        { name: "Bank", lastDate: null, mapping: { ...MAPPING, amountOut: "Out" } },
+        { name: "Card", lastDate: "2026-09-02", mapping: MAPPING },
+        { name: "Cash", lastDate: null, mapping: MAPPING },
+      ],
+    });
+  });
+
+  it("takes a source named like an object's own property", async () => {
+    const s = setup();
+    await s.send("POST", "/api/import", { source: "constructor", mapping: MAPPING, rows: ROWS });
+    expect(await sources(s)).toEqual({ sources: [{ name: "constructor", lastDate: "2026-09-02", mapping: MAPPING }] });
   });
 });

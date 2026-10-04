@@ -3851,6 +3851,215 @@
         "1/9/26",
         null
       ]
+    ],
+    "scenarios": [
+      {
+        "name": "single, auto",
+        "csv": "Date,Description,Amount\n01/09/2026,Corner Shop,-12.50\n02/09/2026,Acme Payroll,2500.00\n03/09/2026,Zero Cafe,0\n04/09/2026,,-5.00\nnot a date,Bad Date Shop,-1.00\n05/09/2026,Bakery,(3.20)\n06/09/2026,Blank Amount Ltd,\n",
+        "date": "Date",
+        "merchant": "Description",
+        "amount": "Amount",
+        "amountOut": null,
+        "typeMode": "auto",
+        "expected": [
+          {
+            "date": "2026-09-01",
+            "merchant": "Corner Shop",
+            "amountCents": 1250,
+            "type": "expense"
+          },
+          {
+            "date": "2026-09-02",
+            "merchant": "Acme Payroll",
+            "amountCents": 250000,
+            "type": "income"
+          },
+          {
+            "skip": "zeroAmount"
+          },
+          {
+            "skip": "emptyMerchant"
+          },
+          {
+            "skip": "invalidDate"
+          },
+          {
+            "date": "2026-09-05",
+            "merchant": "Bakery",
+            "amountCents": 320,
+            "type": "expense"
+          },
+          {
+            "skip": "zeroAmount"
+          }
+        ]
+      },
+      {
+        "name": "single, all expenses",
+        "csv": "Date,Description,Amount\n01/09/2026,Corner Shop,-12.50\n02/09/2026,Acme Payroll,2500.00\n03/09/2026,Zero Cafe,0\n04/09/2026,,-5.00\nnot a date,Bad Date Shop,-1.00\n05/09/2026,Bakery,(3.20)\n06/09/2026,Blank Amount Ltd,\n",
+        "date": "Date",
+        "merchant": "Description",
+        "amount": "Amount",
+        "amountOut": null,
+        "typeMode": "expense",
+        "expected": [
+          {
+            "date": "2026-09-01",
+            "merchant": "Corner Shop",
+            "amountCents": 1250,
+            "type": "expense"
+          },
+          {
+            "date": "2026-09-02",
+            "merchant": "Acme Payroll",
+            "amountCents": 250000,
+            "type": "expense"
+          },
+          {
+            "skip": "zeroAmount"
+          },
+          {
+            "skip": "emptyMerchant"
+          },
+          {
+            "skip": "invalidDate"
+          },
+          {
+            "date": "2026-09-05",
+            "merchant": "Bakery",
+            "amountCents": 320,
+            "type": "expense"
+          },
+          {
+            "skip": "zeroAmount"
+          }
+        ]
+      },
+      {
+        "name": "single, all income",
+        "csv": "Date,Description,Amount\n01/09/2026,Corner Shop,-12.50\n02/09/2026,Acme Payroll,2500.00\n03/09/2026,Zero Cafe,0\n04/09/2026,,-5.00\nnot a date,Bad Date Shop,-1.00\n05/09/2026,Bakery,(3.20)\n06/09/2026,Blank Amount Ltd,\n",
+        "date": "Date",
+        "merchant": "Description",
+        "amount": "Amount",
+        "amountOut": null,
+        "typeMode": "income",
+        "expected": [
+          {
+            "date": "2026-09-01",
+            "merchant": "Corner Shop",
+            "amountCents": 1250,
+            "type": "income"
+          },
+          {
+            "date": "2026-09-02",
+            "merchant": "Acme Payroll",
+            "amountCents": 250000,
+            "type": "income"
+          },
+          {
+            "skip": "zeroAmount"
+          },
+          {
+            "skip": "emptyMerchant"
+          },
+          {
+            "skip": "invalidDate"
+          },
+          {
+            "date": "2026-09-05",
+            "merchant": "Bakery",
+            "amountCents": 320,
+            "type": "income"
+          },
+          {
+            "skip": "zeroAmount"
+          }
+        ]
+      },
+      {
+        "name": "two columns",
+        "csv": "Date,Description,In,Out\n01/09/2026,Acme Payroll,250.00,\n02/09/2026,Corner Shop,,-71.35\n03/09/2026,Both Ltd,10.00,-40.00\n04/09/2026,Even Ltd,30.00,-30.00\n05/09/2026,Nothing Ltd,,\n",
+        "date": "Date",
+        "merchant": "Description",
+        "amount": "In",
+        "amountOut": "Out",
+        "typeMode": "auto",
+        "expected": [
+          {
+            "date": "2026-09-01",
+            "merchant": "Acme Payroll",
+            "amountCents": 25000,
+            "type": "income"
+          },
+          {
+            "date": "2026-09-02",
+            "merchant": "Corner Shop",
+            "amountCents": 7135,
+            "type": "expense"
+          },
+          {
+            "date": "2026-09-03",
+            "merchant": "Both Ltd",
+            "amountCents": 4000,
+            "type": "expense"
+          },
+          {
+            "date": "2026-09-04",
+            "merchant": "Even Ltd",
+            "amountCents": 3000,
+            "type": "income"
+          },
+          {
+            "skip": "zeroAmount"
+          }
+        ]
+      },
+      {
+        "name": "paypal",
+        "csv": "Date,Name,Gross,Balance Impact\n01/09/2026,Shop A,-10.00,Debit\n02/09/2026,Refund B,5.00,Credit\n03/09/2026,Hold C,-2.00,Memo\n",
+        "date": "Date",
+        "merchant": "Name",
+        "amount": "Gross",
+        "amountOut": null,
+        "typeMode": "auto",
+        "expected": [
+          {
+            "date": "2026-09-01",
+            "merchant": "Shop A",
+            "amountCents": 1000,
+            "type": "expense"
+          },
+          {
+            "skip": "notDebit"
+          },
+          {
+            "skip": "notDebit"
+          }
+        ]
+      },
+      {
+        "name": "paypal, all expenses",
+        "csv": "Date,Name,Gross,Balance Impact\n01/09/2026,Shop A,-10.00,Debit\n02/09/2026,Refund B,5.00,Credit\n",
+        "date": "Date",
+        "merchant": "Name",
+        "amount": "Gross",
+        "amountOut": null,
+        "typeMode": "expense",
+        "expected": [
+          {
+            "date": "2026-09-01",
+            "merchant": "Shop A",
+            "amountCents": 1000,
+            "type": "expense"
+          },
+          {
+            "date": "2026-09-02",
+            "merchant": "Refund B",
+            "amountCents": 500,
+            "type": "expense"
+          }
+        ]
+      }
     ]
   }
 }

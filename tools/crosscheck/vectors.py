@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
 import sys
@@ -598,6 +599,78 @@ def run_import_date(raw: str):
     return None if pd.isna(parsed) else parsed.strftime("%Y-%m-%d")
 
 
+# Each scenario is a CSV read as the TUI reads it (pd.read_csv) and run through
+# ImportScreen._process_row, row by row.
+IMPORT_SINGLE = (
+    "Date,Description,Amount\n"
+    "01/09/2026,Corner Shop,-12.50\n"
+    "02/09/2026,Acme Payroll,2500.00\n"
+    "03/09/2026,Zero Cafe,0\n"
+    "04/09/2026,,-5.00\n"
+    "not a date,Bad Date Shop,-1.00\n"
+    "05/09/2026,Bakery,(3.20)\n"
+    "06/09/2026,Blank Amount Ltd,\n"
+)
+IMPORT_ROW_SCENARIOS = {
+    "single, auto": {"csv": IMPORT_SINGLE, "date": "Date", "merchant": "Description",
+                     "amount": "Amount", "amountOut": None, "typeMode": "auto"},
+    "single, all expenses": {"csv": IMPORT_SINGLE, "date": "Date", "merchant": "Description",
+                             "amount": "Amount", "amountOut": None, "typeMode": "expense"},
+    "single, all income": {"csv": IMPORT_SINGLE, "date": "Date", "merchant": "Description",
+                           "amount": "Amount", "amountOut": None, "typeMode": "income"},
+    "two columns": {
+        "csv": (
+            "Date,Description,In,Out\n"
+            "01/09/2026,Acme Payroll,250.00,\n"
+            "02/09/2026,Corner Shop,,-71.35\n"
+            "03/09/2026,Both Ltd,10.00,-40.00\n"
+            "04/09/2026,Even Ltd,30.00,-30.00\n"
+            "05/09/2026,Nothing Ltd,,\n"
+        ),
+        "date": "Date", "merchant": "Description", "amount": "In", "amountOut": "Out", "typeMode": "auto",
+    },
+    "paypal": {
+        "csv": (
+            "Date,Name,Gross,Balance Impact\n"
+            "01/09/2026,Shop A,-10.00,Debit\n"
+            "02/09/2026,Refund B,5.00,Credit\n"
+            "03/09/2026,Hold C,-2.00,Memo\n"
+        ),
+        "date": "Date", "merchant": "Name", "amount": "Gross", "amountOut": None, "typeMode": "auto",
+    },
+    "paypal, all expenses": {
+        "csv": (
+            "Date,Name,Gross,Balance Impact\n"
+            "01/09/2026,Shop A,-10.00,Debit\n"
+            "02/09/2026,Refund B,5.00,Credit\n"
+        ),
+        "date": "Date", "merchant": "Name", "amount": "Gross", "amountOut": None, "typeMode": "expense",
+    },
+}
+
+SKIP_NAMES = {"invalid_date": "invalidDate", "empty_merchant": "emptyMerchant",
+              "zero_amount": "zeroAmount", "not_debit": "notDebit"}
+
+
+def run_import_scenario(spec: dict) -> list:
+    """One entry per data row: the parsed row, or {"skip": reason}."""
+    df = pd.read_csv(io.StringIO(spec["csv"]))
+    screen = SimpleNamespace(df=df)
+    for name in ("_parse_date_smart", "_is_valid_merchant", "_should_skip_paypal_row", "_process_row"):
+        setattr(screen, name, MethodType(getattr(ImportScreen, name), screen))
+    out = []
+    for index, row in df.iterrows():
+        counts = {k: 0 for k in SKIP_NAMES}
+        result = screen._process_row(index, row, spec["date"], spec["merchant"], spec["amount"],
+                                     spec["typeMode"], counts, spec["amountOut"])
+        if result is None:
+            out.append({"skip": SKIP_NAMES[next(k for k, v in counts.items() if v)]})
+        else:
+            out.append({"date": result["Date"].strftime("%Y-%m-%d"), "merchant": result["Merchant"],
+                        "amountCents": to_cents(result["Amount"]), "type": result["Type"]})
+    return out
+
+
 def build() -> dict:
     stored_cents = (
         clean_amount(pd.Series(AMOUNTS)).round(2).apply(to_cents).tolist()
@@ -673,6 +746,10 @@ def build() -> dict:
         },
         "import": {
             "dates": [[d, run_import_date(d)] for d in IMPORT_DATES],
+            "scenarios": [
+                {"name": name, **spec, "expected": run_import_scenario(spec)}
+                for name, spec in IMPORT_ROW_SCENARIOS.items()
+            ],
         },
     }
 

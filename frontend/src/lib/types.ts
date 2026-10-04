@@ -19,3 +19,12 @@ export type {
   MerchantCategoryResponse, MerchantRow, MerchantRule, MerchantsResponse, RuleDeletedResponse, RuleLookupResponse,
   SuggestResponse,
 } from "../../../worker/src/api/merchants";
+export type {
+  ImportMapping, ImportMappingsResponse, ImportRequest, ImportRequestRow, ImportResponse,
+} from "../../../worker/src/api/import";
+export { MAX_IMPORT_ROWS } from "../../../worker/src/api/import";
+// The import page parses with the Worker's own rules; the modules are pure.
+export {
+  columnNames, commaDecimalSample, findHeaderRow, missingColumns, processRows, SKIP_REASONS,
+} from "../../../worker/src/domain/importRows";
+export type { ParsedImport, ParsedRow, SkipReason } from "../../../worker/src/domain/importRows";

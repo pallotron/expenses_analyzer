@@ -142,7 +142,7 @@ Each line is a TUI feature, where it lives, and what the web does with it.
 **Order**, one PR each unless noted: Transactions (read) → Transactions
 (edit) → Summary drill-down + hidden-tag editor (done) → Merchants page (done) +
 Gemini (done) →
-Import → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
+Import (done) → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
 
 #### Summary (`summary_screen.py`) — core done in PR #30
 
@@ -259,14 +259,17 @@ sent, as today.
 
 #### Import (`import_screen.py`, `file_browser_screen.py`)
 
-- File picker (a browser `<input type=file>` replaces the file browser),
-  preview of the first rows, column mapping: date, merchant, amount,
-  optional separate amount-out column, type (auto from sign / all expenses /
-  all income), source (existing or new), AI-suggest checkbox.
-- Smart date parsing (`_parse_date_smart`), PayPal rows skipped by Balance
-  Impact (`_should_skip_paypal_row`), per-reason skip counts reported.
-- Parse the CSV in the browser, POST rows; `importTransactions` already
-  validates, dedups and suppresses soft-deleted re-imports.
+- ~~File picker, preview, column mapping, type, source, AI-suggest; smart
+  dates; PayPal rows; per-reason skip counts.~~ Done: `/import` reads
+  `.csv` (Papa Parse) and the banks' `.xls`/`.xlsx` exports (SheetJS, loaded
+  only there) into a grid; `domain/importRows.ts` finds the header below any
+  summary rows, maps columns by name and parses or skips each row with a
+  reason, held to the Python by the `import` section of `python_vectors.json`
+  (except "." dates and short years, which the TUI misread). Mappings are
+  remembered per source (`settings.import_mappings`), with an optional row
+  filter (e.g. State = COMPLETED). `POST /api/import` (5,000 rows at most)
+  runs `importTransactions` and then saves the mapping; the page asks Gemini
+  for the new merchants when ticked.
 
 #### Budget types (`u`, `budget_types_screen.py`)
 
@@ -389,13 +392,13 @@ Done 2026-09-29:
   re-linked when bank sync is ported. D1 matches the seed on 13 counts and
   totals.
 
+Login: Google (an OAuth client in its own Google Cloud project, consent
+screen External in Testing mode, household Gmail addresses as test users)
+under Integrations → Identity providers, with the one-time PIN kept as a
+fallback. The Access application's session duration is longer than the
+24-hour default, so a login lasts across days.
+
 Still to do:
-- Add Google login to Access. Login is currently one-time PIN (plus the
-  Cloudflare-account option). Needs a Google Cloud OAuth client ("Web
-  application"; origin `https://pallotron.cloudflareaccess.com`, redirect
-  `https://pallotron.cloudflareaccess.com/cdn-cgi/access/callback`; consent
-  screen External, both Gmail addresses as test users), then add **Google**
-  (not Google Workspace) under Integrations → Identity providers.
 - The parquet is still the TUI's live data, so D1 is a copy as of
   2026-09-29. Anything imported in the TUI from now on is not in D1. Decide
   when to stop writing through the TUI, or re-seed (wipe the tables and repeat

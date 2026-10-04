@@ -101,9 +101,11 @@ describe("TransactionsPage", () => {
     const many = Array.from({ length: PAGE_SIZE + 5 }, (_, i) => row(i + 1, "2026-09-10", 100));
     renderAt("/transactions?from=2026-09-01&to=2026-09-30", api({ rows: many }));
     await screen.findByText(`${PAGE_SIZE + 5} transactions`, { exact: false });
-    expect(screen.getAllByRole("row")).toHaveLength(PAGE_SIZE + 1); // + header
-    await userEvent.click(screen.getByRole("button", { name: "Show more (5 left)" }));
-    expect(screen.getAllByRole("row")).toHaveLength(PAGE_SIZE + 6);
+    // Plain DOM queries: role queries over 200 rows are slow enough to time out in CI.
+    const rows = () => document.querySelectorAll("table tr");
+    expect(rows()).toHaveLength(PAGE_SIZE + 1); // + header
+    await userEvent.click(screen.getByText("Show more (5 left)"));
+    expect(rows()).toHaveLength(PAGE_SIZE + 6);
   });
 
   it("uses day groups on a phone", async () => {

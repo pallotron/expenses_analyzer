@@ -1,3 +1,5 @@
+import { ImportAction } from "./import/ImportAction";
+import { ImportPage } from "./import/ImportPage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router";
 
@@ -17,6 +19,7 @@ export default function App() {
         <Routes>
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/merchants" element={<MerchantsPage />} />
+          <Route path="/import" element={<ImportPage renderAction={(ready, reset) => <ImportAction ready={ready} onReset={reset} />} />} />
           <Route path="*" element={<SummaryPage />} />
         </Routes>
       </BrowserRouter>

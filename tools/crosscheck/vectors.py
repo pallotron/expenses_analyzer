@@ -10,8 +10,8 @@ Covers merchant normalisation and aliasing, amount parsing as the import
 pipeline stores it, the tag helpers, whole append_transactions scenarios
 (deduplication and soft-delete suppression), the Transactions screen's
 filters, import validation, the merchant editor's preview, and the Summary
-screen's monthly grid, anomaly flags and merchant lists, and the Gemini prompt
-and response parsing.
+screen's monthly grid, anomaly flags and merchant lists, the Gemini prompt
+and response parsing, and the import screen's date parsing and row processing.
 
 Usage:
     PYTHONPATH=. python3 tools/crosscheck/vectors.py          # rewrite the file
@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
 import sys
@@ -42,6 +43,7 @@ from expenses.data_handler import (
 )
 from expenses.merchant_editor import pattern_claiming, preview_alias_change
 from expenses.screens.summary_screen import SummaryScreen
+from expenses.screens.import_screen import ImportScreen
 from expenses.transaction_filter import apply_filters
 from expenses.validation import ValidationError, validate_transaction_dataframe
 
@@ -581,6 +583,94 @@ PARSE_CASES = [
 ]
 
 
+# Date shapes the web import accepts. The last two are known differences: the
+# TUI reads "." month-first and drops short dates like 1/9/26 (under 8 chars).
+IMPORT_DATES = [
+    "2026-09-01", "2026-09-01 12:34:19", "2026/09/01", "2026-9-1", "2026-09-01T12:00:00Z",
+    "01/09/2026", "1/9/2026", "01-09-2026", "13/01/2026", "01/09/26", "01/09/2026 10:00",
+    "31/02/2026", "12 Mar 2026", "12 March 2026", "Mar 12, 2026", "March 12 2026", "Sept 3 2026",
+    "", "garbage",
+    "01.09.2026", "1/9/26",
+]
+
+
+def run_import_date(raw: str):
+    parsed = ImportScreen._parse_date_smart(None, raw)
+    return None if pd.isna(parsed) else parsed.strftime("%Y-%m-%d")
+
+
+# Each scenario is a CSV read as the TUI reads it (pd.read_csv) and run through
+# ImportScreen._process_row, row by row.
+IMPORT_SINGLE = (
+    "Date,Description,Amount\n"
+    "01/09/2026,Corner Shop,-12.50\n"
+    "02/09/2026,Acme Payroll,2500.00\n"
+    "03/09/2026,Zero Cafe,0\n"
+    "04/09/2026,,-5.00\n"
+    "not a date,Bad Date Shop,-1.00\n"
+    "05/09/2026,Bakery,(3.20)\n"
+    "06/09/2026,Blank Amount Ltd,\n"
+)
+IMPORT_ROW_SCENARIOS = {
+    "single, auto": {"csv": IMPORT_SINGLE, "date": "Date", "merchant": "Description",
+                     "amount": "Amount", "amountOut": None, "typeMode": "auto"},
+    "single, all expenses": {"csv": IMPORT_SINGLE, "date": "Date", "merchant": "Description",
+                             "amount": "Amount", "amountOut": None, "typeMode": "expense"},
+    "single, all income": {"csv": IMPORT_SINGLE, "date": "Date", "merchant": "Description",
+                           "amount": "Amount", "amountOut": None, "typeMode": "income"},
+    "two columns": {
+        "csv": (
+            "Date,Description,In,Out\n"
+            "01/09/2026,Acme Payroll,250.00,\n"
+            "02/09/2026,Corner Shop,,-71.35\n"
+            "03/09/2026,Both Ltd,10.00,-40.00\n"
+            "04/09/2026,Even Ltd,30.00,-30.00\n"
+            "05/09/2026,Nothing Ltd,,\n"
+        ),
+        "date": "Date", "merchant": "Description", "amount": "In", "amountOut": "Out", "typeMode": "auto",
+    },
+    "paypal": {
+        "csv": (
+            "Date,Name,Gross,Balance Impact\n"
+            "01/09/2026,Shop A,-10.00,Debit\n"
+            "02/09/2026,Refund B,5.00,Credit\n"
+            "03/09/2026,Hold C,-2.00,Memo\n"
+        ),
+        "date": "Date", "merchant": "Name", "amount": "Gross", "amountOut": None, "typeMode": "auto",
+    },
+    "paypal, all expenses": {
+        "csv": (
+            "Date,Name,Gross,Balance Impact\n"
+            "01/09/2026,Shop A,-10.00,Debit\n"
+            "02/09/2026,Refund B,5.00,Credit\n"
+        ),
+        "date": "Date", "merchant": "Name", "amount": "Gross", "amountOut": None, "typeMode": "expense",
+    },
+}
+
+SKIP_NAMES = {"invalid_date": "invalidDate", "empty_merchant": "emptyMerchant",
+              "zero_amount": "zeroAmount", "not_debit": "notDebit"}
+
+
+def run_import_scenario(spec: dict) -> list:
+    """One entry per data row: the parsed row, or {"skip": reason}."""
+    df = pd.read_csv(io.StringIO(spec["csv"]))
+    screen = SimpleNamespace(df=df)
+    for name in ("_parse_date_smart", "_is_valid_merchant", "_should_skip_paypal_row", "_process_row"):
+        setattr(screen, name, MethodType(getattr(ImportScreen, name), screen))
+    out = []
+    for index, row in df.iterrows():
+        counts = {k: 0 for k in SKIP_NAMES}
+        result = screen._process_row(index, row, spec["date"], spec["merchant"], spec["amount"],
+                                     spec["typeMode"], counts, spec["amountOut"])
+        if result is None:
+            out.append({"skip": SKIP_NAMES[next(k for k, v in counts.items() if v)]})
+        else:
+            out.append({"date": result["Date"].strftime("%Y-%m-%d"), "merchant": result["Merchant"],
+                        "amountCents": to_cents(result["Amount"]), "type": result["Type"]})
+    return out
+
+
 def build() -> dict:
     stored_cents = (
         clean_amount(pd.Series(AMOUNTS)).round(2).apply(to_cents).tolist()
@@ -653,6 +743,13 @@ def build() -> dict:
             "guidance": [[c, t, gemini_utils._build_category_guidance(c, t)] for c, t in GUIDANCE_CASES],
             "prompts": [[n, g, t, gemini_utils._build_gemini_prompt(n, g, t)] for n, g, t in PROMPT_CASES],
             "parse": [[s, gemini_utils._parse_gemini_response(s)] for s in PARSE_CASES],
+        },
+        "import": {
+            "dates": [[d, run_import_date(d)] for d in IMPORT_DATES],
+            "scenarios": [
+                {"name": name, **spec, "expected": run_import_scenario(spec)}
+                for name, spec in IMPORT_ROW_SCENARIOS.items()
+            ],
         },
     }
 

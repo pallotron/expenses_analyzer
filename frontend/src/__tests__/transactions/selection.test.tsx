@@ -20,10 +20,12 @@ describe("selecting transactions", () => {
   it("ticks every shown row from the header, and every filtered row from the bar", async () => {
     const many = Array.from({ length: PAGE_SIZE + 5 }, (_, i) => row(i + 1, "2026-09-10", 100));
     renderAt(URL_SEPT, api({ rows: many }));
-    await userEvent.click(await screen.findByRole("checkbox", { name: "Select all shown" }));
-    expect(bar()).toHaveTextContent(`${PAGE_SIZE} selected`);
-    await userEvent.click(within(bar()).getByRole("button", { name: `Select all ${PAGE_SIZE + 5}` }));
-    expect(bar()).toHaveTextContent(`${PAGE_SIZE + 5} selected`);
+    // Label and DOM queries: role queries over 200 rows are slow enough to time out in CI.
+    const region = () => document.querySelector('[aria-label="Selected transactions"]') as HTMLElement;
+    await userEvent.click(await screen.findByLabelText("Select all shown"));
+    expect(region()).toHaveTextContent(`${PAGE_SIZE} selected`);
+    await userEvent.click(within(region()).getByRole("button", { name: `Select all ${PAGE_SIZE + 5}` }));
+    expect(region()).toHaveTextContent(`${PAGE_SIZE + 5} selected`);
   });
 
   it("clears the selection when the filters change", async () => {

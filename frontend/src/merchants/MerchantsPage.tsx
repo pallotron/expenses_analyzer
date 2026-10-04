@@ -12,7 +12,7 @@ import { MerchantCards } from "./MerchantCards";
 import { MerchantEditor, type EditorTarget } from "./MerchantEditor";
 import { MerchantTable } from "./MerchantTable";
 import { merchantCount } from "./count";
-import { useSetMerchantCategory, useSuggestCategories } from "./mutations";
+import { useConfirmSuggestions, useSetMerchantCategory, useSuggestCategories } from "./mutations";
 import { filterMerchants, parseMerchantParams, sortMerchants, toMerchantSearch, type MerchantParams } from "./params";
 import { useMerchants } from "./queries";
 import { SetCategorySheet } from "./SetCategorySheet";
@@ -31,6 +31,7 @@ export function MerchantsPage() {
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
   const [setting, setSetting] = useState<number[] | null>(null);
   const clear = useSetMerchantCategory();
+  const confirm = useConfirmSuggestions();
 
   const all = list.data?.merchants;
   const rows = useMemo(
@@ -53,6 +54,12 @@ export function MerchantsPage() {
   const clearCategory = (ids: number[]) => !clear.isPending && clear.mutate({ ids, category: null }, {
     onSuccess: ({ updated }) => { notify({ message: `Cleared the category on ${merchantCount(updated)}` }); setSelected(new Set()); },
     onError: (e) => notify({ message: `Couldn't clear: ${e.message}`, action: { label: "Retry", run: () => clearCategory(ids) } }),
+  });
+  // Only flagged rows have anything to confirm; the rest of the selection is ignored.
+  const confirmIds = rows.filter((r) => effective.has(r.id) && r.suggested).map((r) => r.id);
+  const confirmSuggested = (ids: number[]) => !confirm.isPending && confirm.mutate(ids, {
+    onSuccess: ({ confirmed }) => { notify({ message: `Confirmed ${merchantCount(confirmed)}` }); setSelected(new Set()); },
+    onError: (e) => notify({ message: `Couldn't confirm: ${e.message}`, action: { label: "Retry", run: () => confirmSuggested(ids) } }),
   });
   const update = (patch: Partial<MerchantParams>) => setSearch(toMerchantSearch({ ...params, ...patch }), { replace: true });
   const open = (merchant: Extract<EditorTarget, { kind: "merchant" }>["merchant"]) => setEditing({ kind: "merchant", merchant });
@@ -101,8 +108,8 @@ export function MerchantsPage() {
         {selectedIds.length > 0 && (
           <MerchantActionBar count={selectedIds.length} total={rows.length}
             onSelectAll={() => setSelected(new Set(rows.map((r) => r.id)))}
-            busy={clear.isPending} onSetCategory={() => setSetting(selectedIds)} onClearCategory={() => clearCategory(selectedIds)}
-            onCancel={() => setSelected(new Set())} />
+            busy={clear.isPending || confirm.isPending} onSetCategory={() => setSetting(selectedIds)} onClearCategory={() => clearCategory(selectedIds)}
+            onCancel={() => setSelected(new Set())} onConfirm={confirmIds.length > 0 ? () => confirmSuggested(confirmIds) : undefined} />
         )}
       </StickyPanel>
 

@@ -30,13 +30,18 @@ describe("the Suggest categories button", () => {
     expect(button()).not.toBeInTheDocument();
   });
 
-  it("is hidden when no merchant with live rows is uncategorized", async () => {
+  it("is hidden when every merchant has a category", async () => {
+    renderMerchants("/merchants", api([merchant(1, "Corner Shop"), merchant(2, "Bakery")], { "GET /api/lookups": lookups(true) }));
+    await screen.findByRole("table");
+    expect(button()).not.toBeInTheDocument();
+  });
+
+  it("shows for a merchant that only has a rule", async () => {
     renderMerchants("/merchants", api(
       [merchant(1, "Corner Shop", { category: null, count: 0, rules: [{ id: 1, pattern: "^C" }] }), merchant(2, "Bakery")],
       { "GET /api/lookups": lookups(true) },
     ));
-    await screen.findByRole("table");
-    expect(button()).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Suggest categories" })).toBeInTheDocument();
   });
 
   it("asks, shows the result, and Review switches to the Suggested filter", async () => {

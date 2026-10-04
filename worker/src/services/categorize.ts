@@ -20,7 +20,8 @@ export const SUGGEST_CHUNK = 100;
 
 export async function suggestCategories(db: Db, generate: GenerateText, userId: number): Promise<SuggestResponse> {
   const rows = await listMerchants(db);
-  const todo = rows.filter((m) => m.category === null && m.count > 0);
+  // Every uncategorized merchant the Merchants page lists: live rows or a rule.
+  const todo = rows.filter((m) => m.category === null);
   if (todo.length === 0) return { asked: 0, suggested: 0, newCategories: [], unanswered: 0 };
 
   const stored = await db.select({ name: categories.name, archived: categories.isArchived }).from(categories);

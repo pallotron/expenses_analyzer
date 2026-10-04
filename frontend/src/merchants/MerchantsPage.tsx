@@ -64,8 +64,8 @@ export function MerchantsPage() {
   const update = (patch: Partial<MerchantParams>) => setSearch(toMerchantSearch({ ...params, ...patch }), { replace: true });
   const open = (merchant: Extract<EditorTarget, { kind: "merchant" }>["merchant"]) => setEditing({ kind: "merchant", merchant });
   const suggest = useSuggestCategories();
-  // Gemini only sees merchants with live rows, so only those make the button worth showing.
-  const canSuggest = lookups.data?.gemini === true && (all ?? []).some((m) => m.category === null && m.count > 0);
+  // Gemini is asked about every uncategorized merchant listed, filtered out or not.
+  const canSuggest = lookups.data?.gemini === true && (all ?? []).some((m) => m.category === null);
   const askGemini = () => !suggest.isPending && suggest.mutate(undefined, {
     onSuccess: (r) => notify({
       message: suggestMessage(r),

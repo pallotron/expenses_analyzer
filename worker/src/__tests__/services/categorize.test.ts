@@ -66,12 +66,13 @@ describe("suggestCategories", () => {
     expect(prompts).toEqual([]);
   });
 
-  it("skips merchants with no live rows", async () => {
-    const { sqlite, db } = store([]);
+  it("asks for merchants the page lists: live rows or a rule, not deleted-only ones", async () => {
+    const { sqlite, db } = store([["^RULE ONLY", "Rule Only Ltd"]]);
     seed(sqlite, [{ ...row("Gone Shop"), deleted: true }, row("Corner Shop")], []);
-    const { generate, prompts } = fakeGemini({ "Corner Shop": "Groceries" });
-    expect((await suggestCategories(db, generate, USER)).asked).toBe(1);
-    expect(askedIn(prompts[0])).toEqual(["Corner Shop"]);
+    const { generate, prompts } = fakeGemini({ "Corner Shop": "Groceries", "Rule Only Ltd": "Fees" });
+    expect(await suggestCategories(db, generate, USER)).toMatchObject({ asked: 2, suggested: 2 });
+    expect(askedIn(prompts[0])).toEqual(["Corner Shop", "Rule Only Ltd"]);
+    expect(merchantState(sqlite, "Rule Only Ltd")).toMatchObject({ category: "Fees", suggested: 1 });
   });
 
   it("asks per type, guided by the categories that type already uses", async () => {

@@ -44,7 +44,7 @@ export interface MerchantCategoryResponse { updated: number }
 
 /** POST /api/merchants/suggest: what Gemini was asked and what was saved. */
 export interface SuggestResponse {
-  /** Uncategorized merchants with live rows that were sent. */
+  /** Uncategorized merchants (live rows or a rule) that were sent. */
   asked: number;
   /** Merchants that now carry a suggested category. */
   suggested: number;

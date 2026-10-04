@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEBOUNCE_MS, TransactionFilters } from "../../transactions/TransactionFilters";
 import { parseTxParams, type TxParams } from "../../transactions/params";
 
-const lookups = { categories: ["Groceries", "Rent"], tags: ["gift"], sources: ["Bank A", "Card"], essentialCategories: [] };
+const lookups = { categories: ["Groceries", "Rent"], tags: ["gift"], sources: ["Bank A", "Card"], essentialCategories: [], gemini: false };
 const params = (qs: string) => parseTxParams(new URLSearchParams(qs));
 
 function setup(p: TxParams, desktop = true) {

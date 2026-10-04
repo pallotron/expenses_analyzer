@@ -33,7 +33,7 @@ export function api(rows: MerchantRow[], routes: Record<string, Answer> = {}) {
   return { fetch, calls };
 }
 
-function Where() { const l = useLocation(); return <output aria-label="location">{l.pathname + l.search}</output>; }
+function Where() { const l = useLocation(); return <span aria-label="location">{l.pathname + l.search}</span>; }
 
 export function renderMerchants(url: string, mock: ReturnType<typeof api>) {
   vi.stubGlobal("fetch", vi.fn(mock.fetch));

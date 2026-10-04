@@ -1,6 +1,6 @@
 import { send } from "../lib/api";
 import type {
-  ConfirmResponse, DecisionRequest, DecisionResponse, MerchantCategoryRequest, MerchantCategoryResponse,
+  AskResponse, CategoryChange, CategoryChangesResponse, ConfirmResponse, DecisionRequest, DecisionResponse, MerchantCategoryRequest, MerchantCategoryResponse,
   RuleDeletedResponse, SuggestResponse,
 } from "../lib/types";
 import { useWrite } from "../transactions/edit/mutations";
@@ -18,3 +18,8 @@ export const useSuggestCategories = () =>
   useWrite(() => send<SuggestResponse>("POST", "/api/merchants/suggest", {}), MERCHANT_WRITES);
 export const useConfirmSuggestions = () =>
   useWrite((ids: number[]) => send<ConfirmResponse>("POST", "/api/merchants/confirm", { ids }), MERCHANT_WRITES);
+/** Gemini's opinion only: nothing is saved, so nothing refetches. */
+export const useAskGemini = () =>
+  useWrite((ids: number[]) => send<AskResponse>("POST", "/api/merchants/ask", { ids }), []);
+export const useApplyCategories = () =>
+  useWrite((changes: CategoryChange[]) => send<CategoryChangesResponse>("POST", "/api/merchants/categories", { changes }), MERCHANT_WRITES);

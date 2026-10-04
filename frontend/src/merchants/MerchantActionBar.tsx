@@ -1,7 +1,10 @@
 /** Shown while merchants are selected: on phones pinned to the bottom, on desktop in the frozen controls. */
 export function MerchantActionBar(props: {
   count: number; total: number; busy?: boolean;
-  onSelectAll: () => void; onSetCategory: () => void; onClearCategory: () => void; onCancel: () => void; onConfirm?: () => void;
+  onSelectAll: () => void; onSetCategory: () => void; onClearCategory: () => void; onCancel: () => void;
+  onConfirm?: () => void;
+  /** Absent when Gemini is not set up. */
+  onAsk?: () => void; asking?: boolean;
 }) {
   const btn = "rounded-md disabled:opacity-50 border border-slate-300 px-3 py-1.5 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800";
   return (
@@ -12,6 +15,11 @@ export function MerchantActionBar(props: {
         <button type="button" onClick={props.onSelectAll} className="underline">Select all {props.total}</button>
       )}
       <span className="flex-1" />
+      {props.onAsk && (
+        <button type="button" onClick={props.onAsk} disabled={props.busy} className={btn}>
+          {props.asking ? "Asking Gemini…" : "Ask Gemini"}
+        </button>
+      )}
       {props.onConfirm && (
         <button type="button" onClick={props.onConfirm} disabled={props.busy} className={btn}>Confirm</button>
       )}

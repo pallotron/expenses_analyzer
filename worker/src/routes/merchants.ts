@@ -4,17 +4,18 @@
  * carries a message the screen shows as is.
  */
 
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import type { AppBindings, AppEnv } from "../app";
 import type {
-  ConfirmResponse, DecisionResponse, MerchantCategoryResponse, MerchantsResponse, RuleDeletedResponse, SuggestResponse,
+  AskResponse, CategoryChangesResponse, ConfirmResponse, DecisionResponse, MerchantCategoryResponse, MerchantsResponse,
+  RuleDeletedResponse, SuggestResponse,
 } from "../api/merchants";
 import { GeminiResponseError } from "../domain/gemini";
 import { listMerchants, ruleFor } from "../queries/merchants";
-import { confirmSuggestions, suggestCategories } from "../services/categorize";
-import { DEFAULT_GEMINI_MODEL, GeminiCallError, geminiClient } from "../services/gemini";
+import { applyCategories, askCategories, confirmSuggestions, suggestCategories } from "../services/categorize";
+import { DEFAULT_GEMINI_MODEL, GeminiCallError, geminiClient, type GenerateText } from "../services/gemini";
 import {
   deleteMerchantRule, previewAliasChange, saveMerchantDecision, setMerchantCategory, UnknownRuleError,
 } from "../services/merchants";
@@ -44,6 +45,38 @@ const ConfirmBody = z.object({
   ids: z.array(z.number().int().positive("ids must be positive whole numbers"))
     .min(1, "Choose at least one merchant").max(10_000, "At most 10,000 merchants at once"),
 }).strict();
+
+const AskBody = z.object({
+  ids: z.array(z.number().int().positive("ids must be positive whole numbers"))
+    .min(1, "Choose at least one merchant").max(1_000, "Ask about at most 1,000 merchants at once"),
+}).strict();
+
+const ChangesBody = z.object({
+  changes: z.array(z.object({
+    id: z.number().int().positive("ids must be positive whole numbers"),
+    category: z.string().trim().min(1, "Category cannot be empty"),
+  }).strict()).min(1, "Choose at least one change").max(10_000, "At most 10,000 merchants at once"),
+}).strict();
+
+/**
+ * Run `work` with a Gemini client, turning Gemini's failures into the short
+ * messages the page shows. 503 when no key is configured.
+ */
+async function withGemini<B extends AppBindings>(
+  c: Context<AppEnv<B>>, work: (generate: GenerateText) => Promise<object>,
+) {
+  const key = c.env.GEMINI_API_KEY;
+  if (!key) return c.json({ error: "Gemini isn't set up" }, 503);
+  try {
+    return c.json(await work(geminiClient(key, c.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL)));
+  } catch (e) {
+    if (e instanceof GeminiCallError) {
+      return c.json({ error: e.status === null ? "Gemini didn't answer" : `Gemini didn't answer (HTTP ${e.status})` }, 502);
+    }
+    if (e instanceof GeminiResponseError) return c.json({ error: "Gemini's answer couldn't be read" }, 502);
+    throw e;
+  }
+}
 
 export function merchantRoutes<B extends AppBindings>() {
   const routes = new Hono<AppEnv<B>>();
@@ -88,19 +121,20 @@ export function merchantRoutes<B extends AppBindings>() {
     return c.json(result satisfies MerchantCategoryResponse);
   });
 
-  routes.post("/merchants/suggest", async (c) => {
-    const key = c.env.GEMINI_API_KEY;
-    if (!key) return c.json({ error: "Gemini isn't set up" }, 503);
-    const generate = geminiClient(key, c.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL);
-    try {
-      return c.json(await suggestCategories(c.get("db"), generate, c.get("user").id) satisfies SuggestResponse);
-    } catch (e) {
-      if (e instanceof GeminiCallError) {
-        return c.json({ error: e.status === null ? "Gemini didn't answer" : `Gemini didn't answer (HTTP ${e.status})` }, 502);
-      }
-      if (e instanceof GeminiResponseError) return c.json({ error: "Gemini's answer couldn't be read" }, 502);
-      throw e;
-    }
+  routes.post("/merchants/suggest", (c) => withGemini(c, async (generate) =>
+    (await suggestCategories(c.get("db"), generate, c.get("user").id)) satisfies SuggestResponse));
+
+  routes.post("/merchants/ask", async (c) => {
+    const body = await parseBody(c, AskBody);
+    if (!body.ok) return c.json({ error: body.error }, 400);
+    return withGemini(c, async (generate) =>
+      (await askCategories(c.get("db"), generate, body.data.ids)) satisfies AskResponse);
+  });
+
+  routes.post("/merchants/categories", async (c) => {
+    const body = await parseBody(c, ChangesBody);
+    if (!body.ok) return c.json({ error: body.error }, 400);
+    return c.json(await applyCategories(c.get("db"), body.data.changes, c.get("user").id) satisfies CategoryChangesResponse);
   });
 
   routes.post("/merchants/confirm", async (c) => {

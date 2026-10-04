@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
+import type { AskResponse } from "../lib/types";
 import { Segmented } from "../lib/Segmented";
 import { StickyPanel } from "../lib/StickyPanel";
 import { Toast, useToast } from "../lib/Toast";
@@ -12,7 +13,8 @@ import { MerchantCards } from "./MerchantCards";
 import { MerchantEditor, type EditorTarget } from "./MerchantEditor";
 import { MerchantTable } from "./MerchantTable";
 import { merchantCount } from "./count";
-import { useConfirmSuggestions, useSetMerchantCategory, useSuggestCategories } from "./mutations";
+import { useAskGemini, useConfirmSuggestions, useSetMerchantCategory, useSuggestCategories } from "./mutations";
+import { OpinionSheet } from "./OpinionSheet";
 import { filterMerchants, parseMerchantParams, sortMerchants, toMerchantSearch, type MerchantParams } from "./params";
 import { useMerchants } from "./queries";
 import { SetCategorySheet } from "./SetCategorySheet";
@@ -77,6 +79,16 @@ export function MerchantsPage() {
     }),
   });
 
+  const ask = useAskGemini();
+  const [opinion, setOpinion] = useState<AskResponse | null>(null);
+  const askAbout = (ids: number[]) => !ask.isPending && ask.mutate(ids, {
+    onSuccess: setOpinion,
+    onError: (e) => notify({
+      message: e instanceof ApiError ? e.message : `Couldn't ask Gemini: ${e.message}`,
+      action: { label: "Retry", run: () => { dismiss(); askAbout(ids); } },
+    }),
+  });
+
   return (
     <main className={`mx-auto flex max-w-6xl flex-col gap-4 p-4 ${selectedIds.length > 0 ? "pb-28 md:pb-4" : ""}`}>
       <StickyPanel label="Merchant controls">
@@ -108,8 +120,9 @@ export function MerchantsPage() {
         {selectedIds.length > 0 && (
           <MerchantActionBar count={selectedIds.length} total={rows.length}
             onSelectAll={() => setSelected(new Set(rows.map((r) => r.id)))}
-            busy={clear.isPending || confirm.isPending} onSetCategory={() => setSetting(selectedIds)} onClearCategory={() => clearCategory(selectedIds)}
-            onCancel={() => setSelected(new Set())} onConfirm={confirmIds.length > 0 ? () => confirmSuggested(confirmIds) : undefined} />
+            busy={clear.isPending || confirm.isPending || ask.isPending} onSetCategory={() => setSetting(selectedIds)} onClearCategory={() => clearCategory(selectedIds)}
+            onCancel={() => setSelected(new Set())} onConfirm={confirmIds.length > 0 ? () => confirmSuggested(confirmIds) : undefined}
+            onAsk={lookups.data?.gemini ? () => askAbout(selectedIds) : undefined} asking={ask.isPending} />
         )}
       </StickyPanel>
 
@@ -135,6 +148,8 @@ export function MerchantsPage() {
       <MerchantEditor target={editing} lookups={lookups.data} onClose={() => setEditing(null)}
         onDone={(message) => notify({ message })} />
       <SetCategorySheet ids={setting} categories={lookups.data?.categories ?? []} onClose={() => setSetting(null)}
+        onDone={(message) => { notify({ message }); setSelected(new Set()); }} />
+      <OpinionSheet opinion={opinion} onClose={() => setOpinion(null)}
         onDone={(message) => { notify({ message }); setSelected(new Set()); }} />
       <Toast toast={toast} onDismiss={dismiss} />
     </main>

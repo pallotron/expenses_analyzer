@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp, type AppBindings } from "../../app";
-import type { ImportMapping } from "../../api/import";
+import type { ImportMapping, ImportResponse } from "../../api/import";
 import { createDb } from "../../db/client";
 import * as importMappings from "../../services/importMappings";
 import { fakeD1 } from "../helpers/fakeD1";
@@ -130,6 +130,56 @@ describe("POST /api/import", () => {
   it("refuses a request from another site", async () => {
     const res = await setup().send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: ROWS }, "https://evil.example");
     expect(res.status).toBe(403);
+  });
+});
+
+describe("POST /api/import with dryRun", () => {
+  const tally = (s: ReturnType<typeof setup>) => s.sqlite.prepare(`
+    SELECT (SELECT count(*) FROM transactions) AS t, (SELECT count(*) FROM merchants) AS m,
+           (SELECT count(*) FROM import_batches) AS b
+  `).get();
+
+  it("reports what the import would do, and writes nothing", async () => {
+    const s = setup();
+    await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: [ROWS[0]] });
+    const before = tally(s);
+    const res = await s.send("POST", "/api/import", {
+      source: "Other", mapping: { ...MAPPING, dateOrder: "mdy" }, rows: ROWS, dryRun: true,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      batchId: null, inserted: 1, duplicates: 1, suppressedDeleted: 0, newMerchants: ["Acme Payroll"],
+    });
+    expect(tally(s)).toEqual(before);
+    expect(await s.mappings()).toEqual({ mappings: { Card: MAPPING } });
+  });
+
+  it("counts deleted rows and repeats exactly as the import then does", async () => {
+    const s = setup();
+    await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: [ROWS[0]] });
+    s.sqlite.prepare(`UPDATE transactions SET deleted_at = unixepoch()`).run();
+    const body = { source: "Card", mapping: MAPPING, rows: [ROWS[0], ROWS[1], ROWS[1]] };
+    const dry = await (await s.send("POST", "/api/import", { ...body, dryRun: true })).json() as ImportResponse;
+    expect(dry).toEqual({ batchId: null, inserted: 2, duplicates: 0, suppressedDeleted: 1, newMerchants: ["Acme Payroll"] });
+    const real = await (await s.send("POST", "/api/import", body)).json() as ImportResponse;
+    expect(real).toEqual({ ...dry, batchId: expect.any(Number) });
+  });
+
+  it("refuses the rows the import refuses", async () => {
+    const res = await setup().send("POST", "/api/import", {
+      source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], merchant: " " }], dryRun: true,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "The file has rows the import refuses",
+      errors: ["Found 1 row(s) with empty or missing merchant names"],
+    });
+  });
+
+  it("takes only a boolean", async () => {
+    const res = await setup().send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: ROWS, dryRun: "yes" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid input: expected boolean, received string" });
   });
 });
 

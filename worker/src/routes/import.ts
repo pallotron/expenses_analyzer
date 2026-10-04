@@ -1,6 +1,7 @@
 /**
  * /api/import: rows the browser parsed from a bank export, through the same
- * importTransactions the TUI's import used; and the mappings it remembers.
+ * importTransactions the TUI's import used; and the mappings it remembers. With
+ * `dryRun`, only the counts.
  */
 
 import { Hono } from "hono";
@@ -38,6 +39,7 @@ const ImportBody = z.object({
   mapping: Mapping,
   rows: z.array(Row).min(1, "Nothing to import")
     .max(MAX_IMPORT_ROWS, "At most 5,000 rows per import: split the file"),
+  dryRun: z.boolean().optional(),
 }).strict();
 
 export function importRoutes<B extends AppBindings>() {
@@ -46,10 +48,11 @@ export function importRoutes<B extends AppBindings>() {
   routes.post("/import", async (c) => {
     const body = await parseBody(c, ImportBody);
     if (!body.ok) return c.json({ error: body.error }, 400);
-    const { source, filename, mapping, rows } = body.data;
+    const { source, filename, mapping, rows, dryRun } = body.data;
     const userId = c.get("user").id;
     try {
-      const result = await importTransactions(c.get("db"), rows, { source, filename, userId });
+      const result = await importTransactions(c.get("db"), rows, { source, filename, userId, dryRun });
+      if (dryRun) return c.json(result satisfies ImportResponse);
       // The rows are in: failing to remember the mapping must not read as a failed import.
       try {
         await saveImportMapping(c.get("db"), source, mapping, userId);

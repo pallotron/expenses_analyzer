@@ -62,10 +62,13 @@ export interface ImportOptions {
   filename?: string;
   /** Override the date limits; tests pin them. */
   limits?: ValidationLimits;
+  /** Count what the import would do, and write nothing. */
+  dryRun?: boolean;
 }
 
 export interface ImportResult {
-  batchId: number;
+  /** Null for a dry run, which records no batch. */
+  batchId: number | null;
   inserted: number;
   /** Already present: the same purchase imported before. */
   duplicates: number;
@@ -232,6 +235,11 @@ export async function importTransactions(
   const names = [...new Set(toInsert.map((r) => r.canonical))];
   const known = await existingMerchantNames(db, names);
   const newMerchants = names.filter((n) => !known.has(n)).sort();
+
+  // Everything above only reads, so a dry run's counts are the import's own.
+  if (options.dryRun) {
+    return { batchId: null, inserted: toInsert.length, duplicates, suppressedDeleted, newMerchants };
+  }
 
   // Created outside the atomic write because the rows reference its id. If that
   // write fails, what remains is an empty batch recording zero rows.

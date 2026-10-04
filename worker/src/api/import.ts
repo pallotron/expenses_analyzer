@@ -29,8 +29,10 @@ export interface ImportRequestRow {
   type: TransactionType;
 }
 
-export interface ImportRequest { source: string; filename?: string; mapping: ImportMapping; rows: ImportRequestRow[] }
-export interface ImportResponse { batchId: number; inserted: number; duplicates: number; suppressedDeleted: number; newMerchants: string[] }
+/** `dryRun`: answer with the counts the import would give, writing nothing. */
+export interface ImportRequest { source: string; filename?: string; mapping: ImportMapping; rows: ImportRequestRow[]; dryRun?: boolean }
+/** `batchId` is null for a dry run. */
+export interface ImportResponse { batchId: number | null; inserted: number; duplicates: number; suppressedDeleted: number; newMerchants: string[] }
 export interface ImportMappingsResponse { mappings: Record<string, ImportMapping> }
 
 /** D1 takes the rows as one JSON value, capped near 2 MB; 5,000 rows is about 600 KB. */

@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { formatCents } from "../lib/money";
 import { SKIP_REASONS, type ImportMapping, type ParsedImport, type SkipReason } from "../lib/types";
 
@@ -16,6 +18,7 @@ function reasonLabel(reason: SkipReason, mapping: ImportMapping, n: number): str
 /** The first rows as they will be imported, the counts, and each skip reason's rows. */
 export function Preview(props: { parsed: ParsedImport; mapping: ImportMapping }) {
   const { rows, skipped } = props.parsed;
+  const [all, setAll] = useState(false);
   const expenses = rows.filter((r) => r.type === "expense").length;
   const reasons = SKIP_REASONS.filter((r) => skipped[r].length > 0);
   return (
@@ -39,7 +42,7 @@ export function Preview(props: { parsed: ParsedImport; mapping: ImportMapping })
           <table aria-label="Preview" className="w-full text-sm">
             <thead><tr className="text-left text-slate-500"><th className="p-2">Date</th><th className="p-2">Merchant</th><th className="p-2 text-right">Amount</th><th className="p-2">Type</th></tr></thead>
             <tbody>
-              {rows.slice(0, 10).map((r) => (
+              {(all ? rows : rows.slice(0, 10)).map((r) => (
                 <tr key={r.line} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="p-2 whitespace-nowrap">{r.date}</td>
                   <td className="p-2">{r.merchant}</td>
@@ -52,6 +55,11 @@ export function Preview(props: { parsed: ParsedImport; mapping: ImportMapping })
             </tbody>
           </table>
         </div>
+      )}
+      {rows.length > 10 && (
+        <button type="button" onClick={() => setAll(!all)} className="self-start text-sm underline">
+          {all ? "Show first 10" : `Show all ${rows.length}`}
+        </button>
       )}
     </section>
   );

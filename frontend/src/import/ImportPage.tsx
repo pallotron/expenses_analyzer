@@ -5,6 +5,7 @@ import { useLookups } from "../transactions/queries";
 import { readGrid } from "./grid";
 import { MappingForm, mappingSummary } from "./MappingForm";
 import { Preview } from "./Preview";
+import { RawGrid } from "./RawGrid";
 import { useImportMappings } from "./queries";
 import { startMapping } from "./startMapping";
 
@@ -37,6 +38,7 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
   const [missing, setMissing] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const source = choice === NEW_SOURCE ? newName.trim() : choice;
   // A read lands later than the render that started it: it must use the source
@@ -47,6 +49,9 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
   // The source name the current mapping was built for.
   const builtFor = useRef("");
   const parsed = useMemo(() => (grid && mapping ? processRows(grid, mapping) : null), [grid, mapping]);
+  // A new parse (file or mapping) remounts the preview, collapsed again.
+  const parseCount = useRef(0);
+  const parsedKey = useMemo(() => ++parseCount.current, [parsed]);
   const commaSample = useMemo(() => (grid && mapping ? commaDecimalSample(grid, mapping) : null), [grid, mapping]);
   const reset = () => {
     readId.current++;
@@ -139,16 +144,28 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
             onDrop={(e) => { e.preventDefault(); setDragging(false); onFile(e.dataTransfer.files?.[0]); }}
             className={`flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-dashed px-3 py-2 ${
               dragging ? "border-slate-500 bg-slate-100 dark:border-slate-400 dark:bg-slate-800" : "border-slate-300 dark:border-slate-700"}`}>
-            <input key={attempt} aria-label="File" type="file" accept=".csv,.xls,.xlsx"
+            <input key={attempt} ref={fileInput} aria-label="File" type="file" accept=".csv,.xls,.xlsx"
               onChange={(e) => {
                 const picked = e.target.files?.[0];
                 // Clear it so picking the same file again still fires onChange.
                 e.target.value = "";
                 onFile(picked);
               }}
-              className="w-56 text-sm file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-slate-300 file:bg-white file:px-3 file:py-1 file:text-sm hover:file:bg-slate-50 dark:file:border-slate-700 dark:file:bg-slate-900 dark:hover:file:bg-slate-800" />
-            <span>Drop a statement here or choose a file</span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">.csv, .xls or .xlsx</span>
+              className={file ? "sr-only" : "w-56 text-sm file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-slate-300 file:bg-white file:px-3 file:py-1 file:text-sm hover:file:bg-slate-50 dark:file:border-slate-700 dark:file:bg-slate-900 dark:hover:file:bg-slate-800"} />
+            {file ? (
+              <>
+                <span className="break-all">{grid ? `${file.name} · ${grid.length} rows` : readError ? file.name : `Reading ${file.name}…`}</span>
+                <button type="button" onClick={() => fileInput.current?.click()}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
+                  Choose another
+                </button>
+              </>
+            ) : (
+              <>
+                <span>Drop a statement here or choose a file</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">.csv, .xls or .xlsx</span>
+              </>
+            )}
           </span>
         </label>
       </div>
@@ -170,7 +187,13 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
               {`Some amounts use a comma for decimals (e.g. "${commaSample}"); they would import 100 times too large. Fix the file's number format before importing.`}
             </p>
           )}
-          <Preview parsed={parsed} mapping={mapping} />
+        </>
+      )}
+      {/* One fixed slot, so it keeps its open state when a source is chosen. */}
+      {grid && <RawGrid grid={grid} headerRow={parsed?.headerRow ?? -1} />}
+      {parsed && mapping && (
+        <>
+          <Preview key={parsedKey} parsed={parsed} mapping={mapping} />
           {file && source && (
             // A new file pick or source starts a fresh action: no stale result.
             <Fragment key={`${readId.current}:${source}`}>{props.renderAction?.({ source, file, mapping, parsed }, reset)}</Fragment>

@@ -136,10 +136,10 @@ describe("the import page", () => {
     );
     await userEvent.upload(screen.getByLabelText("File"), csvFile(CARD_CSV, "first.csv"));
     await userEvent.upload(screen.getByLabelText("File"), csvFile(CARD_CSV.replace("Corner Shop", "Second Shop"), "second.csv"));
-    expect(await screen.findByText("Second Shop")).toBeInTheDocument();
+    expect(await within(await screen.findByRole("table", { name: "Preview" })).findByText("Second Shop")).toBeInTheDocument();
     land();
     await new Promise((r) => setTimeout(r, 20));
-    expect(screen.getByText("Second Shop")).toBeInTheDocument();
+    expect(within(screen.getByRole("table", { name: "Preview" })).getByText("Second Shop")).toBeInTheDocument();
     expect(screen.queryByText("First Shop")).not.toBeInTheDocument();
   });
 
@@ -231,5 +231,113 @@ describe("the import page", () => {
       await pick(csvFile("a,b\n1,2\n"));
       expect(await screen.findByLabelText("Header row")).toHaveValue(null);
     });
+  });
+});
+
+describe("the chosen file, the file as read, and every parsed row", () => {
+  const MANY = "Date,Description,Amount\n"
+    + Array.from({ length: 12 }, (_, i) => `2026-09-${String(i + 1).padStart(2, "0")},Shop ${i + 1},-${i + 1}.00`).join("\n") + "\n";
+
+  it("shows the file name and its row count, with Choose another", async () => {
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    expect(screen.queryByRole("button", { name: "Choose another" })).not.toBeInTheDocument();
+    await pick(csvFile(CARD_CSV, "sept.csv"));
+    expect(await screen.findByText("sept.csv · 5 rows")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose another" })).toBeInTheDocument();
+    expect(screen.getByLabelText("File")).toHaveClass("sr-only");
+    expect(screen.queryByText("Drop a statement here or choose a file")).not.toBeInTheDocument();
+  });
+
+  it("shows Reading <name>… while the file is read", async () => {
+    let release!: (g: string[][]) => void;
+    vi.mocked(readGrid).mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    await userEvent.upload(screen.getByLabelText("File"), csvFile(CARD_CSV, "slow.csv"));
+    expect(await screen.findByText("Reading slow.csv…")).toBeInTheDocument();
+    release(csvGrid(CARD_CSV));
+    expect(await screen.findByText("slow.csv · 5 rows")).toBeInTheDocument();
+  });
+
+  it("shows the file as read with line numbers, and the total beyond 20 rows", async () => {
+    const long = "Notes\n\n" + "Date,Description,Amount\n"
+      + Array.from({ length: 22 }, (_, i) => `2026-09-01,Shop ${i},-1.00`).join("\n");
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    await userEvent.upload(screen.getByLabelText("File"), csvFile(long));
+    await screen.findByText("sept.csv · 25 rows");
+    const raw = screen.getByText("Show the file as read").closest("details")!;
+    expect(raw).not.toHaveAttribute("open");
+    const rows = within(within(raw).getByRole("table", { name: "File as read" })).getAllByRole("row");
+    expect(rows).toHaveLength(20);
+    expect(within(rows[0]).getByText("1")).toBeInTheDocument();
+    expect(within(rows[19]).getByText("20")).toBeInTheDocument();
+    expect(within(raw).getByText("First 20 of 25 rows")).toBeInTheDocument();
+  });
+
+  it("keeps the raw view open when a source is chosen", async () => {
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    await userEvent.upload(screen.getByLabelText("File"), csvFile(CARD_CSV));
+    const raw = (await screen.findByText("Show the file as read")).closest("details")!;
+    await userEvent.click(screen.getByText("Show the file as read"));
+    expect(raw).toHaveAttribute("open");
+    await userEvent.selectOptions(screen.getByLabelText("Source"), "Card");
+    await screen.findByText(/Date ← Completed Date/);
+    expect(screen.getByText("Show the file as read").closest("details")).toBe(raw);
+    expect(raw).toHaveAttribute("open");
+  });
+
+  it("shows the plain file name, not Reading, after a failed read", async () => {
+    vi.mocked(readGrid).mockImplementationOnce(() => Promise.reject(new Error("Cannot read it")));
+    renderImport(api());
+    await screen.findByLabelText("Source");
+    await userEvent.upload(screen.getByLabelText("File"), csvFile(CARD_CSV, "bad.csv"));
+    expect(await screen.findByText("Cannot read it")).toBeInTheDocument();
+    expect(screen.getByText("bad.csv")).toBeInTheDocument();
+    expect(screen.queryByText(/Reading/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose another" })).toBeInTheDocument();
+  });
+
+  it("marks the header row, shown before any source is chosen", async () => {
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    await userEvent.upload(screen.getByLabelText("File"), csvFile(CARD_CSV));
+    await userEvent.selectOptions(screen.getByLabelText("Source"), "Card");
+    await screen.findByText(/Date ← Completed Date/);
+    const table = screen.getByRole("table", { name: "File as read" });
+    const current = within(table).getAllByRole("row").filter((r) => r.getAttribute("aria-current") === "true");
+    expect(current).toHaveLength(1);
+    expect(within(current[0]).getByText("Completed Date")).toBeInTheDocument();
+    expect(screen.queryByText(/^First 20 of/)).not.toBeInTheDocument();
+  });
+
+  it("shows the raw view even when no header is found", async () => {
+    renderImport(api());
+    await screen.findByLabelText("Source");
+    await userEvent.upload(screen.getByLabelText("File"), csvFile("1,2\n3,4\n"));
+    expect(await screen.findByRole("table", { name: "File as read" })).toBeInTheDocument();
+  });
+
+  it("shows all parsed rows on request and collapses again", async () => {
+    renderImport(api());
+    await screen.findByLabelText("Source");
+    await userEvent.upload(screen.getByLabelText("File"), csvFile(MANY));
+    await userEvent.selectOptions(screen.getByLabelText("Source"), "Card");
+    const preview = await screen.findByRole("table", { name: "Preview" });
+    expect(within(preview).getAllByRole("row")).toHaveLength(11);
+    await userEvent.click(screen.getByRole("button", { name: "Show all 12" }));
+    expect(within(preview).getAllByRole("row")).toHaveLength(13);
+    await userEvent.click(screen.getByRole("button", { name: "Show first 10" }));
+    expect(within(preview).getAllByRole("row")).toHaveLength(11);
+  });
+
+  it("offers no Show all for 10 rows or fewer", async () => {
+    renderImport(api({ mappings: { Card: SAVED } }));
+    await screen.findByLabelText("Source");
+    await pick(csvFile(CARD_CSV));
+    await screen.findByRole("table", { name: "Preview" });
+    expect(screen.queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument();
   });
 });

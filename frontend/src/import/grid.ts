@@ -15,9 +15,16 @@ export async function readGrid(file: File): Promise<string[][]> {
   throw new UnsupportedFileError("Choose a .csv, .xls or .xlsx file");
 }
 
+/** Drop all-blank rows from the end (Papa Parse adds one after the final newline); interior ones stay. */
+function trimTrailingBlankRows(rows: string[][]): string[][] {
+  let end = rows.length;
+  while (end > 0 && rows[end - 1].every((c) => c.trim() === "")) end--;
+  return rows.slice(0, end);
+}
+
 export function csvGrid(text: string): string[][] {
   const parsed = Papa.parse<string[]>(text.replace(/^﻿/, ""), { delimitersToGuess: [",", ";", "\t"] });
-  return parsed.data.map((row) => row.map((cell) => cell ?? ""));
+  return trimTrailingBlankRows(parsed.data.map((row) => row.map((cell) => cell ?? "")));
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -38,5 +45,5 @@ export async function sheetGrid(data: ArrayBuffer): Promise<string[][]> {
   const text = rows.map((row) => row.map(cellText));
   // sheet_to_json starts at the sheet's first used cell; line numbers must match the spreadsheet's.
   const { s } = XLSX.utils.decode_range(sheet["!ref"] ?? "A1");
-  return [...Array.from({ length: s.r }, () => [] as string[]), ...text.map((row) => [...Array(s.c).fill(""), ...row])];
+  return trimTrailingBlankRows([...Array.from({ length: s.r }, () => [] as string[]), ...text.map((row) => [...Array(s.c).fill(""), ...row])]);
 }

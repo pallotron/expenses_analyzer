@@ -9,8 +9,11 @@ describe("csvGrid", () => {
       ["Date", "Description", "Amount"],
       ["01/09/2026", "Shop, The", "-1.00"],
       ["02/09/2026", "Two\nlines", "2"],
-      [""],
     ]);
+  });
+
+  it("trims trailing blank rows but keeps interior ones", () => {
+    expect(csvGrid("a,b\n\nc,d\n\n\n")).toEqual([["a", "b"], [""], ["c", "d"]]);
   });
 
   it("detects semicolon-separated exports", () => {

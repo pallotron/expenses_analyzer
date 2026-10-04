@@ -107,3 +107,80 @@ describe("GET /api/lookups", () => {
     expect(off.gemini).toBe(false);
   });
 });
+
+const idOf = (s: ReturnType<typeof setup>, name: string) =>
+  (s.sqlite.prepare(`SELECT id FROM merchants WHERE canonical_name = ?`).get(name) as { id: number }).id;
+
+describe("POST /api/merchants/ask", () => {
+  it("returns Gemini's opinion without saving it", async () => {
+    vi.stubGlobal("fetch", geminiAnswers('{"Bakery": "Bread", "Corner Shop": "groceries"}'));
+    const s = setup();
+    const res = await s.send("POST", "/api/merchants/ask", { ids: [idOf(s, "Bakery"), idOf(s, "Corner Shop")] });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      answers: [
+        { id: idOf(s, "Bakery"), name: "Bakery", current: "Groceries", suggested: "Bread", isNew: true },
+        { id: idOf(s, "Corner Shop"), name: "Corner Shop", current: null, suggested: "Groceries", isNew: false },
+      ],
+      unanswered: 0,
+    });
+    expect(s.sqlite.prepare(`SELECT count(*) AS n FROM categories`).get()).toEqual({ n: 1 });
+  });
+
+  it("is 503 without a key", async () => {
+    const res = await setup(base).send("POST", "/api/merchants/ask", { ids: [1] });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "Gemini isn't set up" });
+  });
+
+  it("is 502 when Gemini fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("quota", { status: 429 })));
+    const s = setup();
+    const res = await s.send("POST", "/api/merchants/ask", { ids: [idOf(s, "Bakery")] });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "Gemini didn't answer (HTTP 429)" });
+  });
+
+  it.each([[{ ids: [] }], [{ ids: [0] }], [{ ids: Array.from({ length: 1001 }, (_, i) => i + 1) }], [{}]])(
+    "refuses %#", async (body) => {
+      const res = await setup().send("POST", "/api/merchants/ask", body);
+      expect(res.status).toBe(400);
+      expect((await res.json() as { error: string }).error).toBeTruthy();
+    });
+
+  it("refuses a request from another site", async () => {
+    expect((await setup().send("POST", "/api/merchants/ask", { ids: [1] }, "https://evil.example")).status).toBe(403);
+  });
+});
+
+describe("POST /api/merchants/categories", () => {
+  it("applies each change and creates new categories", async () => {
+    const s = setup();
+    const res = await s.send("POST", "/api/merchants/categories", {
+      changes: [{ id: idOf(s, "Corner Shop"), category: "Hardware" }, { id: idOf(s, "Bakery"), category: "Bread" }],
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ updated: 2 });
+    expect(s.sqlite.prepare(`
+      SELECT m.canonical_name AS name, c.name AS category FROM merchants m JOIN categories c ON c.id = m.category_id ORDER BY 1
+    `).all()).toEqual([{ name: "Bakery", category: "Bread" }, { name: "Corner Shop", category: "Hardware" }]);
+  });
+
+  it.each([
+    [{ changes: [] }],
+    [{ changes: [{ id: 1, category: " " }] }],
+    [{ changes: [{ id: 0, category: "X" }] }],
+    [{ changes: [{ id: 1 }] }],
+    [{ changes: [{ id: 1, category: "X", extra: 1 }] }],
+    [{}],
+  ])("refuses %j", async (body) => {
+    const res = await setup().send("POST", "/api/merchants/categories", body);
+    expect(res.status).toBe(400);
+    expect((await res.json() as { error: string }).error).toBeTruthy();
+  });
+
+  it("refuses a request from another site", async () => {
+    const res = await setup().send("POST", "/api/merchants/categories", { changes: [{ id: 1, category: "X" }] }, "https://evil.example");
+    expect(res.status).toBe(403);
+  });
+});

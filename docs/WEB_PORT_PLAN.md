@@ -247,10 +247,15 @@ sent to the browser; `GEMINI_MODEL` in `[vars]` (default
 held to the Python by the `gemini` section of `python_vectors.json`.
 "Suggest categories" on the Merchants page sends every uncategorized
 merchant the page lists (live rows or a rule), 100 per call, and saves the
-answers at once flagged as suggested (`merchants.category_suggested`); the Suggested filter
-and the selection bar's Confirm review them. New categories are allowed.
-Import will reuse `suggestCategories` when it is ported. Only merchant and
-category names are sent, as today.
+answers at once flagged as suggested (`merchants.category_suggested`); the
+Suggested filter and the selection bar's Confirm review them. New categories
+are allowed. "Ask Gemini" in the selection bar is a second opinion on the
+chosen merchants, asked blind with the same prompt: `POST
+/api/merchants/ask` saves nothing, a sheet lists current → suggested for
+the disagreements, and `POST /api/merchants/categories` applies the ticked
+ones in one batch, as the user's own choice. Import will reuse
+`suggestCategories` when it is ported. Only merchant and category names are
+sent, as today.
 
 #### Import (`import_screen.py`, `file_browser_screen.py`)
 

@@ -57,3 +57,22 @@ export interface SuggestResponse {
 /** POST /api/merchants/confirm. Only merchants still flagged change. */
 export interface ConfirmRequest { ids: number[] }
 export interface ConfirmResponse { confirmed: number }
+
+/** POST /api/merchants/ask: Gemini's opinion on chosen merchants. Nothing is saved. */
+export interface AskRequest { ids: number[] }
+export interface AskAnswer {
+  id: number;
+  name: string;
+  /** The merchant's category now; null when it has none. */
+  current: string | null;
+  /** In an existing category's spelling when one matches, ignoring case. */
+  suggested: string;
+  /** No category of that name exists yet; applying it creates one. */
+  isNew: boolean;
+}
+export interface AskResponse { answers: AskAnswer[]; unanswered: number }
+
+/** POST /api/merchants/categories: several merchants, each its own category, all or nothing. */
+export interface CategoryChange { id: number; category: string }
+export interface CategoryChangesRequest { changes: CategoryChange[] }
+export interface CategoryChangesResponse { updated: number }

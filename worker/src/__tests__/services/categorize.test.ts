@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../db/client";
 import { categoryGuidance } from "../../domain/gemini";
-import { confirmSuggestions, suggestCategories } from "../../services/categorize";
+import { applyCategories, askCategories, confirmSuggestions, suggestCategories } from "../../services/categorize";
 import type { GenerateText } from "../../services/gemini";
 import { fakeD1 } from "../helpers/fakeD1";
 import { USER, categorise, seed, store } from "../helpers/store";
@@ -190,5 +190,81 @@ describe("confirmSuggestions", () => {
       UPDATE merchants SET category_id = (SELECT id FROM categories), category_suggested = 1`);
     const ids = (sqlite.prepare(`SELECT id FROM merchants`).all() as { id: number }[]).map((r) => r.id);
     expect(await confirmSuggestions(createDb(fakeD1(sqlite)), ids, USER)).toEqual({ confirmed: 120 });
+  });
+});
+
+const idOf = (sqlite: Sqlite, name: string) =>
+  (sqlite.prepare(`SELECT id FROM merchants WHERE canonical_name = ?`).get(name) as { id: number }).id;
+
+describe("askCategories", () => {
+  it("asks blind about the chosen merchants and saves nothing", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [row("Corner Shop"), row("Cafe One"), row("Bakery"), row("Mystery Ltd")], []);
+    categorise(sqlite, { "Corner Shop": "Hardware", Bakery: "Groceries" });
+    const { generate, prompts } = fakeGemini({ "Corner Shop": "groceries", "Cafe One": "Coffee", Bakery: "Groceries" });
+    const ids = ["Corner Shop", "Cafe One", "Bakery", "Mystery Ltd"].map((n) => idOf(sqlite, n));
+
+    expect(await askCategories(db, generate, ids)).toEqual({
+      answers: [
+        { id: ids[2], name: "Bakery", current: "Groceries", suggested: "Groceries", isNew: false },
+        { id: ids[1], name: "Cafe One", current: null, suggested: "Coffee", isNew: true },
+        { id: ids[0], name: "Corner Shop", current: "Hardware", suggested: "Groceries", isNew: false },
+      ],
+      unanswered: 1,
+    });
+    // Blind: the list carries names only, never a merchant's current category.
+    expect(askedIn(prompts[0])).toEqual(["Bakery", "Cafe One", "Corner Shop", "Mystery Ltd"]);
+    expect(merchantState(sqlite, "Corner Shop")).toMatchObject({ category: "Hardware", suggested: 0 });
+    expect(merchantState(sqlite, "Cafe One")).toMatchObject({ category: null, suggested: 0 });
+    expect(categoryNames(sqlite)).toEqual(["Groceries", "Hardware"]);
+  });
+
+  it("ignores ids the Merchants page does not list", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [row("Corner Shop"), { ...row("Gone Shop"), deleted: true }], []);
+    const { generate, prompts } = fakeGemini({});
+    expect(await askCategories(db, generate, [idOf(sqlite, "Corner Shop"), idOf(sqlite, "Gone Shop"), 9999]))
+      .toEqual({ answers: [], unanswered: 1 });
+    expect(askedIn(prompts[0])).toEqual(["Corner Shop"]);
+  });
+
+  it("does not call Gemini when no chosen merchant is listed", async () => {
+    const { db } = store([]);
+    const { generate, prompts } = fakeGemini({});
+    expect(await askCategories(db, generate, [9999])).toEqual({ answers: [], unanswered: 0 });
+    expect(prompts).toEqual([]);
+  });
+});
+
+describe("applyCategories", () => {
+  it("sets each merchant's category, creating new ones, as a confirmed choice", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [row("Corner Shop"), row("Cafe One"), row("Bakery")], []);
+    categorise(sqlite, { "Corner Shop": "Hardware", Bakery: "Groceries" });
+    sqlite.exec(`UPDATE merchants SET category_suggested = 1, category_set_by = NULL WHERE canonical_name = 'Corner Shop'`);
+
+    expect(await applyCategories(db, [
+      { id: idOf(sqlite, "Corner Shop"), category: "Groceries" },
+      { id: idOf(sqlite, "Cafe One"), category: " Coffee " },
+      { id: 9999, category: "Fuel" },
+    ], USER)).toEqual({ updated: 2 });
+    expect(merchantState(sqlite, "Corner Shop")).toEqual({ category: "Groceries", suggested: 0, setBy: USER });
+    expect(merchantState(sqlite, "Cafe One")).toEqual({ category: "Coffee", suggested: 0, setBy: USER });
+    expect(merchantState(sqlite, "Bakery")).toMatchObject({ category: "Groceries" });
+    expect(categoryNames(sqlite)).toEqual(["Coffee", "Groceries", "Hardware"]);
+  });
+
+  it("works through the D1 driver with more than 100 changes", async () => {
+    const { sqlite } = store([]);
+    const names = Array.from({ length: 130 }, (_, i) => `Shop ${i}`);
+    seed(sqlite, names.map((n) => row(n)), []);
+    const changes = names.map((n, i) => ({ id: idOf(sqlite, n), category: `Cat ${i % 7}` }));
+    expect(await applyCategories(createDb(fakeD1(sqlite)), changes, USER)).toEqual({ updated: 130 });
+    expect(categoryNames(sqlite)).toHaveLength(7);
+  });
+
+  it("changes nothing when given nothing", async () => {
+    const { db } = store([]);
+    expect(await applyCategories(db, [], USER)).toEqual({ updated: 0 });
   });
 });

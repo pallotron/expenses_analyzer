@@ -15,6 +15,7 @@ export function statusText(s: RowStatus): string {
     case "readFailed": return `Couldn't read: ${s.message}`;
     case "sameFile": return "Same file as above";
     case "leftOut": return "Left out";
+    case "needsName": return "Name the new source";
     case "needsMapping": return s.missing.length === 0 ? "Needs mapping: choose its columns"
       : `Needs mapping: no ${quoted(s.missing)} column${s.missing.length === 1 ? "" : "s"}`;
     case "nothing": return "Nothing to import";
@@ -40,13 +41,15 @@ function lastLabel(source: string, lastDates: Record<string, string | null>): st
   return `last ${date.toLocaleDateString("en-IE", { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" })}`;
 }
 
-const ALERT = new Set<RowStatus["kind"]>(["readFailed", "needsMapping", "tooMany", "checkFailed", "refused", "importFailed"]);
+const ALERT = new Set<RowStatus["kind"]>(["readFailed", "needsName", "needsMapping", "tooMany", "checkFailed", "refused", "importFailed"]);
 
 export function FileRowView(props: {
   row: FileRow; sources: string[]; saved: SavedMappings; locked: boolean; lastDates: Record<string, string | null>;
   dispatch: (a: Action) => void; onRetryCheck: (id: string) => void; onRetryImport: (id: string) => void;
 }) {
-  const { row, dispatch, locked } = props;
+  const { row, dispatch } = props;
+  // An imported row is finished: its source and columns no longer change.
+  const locked = props.locked || row.run.state === "done";
   const name = row.file.name;
   const status = rowStatus(row);
   const errors = status.kind === "refused" || status.kind === "importFailed" ? status.errors : [];
@@ -75,7 +78,7 @@ export function FileRowView(props: {
           )}
         </span>
         {row.source && <span className="text-sm text-slate-500 dark:text-slate-400">{lastLabel(row.source, props.lastDates)}</span>}
-        <div aria-label={`Status of ${name}`} className={`flex-1 text-sm ${ALERT.has(status.kind) ? "text-expense" : ""}`}>
+        <div role="status" aria-label={`Status of ${name}`} className={`flex-1 text-sm ${ALERT.has(status.kind) ? "text-expense" : ""}`}>
           <span>{statusText(status)}</span>
           {(status.kind === "checkFailed" || status.kind === "refused") && (
             <button type="button" disabled={locked} onClick={() => props.onRetryCheck(row.id)} className="ml-2 underline">Retry</button>

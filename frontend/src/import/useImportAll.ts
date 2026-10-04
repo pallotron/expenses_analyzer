@@ -9,9 +9,9 @@ import { IMPORT_WRITES, postImport } from "./queries";
 import { checkFailure } from "./useDryRun";
 
 /**
- * Imports the given rows one after another. A row whose source an earlier
- * file of this run already imported into is checked again first, so its
- * counts are true; a failed file never stops the rest. Then one Gemini call
+ * Imports the given rows one after another. Once a file of this run
+ * has been imported, each later row is checked again first (duplicates span
+ * every source, so any import can change another file's counts); a failed file never stops the rest. Then one Gemini call
  * for every new merchant, when asked.
  */
 export function useImportAll(rows: FileRow[], dispatch: Dispatch<Action>, askGemini: boolean) {
@@ -40,13 +40,13 @@ export function useImportAll(rows: FileRow[], dispatch: Dispatch<Action>, askGem
     setRunning(true);
     setGemini(null);
     setLastRun((prev) => [...new Set([...(prev ?? []), ...ids])]);
-    const into = new Set<string>();
+    let importedAny = false;
     const fresh = new Set<string>();
     try {
       for (const id of ids) {
         const row = latest.current.find((r) => r.id === id);
         if (!row) continue;
-        if (into.has(row.source)) {
+        if (importedAny) {
           const version = row.version + 1;
           dispatch({ type: "recheck", ids: [id] });
           dispatch({ type: "checkStart", id, version });
@@ -61,7 +61,7 @@ export function useImportAll(rows: FileRow[], dispatch: Dispatch<Action>, askGem
         try {
           const result = await postImport(requestFor(row, false));
           dispatch({ type: "imported", id, result });
-          into.add(row.source);
+          importedAny = true;
           for (const m of result.newMerchants) fresh.add(m);
         } catch (e) {
           dispatch({
@@ -72,8 +72,8 @@ export function useImportAll(rows: FileRow[], dispatch: Dispatch<Action>, askGem
       }
     } finally {
       await Promise.all(IMPORT_WRITES.map((key) => client.invalidateQueries({ queryKey: [key] })));
-      // Rows outside the run that share a source now count against the new rows.
-      dispatch({ type: "recheck", ids: latest.current.filter((r) => into.has(r.source)).map((r) => r.id) });
+      // Rows left out of the run now count against the new rows. Recheck skips imported ones.
+      if (importedAny) dispatch({ type: "recheck", ids: latest.current.filter((r) => r.run.state === "no").map((r) => r.id) });
       setRunning(false);
       if (askGemini && fresh.size > 0) ask();
     }

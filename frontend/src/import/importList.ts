@@ -60,6 +60,7 @@ export type RowStatus =
   | { kind: "readFailed"; message: string }
   | { kind: "sameFile" }
   | { kind: "leftOut" }
+  | { kind: "needsName" }
   | { kind: "needsMapping"; missing: string[] }
   | { kind: "nothing" }
   | { kind: "tooMany"; rows: number }
@@ -115,12 +116,16 @@ function withSource(row: FileRow, source: string, saved: SavedMappings): FileRow
   };
 }
 
+/** A new source or columns mean a failed import may now work: check it again before any import. */
+const unfailed = (r: FileRow): FileRow => (r.run.state === "failed" ? { ...r, run: { state: "no" } } : r);
+
 export function rowStatus(row: FileRow): RowStatus {
   if (row.run.state === "importing") return { kind: "importing" };
   if (row.run.state === "done") return { kind: "imported", result: row.run.result };
   if (row.run.state === "failed") return { kind: "importFailed", message: row.run.message, errors: row.run.errors ?? [] };
   if (row.readError !== null) return { kind: "readFailed", message: row.readError };
   if (!row.grid) return { kind: "reading" };
+  if (!row.source && row.choice === NEW_SOURCE) return { kind: "needsName" };
   if (!row.source) return row.sameAs ? { kind: "sameFile" } : { kind: "leftOut" };
   if (!row.mapping || !row.parsed) return { kind: "needsMapping", missing: [] };
   if (!row.confirmed) return { kind: "needsMapping", missing: row.missing };
@@ -177,23 +182,23 @@ export function importList(rows: FileRow[], action: Action): FileRow[] {
     case "readFailed":
       return update(rows, action.id, (r) => ({ ...r, grid: null, readError: action.message }));
     case "choose":
-      return update(rows, action.id, (r) => withSource({ ...r, choice: action.choice }, sourceOf(action.choice, r.newName), action.saved));
+      return update(rows, action.id, (r) => withSource(unfailed({ ...r, choice: action.choice }), sourceOf(action.choice, r.newName), action.saved));
     case "rename":
       return update(rows, action.id, (r) => {
         const next = { ...r, newName: action.name };
         const source = sourceOf(r.choice, action.name);
-        return r.choice === NEW_SOURCE && source !== r.source ? withSource(next, source, action.saved) : next;
+        return r.choice === NEW_SOURCE && source !== r.source ? withSource(unfailed(next), source, action.saved) : next;
       });
     case "mapping":
       return update(rows, action.id, (r) => {
         if (!r.grid) return r;
         return {
-          ...r, mapping: action.mapping, parsed: processRows(r.grid, action.mapping), missing: [],
+          ...unfailed(r), mapping: action.mapping, parsed: processRows(r.grid, action.mapping), missing: [],
           version: r.version + 1, check: IDLE,
         };
       });
     case "confirm":
-      return update(rows, action.id, (r) => ({ ...r, confirmed: true, missing: [], editing: false, version: r.version + 1, check: IDLE }));
+      return update(rows, action.id, (r) => ({ ...unfailed(r), confirmed: true, missing: [], editing: false, version: r.version + 1, check: IDLE }));
     case "toggle":
       return update(rows, action.id, (r) => ({ ...r, open: !r.open }));
     case "edit":
@@ -218,7 +223,7 @@ export function importList(rows: FileRow[], action: Action): FileRow[] {
     case "importFailed":
       return update(rows, action.id, (r) => ({ ...r, run: { state: "failed", message: action.message, errors: action.errors } }));
     case "remove":
-      return rows.filter((r) => r.id !== action.id);
+      return rows.filter((r) => r.id !== action.id).map((r) => (r.sameAs === action.id ? { ...r, sameAs: null } : r));
     case "reset":
       return [];
   }

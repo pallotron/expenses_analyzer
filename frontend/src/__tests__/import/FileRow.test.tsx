@@ -28,6 +28,7 @@ describe("statusText", () => {
     [{ kind: "readFailed", message: "Choose a .csv, .xls or .xlsx file" }, "Couldn't read: Choose a .csv, .xls or .xlsx file"],
     [{ kind: "sameFile" }, "Same file as above"],
     [{ kind: "leftOut" }, "Left out"],
+    [{ kind: "needsName" }, "Name the new source"],
     [{ kind: "needsMapping", missing: [] }, "Needs mapping: choose its columns"],
     [{ kind: "needsMapping", missing: ["Started Date"] }, "Needs mapping: no 'Started Date' column"],
     [{ kind: "needsMapping", missing: ["A", "B"] }, "Needs mapping: no 'A', 'B' columns"],
@@ -145,5 +146,25 @@ describe("a file's row", () => {
     show(rowAfter([...base, { type: "choose", id: "f1", choice: "Card", saved: { Card: MAP } }]), true);
     expect(screen.getByLabelText("Source for sept.csv")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove sept.csv" })).toBeDisabled();
+  });
+
+  it("locks an imported row's controls", () => {
+    const imported = rowAfter([
+      ...base, { type: "choose", id: "f1", choice: "Card", saved: { Card: MAP } },
+      { type: "importStart", id: "f1" }, { type: "imported", id: "f1", result },
+    ]);
+    show(imported);
+    expect(screen.getByLabelText("Source for sept.csv")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove sept.csv" })).toBeDisabled();
+  });
+
+  it("locks the new-source name of an imported row, and the status is announced", async () => {
+    const imported = rowAfter([
+      ...base, { type: "choose", id: "f1", choice: "__new__", saved: { Card: MAP } },
+      { type: "importStart", id: "f1" }, { type: "imported", id: "f1", result },
+    ]);
+    show({ ...imported, open: true });
+    expect(screen.getByLabelText("New source name for sept.csv")).toBeDisabled();
+    expect(screen.getByLabelText("Status of sept.csv")).toHaveAttribute("role", "status");
   });
 });

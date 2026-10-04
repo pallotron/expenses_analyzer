@@ -114,6 +114,48 @@ describe("the import list", () => {
     expect(rowStatus(rows[1])).toEqual({ kind: "importing" });
   });
 
+  it("checks a failed row again once its source or columns change", () => {
+    const fail: Action[] = [{ type: "importStart", id: "f1" }, { type: "importFailed", id: "f1", message: "down" }];
+    const failed = (choice: string) => apply(fail, checked(apply([add("a.csv"), read(), choose(choice)])));
+    const edits: Action[] = [
+      choose("Other"),
+      { type: "rename", id: "f1", name: "Other", saved: SAVED },
+      { type: "mapping", id: "f1", mapping: { ...MAP, typeMode: "expense" } },
+      { type: "confirm", id: "f1" },
+    ];
+    for (const edit of edits) {
+      let rows = failed(edit.type === "rename" ? NEW_SOURCE : "Card");
+      expect(rows[0].run.state).toBe("failed");
+      rows = apply([edit], rows);
+      expect(rows[0].run, edit.type).toEqual({ state: "no" });
+    }
+  });
+
+  it("clears sameAs on rows that pointed at a removed row", () => {
+    let rows = apply([add("a.csv"), { type: "add", files: [{ id: "f2", file: file("a.csv") }] }]);
+    expect(rows[1].sameAs).toBe("f1");
+    rows = apply([{ type: "remove", id: "f1" }], rows);
+    expect(rows[0].sameAs).toBeNull();
+  });
+
+  it("asks for a name when New source is chosen and the name is blank", () => {
+    let rows = apply([add("a.csv"), read(), choose(NEW_SOURCE)]);
+    expect(rowStatus(rows[0])).toEqual({ kind: "needsMapping", missing: [] });
+    rows = apply([{ type: "rename", id: "f1", name: "   ", saved: SAVED }], rows);
+    expect(rowStatus(rows[0])).toEqual({ kind: "needsName" });
+    rows = apply([{ type: "rename", id: "f1", name: "Card", saved: SAVED }], rows);
+    expect(rowStatus(rows[0])).toEqual({ kind: "checking" });
+  });
+
+  it("leaves an imported row's version and check alone on a recheck", () => {
+    let rows = checked(apply([add("a.csv"), read(), choose("Card")]));
+    rows = apply([{ type: "importStart", id: "f1" }, { type: "imported", id: "f1", result: { batchId: 1, ...COUNTS } }], rows);
+    const before = rows[0];
+    rows = apply([{ type: "recheck", ids: ["f1"] }], rows);
+    expect(rows[0].version).toBe(before.version);
+    expect(rows[0].check).toEqual(before.check);
+  });
+
   it("ignores actions for rows that are gone", () => {
     expect(apply([add("a.csv"), { type: "remove", id: "f1" }, read()])).toEqual([]);
     expect(apply([add("a.csv"), { type: "reset" }, read()])).toEqual([]);

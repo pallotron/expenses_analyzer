@@ -73,6 +73,52 @@ describe("importing the list", () => {
     expect(sequence).toEqual(["import a.csv", "check b.csv", "import b.csv"]);
   });
 
+  it("re-checks a later file of another source, since duplicates span sources", async () => {
+    let imported = false;
+    const mock = renderImport(api({
+      sources: SOURCES,
+      routes: {
+        "POST /api/import": (body) => {
+          const b = body as ImportRequest;
+          if (!b.dryRun) { imported = true; return asNew(body); }
+          return imported
+            ? { body: { batchId: null, inserted: 0, duplicates: b.rows.length, suppressedDeleted: 0, newMerchants: [] } }
+            : asNew(body);
+        },
+      },
+    }));
+    await ready([["a.csv", "Alpha"], ["b.csv", "Beta"]]);
+    const before = mock.calls.length;
+    await userEvent.click(importButton());
+    await screen.findByRole("region", { name: "Import result" });
+    const sequence = mock.calls.slice(before).filter((c) => c.path === "/api/import")
+      .map((c) => `${(c.body as ImportRequest).dryRun ? "check" : "import"} ${(c.body as ImportRequest).filename}`);
+    expect(sequence).toEqual(["import a.csv", "check b.csv", "import b.csv"]);
+  });
+
+  it("re-checks a file left out of the run once something was imported", async () => {
+    let checksOfB = 0;
+    renderImport(api({
+      sources: SOURCES,
+      routes: {
+        "POST /api/import": (body) => {
+          const b = body as ImportRequest;
+          if (b.dryRun && b.filename === "b.csv" && ++checksOfB === 1) return { status: 500, body: { error: "Server error" } };
+          return asNew(body);
+        },
+      },
+    }));
+    await addFiles([csvFile(CSV, "a.csv"), csvFile(CSV, "b.csv")]);
+    await userEvent.selectOptions(screen.getByLabelText("Source for a.csv"), "Alpha");
+    await userEvent.selectOptions(screen.getByLabelText("Source for b.csv"), "Beta");
+    await waitFor(() => expect(statusOf("a.csv")).toHaveTextContent("Ready"));
+    await waitFor(() => expect(statusOf("b.csv")).toHaveTextContent("Couldn't check"));
+    await userEvent.click(importButton());
+    await screen.findByRole("region", { name: "Import result" });
+    await waitFor(() => expect(statusOf("b.csv")).toHaveTextContent("Ready"));
+    expect(checksOfB).toBe(2);
+  });
+
   it("asks Gemini once for all the new merchants", async () => {
     const mock = renderImport(api({
       sources: SOURCES, gemini: true,
@@ -110,6 +156,7 @@ describe("importing the list", () => {
     await ready([["a.csv", "Alpha"]]);
     await userEvent.click(importButton());
     await waitFor(() => expect(pending.finish).toBeDefined());
+    expect(screen.getByText("Keep this page open until the import finishes.")).toBeInTheDocument();
     expect(screen.getByLabelText("Source for a.csv")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove a.csv" })).toBeDisabled();
     expect(screen.getByLabelText("Files")).toBeDisabled();

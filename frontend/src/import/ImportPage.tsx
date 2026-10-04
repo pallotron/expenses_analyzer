@@ -98,7 +98,7 @@ export function ImportPage() {
             const kinds = rows.map((r) => rowStatus(r).kind);
             const checking = kinds.includes("checking") || kinds.includes("reading");
             const leftOut = kinds.filter((k) => k === "leftOut" || k === "sameFile").length;
-            const attention = kinds.filter((k) => ["readFailed", "needsMapping", "nothing", "tooMany", "checkFailed", "refused", "importFailed"].includes(k)).length;
+            const attention = kinds.filter((k) => ["readFailed", "needsName", "needsMapping", "nothing", "tooMany", "checkFailed", "refused", "importFailed"].includes(k)).length;
             const total = ready.reduce((n, r) => n + (r.check.state === "done" ? r.check.counts.inserted : 0), 0);
             const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
             return (
@@ -116,6 +116,7 @@ export function ImportPage() {
                     className="rounded-md bg-slate-900 px-3 py-1.5 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
                     {running ? "Importing…" : `Import ${plural(ready.length, "file")} · ${plural(total, "transaction")}`}
                   </button>
+                  {running && <span className="text-slate-600 dark:text-slate-400">Keep this page open until the import finishes.</span>}
                   {leftOut > 0 && <span className="text-slate-600 dark:text-slate-400">{leftOut} left out</span>}
                   {attention > 0 && <span className="text-expense">{attention} need attention</span>}
                 </div>

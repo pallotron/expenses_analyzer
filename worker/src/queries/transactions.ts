@@ -76,7 +76,7 @@ export async function listTransactions(db: Db, filter: TransactionFilter = {}): 
 }
 
 /** Values the filter boxes suggest: what live (not deleted) rows carry. */
-export async function listLookups(db: Db): Promise<LookupsResponse> {
+export async function listLookups(db: Db): Promise<Omit<LookupsResponse, "gemini">> {
   const live = await db.selectDistinct({ name: vLive.category }).from(vLive);
   const stored = await db.select({ name: categories.name }).from(categories);
   const categoryNames = [...new Set([...live, ...stored].map((r) => r.name))].sort();

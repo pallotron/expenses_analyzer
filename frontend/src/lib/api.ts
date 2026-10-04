@@ -13,9 +13,12 @@ const REAUTH_WINDOW_MS = 30_000;
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** The server's list of problems, when it sent one (import validation). */
+  errors?: string[];
+  constructor(status: number, message: string, errors?: string[]) {
     super(message);
     this.status = status;
+    this.errors = errors;
   }
 }
 
@@ -32,6 +35,8 @@ function reauthenticate(): boolean {
   return true;
 }
 
+const isStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
+
 async function handle<T>(res: Response): Promise<T> {
   if (res.type === "opaqueredirect" || res.status === 401) {
     throw new ApiError(401, reauthenticate()
@@ -44,8 +49,8 @@ async function handle<T>(res: Response): Promise<T> {
     throw new ApiError(403, body?.error ?? NOT_SET_UP);
   }
   if (!res.ok) {
-    const body = await res.json().catch(() => null) as { error?: string } | null;
-    throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
+    const body = await res.json().catch(() => null) as { error?: string; errors?: string[] } | null;
+    throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`, isStrings(body?.errors) ? body.errors : undefined);
   }
   return res.json() as Promise<T>;
 }

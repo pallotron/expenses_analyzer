@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { columnNames, findHeaderRow, processRows, type ImportMapping } from "../lib/types";
 import { useLookups } from "../transactions/queries";
@@ -146,7 +146,10 @@ export function ImportPage(props: { renderAction?: (ready: ImportReady, reset: (
             </p>
           )}
           <Preview parsed={parsed} mapping={mapping} />
-          {file && source && props.renderAction?.({ source, file, mapping, parsed }, reset)}
+          {file && source && (
+            // A new file pick or source starts a fresh action: no stale result.
+            <Fragment key={`${readId.current}:${source}`}>{props.renderAction?.({ source, file, mapping, parsed }, reset)}</Fragment>
+          )}
         </>
       )}
     </main>

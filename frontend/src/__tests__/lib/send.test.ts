@@ -25,4 +25,23 @@ describe("send", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Cross-site request refused" }), { status: 403 })));
     await expect(send("POST", "/x", {})).rejects.toEqual(new ApiError(403, "Cross-site request refused"));
   });
+
+  it("keeps the server's list of errors", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: "The file has rows the import refuses", errors: ["Found 2 date(s) after maximum allowed date 2027-10-04"],
+    }), { status: 400 })));
+    const e = (await send("POST", "/api/import", {}).catch((x: unknown) => x)) as ApiError;
+    expect(e).toBeInstanceOf(ApiError);
+    expect(e.message).toBe("The file has rows the import refuses");
+    expect(e.errors).toEqual(["Found 2 date(s) after maximum allowed date 2027-10-04"]);
+  });
+
+  it("ignores an errors field that is not a list of strings", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Bad", errors: "nope" }), { status: 400 })));
+    const e = (await send("POST", "/x", {}).catch((x: unknown) => x)) as ApiError;
+    expect(e.errors).toBeUndefined();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Bad", errors: ["a", 1] }), { status: 400 })));
+    const f = (await send("POST", "/x", {}).catch((x: unknown) => x)) as ApiError;
+    expect(f.errors).toBeUndefined();
+  });
 });

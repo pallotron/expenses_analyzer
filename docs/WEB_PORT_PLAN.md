@@ -389,13 +389,13 @@ Done 2026-09-29:
   re-linked when bank sync is ported. D1 matches the seed on 13 counts and
   totals.
 
+Login: Google (an OAuth client in its own Google Cloud project, consent
+screen External in Testing mode, household Gmail addresses as test users)
+under Integrations → Identity providers, with the one-time PIN kept as a
+fallback. The Access application's session duration is longer than the
+24-hour default, so a login lasts across days.
+
 Still to do:
-- Add Google login to Access. Login is currently one-time PIN (plus the
-  Cloudflare-account option). Needs a Google Cloud OAuth client ("Web
-  application"; origin `https://pallotron.cloudflareaccess.com`, redirect
-  `https://pallotron.cloudflareaccess.com/cdn-cgi/access/callback`; consent
-  screen External, both Gmail addresses as test users), then add **Google**
-  (not Google Workspace) under Integrations → Identity providers.
 - The parquet is still the TUI's live data, so D1 is a copy as of
   2026-09-29. Anything imported in the TUI from now on is not in D1. Decide
   when to stop writing through the TUI, or re-seed (wipe the tables and repeat

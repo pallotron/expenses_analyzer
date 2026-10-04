@@ -110,7 +110,26 @@ and preview URLs are off, so the custom domain is the only way in.
   (AUD) Tag**, under the application's **Additional settings** tab, is
   `CF_ACCESS_AUD`. Not the policy ID: that is a dashed UUID, the AUD is 64 hex
   characters.
-- A new user needs adding in both places: the policy, and the `users` table.
+- **Login methods:** Google, with the one-time PIN kept as a fallback. Google
+  comes from an OAuth client in its own Google Cloud project (not the one
+  holding the Gemini key):
+  - Consent screen (Google Auth Platform): user type **External**, left in
+    **Testing** mode, with the household Gmail addresses as **test users**.
+    Only test users get past Google's screen, a gate in front of the policy.
+    Access asks only for `openid`, `email` and `profile`, so the Testing-mode
+    7-day refresh-token limit does not apply.
+  - Client: **Web application**, origin `https://pallotron.cloudflareaccess.com`,
+    redirect URI `https://pallotron.cloudflareaccess.com/cdn-cgi/access/callback`.
+    The client ID and secret are pasted into Zero Trust → Integrations →
+    Identity providers → **Google** (not Google Workspace), then ticked under
+    the application's login methods.
+  - With the PIN unticked, **Instant Auth** skips the Access page and goes
+    straight to Google; the cost is no way in without the Google account.
+- **Session duration** on the application is longer than the 24-hour default,
+  so a login lasts across days. Access owns the session (its
+  `CF_Authorization` cookie); the Worker only checks each request's token.
+- A new user needs adding in three places: the Google test users, the policy,
+  and the `users` table.
 
 **D1:** `npx wrangler d1 create expenses`, with the id in `wrangler.toml`.
 Keep `binding = "DB"`: the code reads `env.DB`. `migrations_dir = "drizzle"`

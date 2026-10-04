@@ -31,7 +31,10 @@ function setup(d1 = false) {
       body: body === undefined ? undefined : JSON.stringify(body),
     }, env);
   const count = () => (s.sqlite.prepare(`SELECT count(*) AS n FROM transactions`).get() as { n: number }).n;
-  const mappings = async () => (await (await send("GET", "/api/import/mappings")).json()) as { mappings: Record<string, ImportMapping> };
+  const mappings = async () => {
+    const { sources } = (await (await send("GET", "/api/import/sources")).json()) as { sources: { name: string; mapping: ImportMapping | null }[] };
+    return { mappings: Object.fromEntries(sources.filter((x) => x.mapping).map((x) => [x.name, x.mapping])) };
+  };
   return { ...s, send, count, mappings };
 }
 
@@ -181,12 +184,6 @@ describe("POST /api/import with dryRun", () => {
     const res = await setup().send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: ROWS, dryRun: "yes" });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Invalid input: expected boolean, received string" });
-  });
-});
-
-describe("GET /api/import/mappings", () => {
-  it("is empty before any import", async () => {
-    expect(await setup().mappings()).toEqual({ mappings: {} });
   });
 });
 

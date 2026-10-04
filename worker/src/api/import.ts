@@ -33,7 +33,6 @@ export interface ImportRequestRow {
 export interface ImportRequest { source: string; filename?: string; mapping: ImportMapping; rows: ImportRequestRow[]; dryRun?: boolean }
 /** `batchId` is null for a dry run. */
 export interface ImportResponse { batchId: number | null; inserted: number; duplicates: number; suppressedDeleted: number; newMerchants: string[] }
-export interface ImportMappingsResponse { mappings: Record<string, ImportMapping> }
 
 /** A source the import page offers: its saved mapping, and where its rows stop. */
 export interface ImportSource {

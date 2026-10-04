@@ -270,6 +270,12 @@ sent, as today.
   filter (e.g. State = COMPLETED). `POST /api/import` (5,000 rows at most)
   runs `importTransactions` and then saves the mapping; the page asks Gemini
   for the new merchants when ticked.
+- Done: several files at once. Each gets a source picked by hand and a dry run
+  (`dryRun` on `POST /api/import`, the import's own counting) showing what is new,
+  with the source's last live date beside it; "Import all" sends one request per
+  file in order, re-checking same-source files first, then asks Gemini once.
+  `GET /api/import/sources` (replacing `/import/mappings`) gives each source's
+  saved mapping and last live date.
 
 #### Budget types (`u`, `budget_types_screen.py`)
 

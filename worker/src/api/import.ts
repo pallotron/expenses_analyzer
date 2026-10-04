@@ -29,9 +29,19 @@ export interface ImportRequestRow {
   type: TransactionType;
 }
 
-export interface ImportRequest { source: string; filename?: string; mapping: ImportMapping; rows: ImportRequestRow[] }
-export interface ImportResponse { batchId: number; inserted: number; duplicates: number; suppressedDeleted: number; newMerchants: string[] }
-export interface ImportMappingsResponse { mappings: Record<string, ImportMapping> }
+/** `dryRun`: answer with the counts the import would give, writing nothing. */
+export interface ImportRequest { source: string; filename?: string; mapping: ImportMapping; rows: ImportRequestRow[]; dryRun?: boolean }
+/** `batchId` is null for a dry run. */
+export interface ImportResponse { batchId: number | null; inserted: number; duplicates: number; suppressedDeleted: number; newMerchants: string[] }
+
+/** A source the import page offers: its saved mapping, and where its rows stop. */
+export interface ImportSource {
+  name: string;
+  /** YYYY-MM-DD of its latest live transaction; null when it has none. */
+  lastDate: string | null;
+  mapping: ImportMapping | null;
+}
+export interface ImportSourcesResponse { sources: ImportSource[] }
 
 /** D1 takes the rows as one JSON value, capped near 2 MB; 5,000 rows is about 600 KB. */
 export const MAX_IMPORT_ROWS = 5_000;

@@ -5,8 +5,8 @@
  */
 
 import { eq, sql } from "drizzle-orm";
-import type { ImportMapping } from "../api/import";
-import { settings } from "../db/schema";
+import type { ImportMapping, ImportSource } from "../api/import";
+import { settings, transactions } from "../db/schema";
 import type { Db } from "../db/types";
 
 const KEY = "import_mappings";
@@ -20,4 +20,26 @@ export async function saveImportMapping(db: Db, source: string, mapping: ImportM
   const all = { ...(await loadImportMappings(db)), [source]: mapping };
   await db.insert(settings).values({ key: KEY, value: all, updatedBy: userId })
     .onConflictDoUpdate({ target: settings.key, set: { value: all, updatedBy: userId, updatedAt: sql`(unixepoch())` } });
+}
+
+/**
+ * Every source with transactions or a saved mapping, by name. `lastDate`
+ * counts live rows only, so a deletion never claims a month is imported.
+ */
+export async function listImportSources(db: Db): Promise<ImportSource[]> {
+  const [mappings, last] = await Promise.all([
+    loadImportMappings(db),
+    db.select({
+      source: transactions.source,
+      lastDate: sql<string | null>`date(MAX(CASE WHEN ${transactions.deletedAt} IS NULL THEN ${transactions.date} END), 'unixepoch')`,
+    }).from(transactions).groupBy(transactions.source),
+  ]);
+  const dates = new Map(last.map((r) => [r.source, r.lastDate]));
+  const names = [...new Set([...dates.keys(), ...Object.keys(mappings)])].sort((a, b) => a.localeCompare(b));
+  return names.map((name) => ({
+    name,
+    lastDate: dates.get(name) ?? null,
+    // Source names are typed by people; the settings value is a plain object.
+    mapping: Object.hasOwn(mappings, name) ? mappings[name] : null,
+  }));
 }

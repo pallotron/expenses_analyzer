@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp, type AppBindings } from "../../app";
-import type { ImportMapping } from "../../api/import";
+import type { ImportMapping, ImportResponse } from "../../api/import";
 import { createDb } from "../../db/client";
 import * as importMappings from "../../services/importMappings";
+import { saveImportMapping } from "../../services/importMappings";
 import { fakeD1 } from "../helpers/fakeD1";
 import { store } from "../helpers/store";
 
@@ -30,7 +31,10 @@ function setup(d1 = false) {
       body: body === undefined ? undefined : JSON.stringify(body),
     }, env);
   const count = () => (s.sqlite.prepare(`SELECT count(*) AS n FROM transactions`).get() as { n: number }).n;
-  const mappings = async () => (await (await send("GET", "/api/import/mappings")).json()) as { mappings: Record<string, ImportMapping> };
+  const mappings = async () => {
+    const { sources } = (await (await send("GET", "/api/import/sources")).json()) as { sources: { name: string; mapping: ImportMapping | null }[] };
+    return { mappings: Object.fromEntries(sources.filter((x) => x.mapping).map((x) => [x.name, x.mapping])) };
+  };
   return { ...s, send, count, mappings };
 }
 
@@ -133,8 +137,84 @@ describe("POST /api/import", () => {
   });
 });
 
-describe("GET /api/import/mappings", () => {
-  it("is empty before any import", async () => {
-    expect(await setup().mappings()).toEqual({ mappings: {} });
+describe("POST /api/import with dryRun", () => {
+  const tally = (s: ReturnType<typeof setup>) => s.sqlite.prepare(`
+    SELECT (SELECT count(*) FROM transactions) AS t, (SELECT count(*) FROM merchants) AS m,
+           (SELECT count(*) FROM import_batches) AS b
+  `).get();
+
+  it("reports what the import would do, and writes nothing", async () => {
+    const s = setup();
+    await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: [ROWS[0]] });
+    const before = tally(s);
+    const res = await s.send("POST", "/api/import", {
+      source: "Other", mapping: { ...MAPPING, dateOrder: "mdy" }, rows: ROWS, dryRun: true,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      batchId: null, inserted: 1, duplicates: 1, suppressedDeleted: 0, newMerchants: ["Acme Payroll"],
+    });
+    expect(tally(s)).toEqual(before);
+    expect(await s.mappings()).toEqual({ mappings: { Card: MAPPING } });
+  });
+
+  it("counts deleted rows and repeats exactly as the import then does", async () => {
+    const s = setup();
+    await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: [ROWS[0]] });
+    s.sqlite.prepare(`UPDATE transactions SET deleted_at = unixepoch()`).run();
+    const body = { source: "Card", mapping: MAPPING, rows: [ROWS[0], ROWS[1], ROWS[1]] };
+    const dry = await (await s.send("POST", "/api/import", { ...body, dryRun: true })).json() as ImportResponse;
+    expect(dry).toEqual({ batchId: null, inserted: 2, duplicates: 0, suppressedDeleted: 1, newMerchants: ["Acme Payroll"] });
+    const real = await (await s.send("POST", "/api/import", body)).json() as ImportResponse;
+    expect(real).toEqual({ ...dry, batchId: expect.any(Number) });
+  });
+
+  it("refuses the rows the import refuses", async () => {
+    const res = await setup().send("POST", "/api/import", {
+      source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], merchant: " " }], dryRun: true,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "The file has rows the import refuses",
+      errors: ["Found 1 row(s) with empty or missing merchant names"],
+    });
+  });
+
+  it("takes only a boolean", async () => {
+    const res = await setup().send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: ROWS, dryRun: "yes" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid input: expected boolean, received string" });
+  });
+});
+
+describe("GET /api/import/sources", () => {
+  const sources = async (s: ReturnType<typeof setup>) => (await (await s.send("GET", "/api/import/sources")).json());
+  const userId = (s: ReturnType<typeof setup>) => (s.sqlite.prepare(`SELECT id FROM users LIMIT 1`).get() as { id: number }).id;
+
+  it("is empty with no transactions and no mappings", async () => {
+    expect(await sources(setup())).toEqual({ sources: [] });
+  });
+
+  it("lists each source, sorted, with its last live date and its saved mapping", async () => {
+    const s = setup();
+    await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: ROWS });
+    await s.send("POST", "/api/import", { source: "Card", mapping: MAPPING, rows: [{ ...ROWS[0], date: "2026-09-20", merchant: "Late Shop" }] });
+    await s.send("POST", "/api/import", { source: "Cash", mapping: MAPPING, rows: [{ ...ROWS[0], date: "2026-08-15", merchant: "Kiosk" }] });
+    // A deleted row is not where a source left off; a source with only deleted rows has no date.
+    s.sqlite.prepare(`UPDATE transactions SET deleted_at = unixepoch() WHERE merchant_raw IN ('Late Shop', 'Kiosk')`).run();
+    await saveImportMapping(s.db, "Bank", { ...MAPPING, amountOut: "Out" }, userId(s));
+    expect(await sources(s)).toEqual({
+      sources: [
+        { name: "Bank", lastDate: null, mapping: { ...MAPPING, amountOut: "Out" } },
+        { name: "Card", lastDate: "2026-09-02", mapping: MAPPING },
+        { name: "Cash", lastDate: null, mapping: MAPPING },
+      ],
+    });
+  });
+
+  it("takes a source named like an object's own property", async () => {
+    const s = setup();
+    await s.send("POST", "/api/import", { source: "constructor", mapping: MAPPING, rows: ROWS });
+    expect(await sources(s)).toEqual({ sources: [{ name: "constructor", lastDate: "2026-09-02", mapping: MAPPING }] });
   });
 });

@@ -20,7 +20,8 @@ export type {
   SuggestResponse,
 } from "../../../worker/src/api/merchants";
 export type {
-  ImportMapping, ImportMappingsResponse, ImportRequest, ImportRequestRow, ImportResponse,
+  ImportMapping, ImportRequest, ImportRequestRow, ImportResponse,
+  ImportSource, ImportSourcesResponse,
 } from "../../../worker/src/api/import";
 export { MAX_IMPORT_ROWS } from "../../../worker/src/api/import";
 // The import page parses with the Worker's own rules; the modules are pure.

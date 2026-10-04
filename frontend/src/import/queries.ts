@@ -1,14 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { getJson, send } from "../lib/api";
-import type { ImportMappingsResponse, ImportRequest, ImportResponse } from "../lib/types";
-import { useWrite } from "../transactions/edit/mutations";
+import type { ImportRequest, ImportResponse, ImportSourcesResponse } from "../lib/types";
 
-export function useImportMappings() {
-  return useQuery({ queryKey: ["import-mappings"], queryFn: () => getJson<ImportMappingsResponse>("/api/import/mappings") });
+export function useImportSources() {
+  return useQuery({ queryKey: ["import-sources"], queryFn: () => getJson<ImportSourcesResponse>("/api/import/sources") });
 }
 
-/** New rows touch every list and total, and the saved mappings. */
-export const useImport = () => useWrite(
-  (body: ImportRequest) => send<ImportResponse>("POST", "/api/import", body),
-  ["transactions", "summary", "periods", "lookups", "merchants", "import-mappings"],
-);
+export const postImport = (body: ImportRequest) => send<ImportResponse>("POST", "/api/import", body);
+
+/** New rows touch every list and total, the sources' last dates, and the saved mappings. */
+export const IMPORT_WRITES = ["transactions", "summary", "periods", "lookups", "merchants", "import-sources"];

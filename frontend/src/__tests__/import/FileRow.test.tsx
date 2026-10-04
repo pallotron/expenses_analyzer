@@ -115,9 +115,16 @@ describe("a file's row", () => {
     expect(dispatch).toHaveBeenCalledWith({ type: "toggle", id: "f1" });
   });
 
+  it("opens from the file name as well as the arrow, under one control", async () => {
+    const { dispatch } = show(rowAfter(base));
+    expect(screen.getAllByRole("button", { name: "Show sept.csv" })).toHaveLength(1);
+    await userEvent.click(screen.getByText("sept.csv"));
+    expect(dispatch).toHaveBeenCalledWith({ type: "toggle", id: "f1" });
+  });
+
   it("asks to confirm the columns for a source without a saved mapping", async () => {
     const row = rowAfter([...base, { type: "choose", id: "f1", choice: "Cash", saved: { Card: MAP } }]);
-    const { dispatch } = show(row);
+    const { dispatch } = show({ ...row, open: true });
     expect(screen.getByRole("group", { name: "Mapping" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Use these columns" }));
     expect(dispatch).toHaveBeenCalledWith({ type: "confirm", id: "f1" });

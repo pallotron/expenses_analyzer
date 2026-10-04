@@ -41,11 +41,13 @@ describe("the import list", () => {
     expect(mock.imports(false)).toEqual([]);
   });
 
-  it("names the columns a file lacks and opens it", async () => {
+  it("names the columns a file lacks, and opens to the form", async () => {
     renderImport(api({ sources: SOURCES }));
     await addFiles([csvFile("Date,Description,Amount\n01/09/2026,Corner Shop,-6.55\n", "a.csv"), csvFile(CARD_CSV, "b.csv")]);
     await pickSource("a.csv", "Card");
     expect(statusOf("a.csv")).toHaveTextContent("Needs mapping: no 'Started Date' column");
+    expect(screen.queryByRole("group", { name: "Mapping" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show a.csv" }));
     expect(screen.getByRole("group", { name: "Mapping" })).toBeInTheDocument();
   });
 
@@ -54,6 +56,7 @@ describe("the import list", () => {
     await addFiles([csvFile(CARD_CSV, "a.csv")]);
     await pickSource("a.csv", "Bank");
     expect(statusOf("a.csv")).toHaveTextContent("Needs mapping: choose its columns");
+    await userEvent.click(screen.getByRole("button", { name: "Show a.csv" }));
     await userEvent.click(screen.getByRole("button", { name: "Use these columns" }));
     await waitFor(() => expect(statusOf("a.csv")).toHaveTextContent("Ready · 2 new"));
   });
@@ -81,6 +84,7 @@ describe("the import list", () => {
     await addFiles([csvFile(CARD_CSV, "a.csv")]);
     await pickSource("a.csv", "Card");
     await waitFor(() => expect(first.resolve).toBeDefined());
+    await userEvent.click(screen.getByRole("button", { name: "Show a.csv" }));
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
     await userEvent.selectOptions(screen.getByLabelText("Type"), "expense");
     await waitFor(() => expect(statusOf("a.csv")).toHaveTextContent("Ready · 2 new"));
@@ -140,6 +144,7 @@ describe("the import list", () => {
   it("keeps the raw view open when a source is chosen", async () => {
     renderImport(api({ sources: SOURCES }));
     await addFiles([csvFile(CARD_CSV, "a.csv")]);
+    await userEvent.click(screen.getByRole("button", { name: "Show a.csv" }));
     const raw = (await screen.findByText("Show the file as read")).closest("details")!;
     await userEvent.click(screen.getByText("Show the file as read"));
     expect(raw).toHaveAttribute("open");

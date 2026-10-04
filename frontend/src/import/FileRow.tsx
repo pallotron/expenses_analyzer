@@ -55,30 +55,35 @@ export function FileRowView(props: {
   const errors = status.kind === "refused" || status.kind === "importFailed" ? status.errors : [];
   const comma = row.grid && row.mapping && row.source ? commaDecimalSample(row.grid, row.mapping) : null;
   return (
-    <li className="border-b border-slate-200 py-2 dark:border-slate-800">
-      <div className="flex items-start gap-2">
+    <li className="border-b border-slate-200 py-1.5 dark:border-slate-800">
+      {/* Phone: name; source, date and ✕; status. Desktop: one line, in columns that line up across rows. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:grid-cols-[minmax(0,1fr)_18rem_minmax(0,1fr)_2rem] sm:gap-x-3">
         <button type="button" aria-expanded={row.open} aria-label={`${row.open ? "Hide" : "Show"} ${name}`}
-          onClick={() => dispatch({ type: "toggle", id: row.id })} className="w-5 shrink-0">{row.open ? "▾" : "▸"}</button>
-        <span className="min-w-0 break-all text-sm">{name}</span>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-2 pl-7">
-        <span className="flex flex-wrap gap-2">
+          onClick={() => dispatch({ type: "toggle", id: row.id })}
+          className="col-span-2 flex min-w-0 items-start gap-2 pt-1.5 text-left sm:col-span-1">
+          <span aria-hidden="true" className="w-5 shrink-0">{row.open ? "▾" : "▸"}</span>
+          <span className="min-w-0 break-all text-sm">{name}</span>
+        </button>
+        <span className="flex flex-wrap items-center gap-2 pl-7 sm:pl-0">
           <select aria-label={`Source for ${name}`} value={row.choice} disabled={locked}
             onChange={(e) => dispatch({ type: "choose", id: row.id, choice: e.target.value, saved: props.saved })}
-            className={`${field} h-9`}>
+            className={`${field} h-9 w-44`}>
             <option value="" disabled>Choose a source…</option>
             {props.sources.map((s) => <option key={s} value={s}>{s}</option>)}
             <option value={NEW_SOURCE}>New source…</option>
           </select>
+          {row.source && <span className="text-sm text-slate-500 dark:text-slate-400">{lastLabel(row.source, props.lastDates)}</span>}
           {row.choice === NEW_SOURCE && (
             <input aria-label={`New source name for ${name}`} defaultValue={row.newName} maxLength={100} disabled={locked}
-              className={`${field} h-9`}
+              className={`${field} h-9 w-44`}
               onBlur={(e) => dispatch({ type: "rename", id: row.id, name: e.target.value, saved: props.saved })}
               onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
           )}
         </span>
-        {row.source && <span className="text-sm text-slate-500 dark:text-slate-400">{lastLabel(row.source, props.lastDates)}</span>}
-        <div role="status" aria-label={`Status of ${name}`} className={`flex-1 text-sm ${ALERT.has(status.kind) ? "text-expense" : ""}`}>
+        <button type="button" aria-label={`Remove ${name}`} disabled={locked}
+          onClick={() => dispatch({ type: "remove", id: row.id })} className="h-9 px-2 sm:order-last">✕</button>
+        <div role="status" aria-label={`Status of ${name}`}
+          className={`col-span-2 pl-7 text-sm sm:col-span-1 sm:pl-0 sm:pt-1.5 ${ALERT.has(status.kind) ? "text-expense" : ""}`}>
           <span>{statusText(status)}</span>
           {(status.kind === "checkFailed" || status.kind === "refused") && (
             <button type="button" disabled={locked} onClick={() => props.onRetryCheck(row.id)} className="ml-2 underline">Retry</button>
@@ -88,8 +93,6 @@ export function FileRowView(props: {
           )}
           {errors.length > 0 && <ul className="list-disc pl-5">{errors.map((e, i) => <li key={`${i}:${e}`}>{e}</li>)}</ul>}
         </div>
-        <button type="button" aria-label={`Remove ${name}`} disabled={locked}
-          onClick={() => dispatch({ type: "remove", id: row.id })} className="px-2">✕</button>
       </div>
       {comma !== null && (
         <p role="alert" className="text-sm text-expense">

@@ -112,7 +112,7 @@ function withSource(row: FileRow, source: string, saved: SavedMappings): FileRow
   const start = startMapping(header, own);
   return {
     ...row, source, mapping: start.mapping, parsed: processRows(row.grid, start.mapping),
-    confirmed: start.fits, missing: start.missing, open: row.open || !start.fits, editing: !start.fits, version, check: IDLE,
+    confirmed: start.fits, missing: start.missing, open: row.open, editing: !start.fits, version, check: IDLE,
   };
 }
 
@@ -173,8 +173,6 @@ export function importList(rows: FileRow[], action: Action): FileRow[] {
           version: 0, check: IDLE, run: { state: "no" },
         });
       }
-      // A lone file opens, as the single-file page did.
-      if (rows.length === 0 && next.length === 1) next[0] = { ...next[0], open: true };
       return next;
     }
     case "read":

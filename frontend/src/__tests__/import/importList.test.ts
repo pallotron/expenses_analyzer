@@ -38,8 +38,8 @@ describe("the import list", () => {
     expect(rowStatus(rows[0])).toEqual({ kind: "readFailed", message: "Choose a .csv, .xls or .xlsx file" });
   });
 
-  it("opens a lone file, but not files added together", () => {
-    expect(apply([add("a.csv")])[0].open).toBe(true);
+  it("keeps every row closed, a lone file included", () => {
+    expect(apply([add("a.csv")])[0].open).toBe(false);
     expect(apply([add("a.csv", "b.csv")]).map((r) => r.open)).toEqual([false, false]);
   });
 
@@ -53,7 +53,8 @@ describe("the import list", () => {
   it("needs its columns confirmed for a source with no saved mapping", () => {
     let rows = apply([add("a.csv", "b.csv"), read(), choose("Other")]);
     expect(rowStatus(rows[0])).toEqual({ kind: "needsMapping", missing: [] });
-    expect(rows[0].open).toBe(true);
+    expect(rows[0].open).toBe(false);
+    expect(rows[0].editing).toBe(true);
     rows = apply([{ type: "confirm", id: "f1" }], rows);
     expect(rowStatus(rows[0])).toEqual({ kind: "checking" });
   });

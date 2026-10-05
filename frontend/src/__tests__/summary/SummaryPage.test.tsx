@@ -283,6 +283,18 @@ describe("SummaryPage", () => {
   });
 });
 
+describe("budgets sheet", () => {
+  it("opens the budget editor from the essential/discretionary card, with a link to its page", async () => {
+    renderAt("/?year=2026");
+    await userEvent.click(await screen.findByRole("button", { name: "Edit budgets" }));
+    const sheet = await screen.findByRole("dialog", { name: "Budgets" });
+    const groceries = await within(sheet).findByRole("group", { name: "Groceries type" });
+    expect(within(groceries).getByRole("button", { pressed: true })).toHaveTextContent("Essential");
+    expect(within(sheet).getByLabelText("Essential, per year (€)")).toHaveValue("53000");
+    expect(within(sheet).getByRole("link", { name: "Open the Budgets page" })).toHaveAttribute("href", "/budgets");
+  });
+});
+
 describe("hidden-tag editor", () => {
   it("saves the ticked patterns, turns the exclusion on, and says so", async () => {
     const api = renderAt("/?year=2026&hidden=1", mockApi({ tags: ["emergency", "trip:rome"] }));

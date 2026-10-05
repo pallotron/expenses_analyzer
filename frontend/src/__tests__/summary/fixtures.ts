@@ -55,6 +55,12 @@ export function mockApi(opts: {
     if (url.pathname === "/api/lookups") {
       return json({ categories: [], tags: opts.tags ?? [], sources: [], essentialCategories: [] });
     }
+    if (url.pathname === "/api/budget-types") {
+      return json({
+        categories: [{ name: "Groceries", spendingType: "essential", expenseCount: 3 }],
+        essentialBudgetCents: 5_300_000, discretionaryBudgetCents: null,
+      });
+    }
     if (url.pathname === "/api/summary/hidden-tags") {
       if (opts.saveStatus) return json({ error: "Nope" }, opts.saveStatus);
       const body = JSON.parse(String(init?.body));

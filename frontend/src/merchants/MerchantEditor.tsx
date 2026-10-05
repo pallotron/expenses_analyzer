@@ -5,6 +5,7 @@ import type { LookupsResponse, MerchantRow } from "../lib/types";
 import { useDebounced } from "../lib/useDebounced";
 import { SheetError, useSheetSubmit } from "../lib/useSheetSubmit";
 import { splitTags, TagInput } from "../transactions/edit/TagInput";
+import { CategoryBudget } from "./CategoryBudget";
 import { CategoryInput } from "./CategoryInput";
 import { useDeleteRule, useSaveDecision } from "./mutations";
 import { useAliasPreview, useRuleLookup } from "./queries";
@@ -146,11 +147,7 @@ export function MerchantEditor(props: {
           <input value={alias} onChange={(e) => setAlias(e.target.value)} className={field} />
         </label>
         <CategoryInput value={category} onChange={setCategory} categories={props.lookups?.categories ?? []} />
-        {cat && (
-          <span className="text-xs text-slate-500">
-            Budget: {props.lookups?.essentialCategories.includes(cat) ? "Essential" : "Discretionary"} (from category)
-          </span>
-        )}
+        {cat && <CategoryBudget category={cat} essential={props.lookups?.essentialCategories.includes(cat) ?? false} />}
         <TagInput label="Tags to add" value={tags} onChange={setTags} draft={draft} onDraft={setDraft}
           suggestions={props.lookups?.tags ?? []} />
         </fieldset>

@@ -14,6 +14,7 @@ import { count, isNull } from "drizzle-orm";
 import { getUser, type AuthDeps, type User } from "./auth";
 import { transactions } from "./db/schema";
 import type { Db } from "./db/types";
+import { budgetTypeRoutes } from "./routes/budgetTypes";
 import { summaryRoutes } from "./routes/summary";
 import { transactionRoutes } from "./routes/transactions";
 import { merchantRoutes } from "./routes/merchants";
@@ -117,6 +118,7 @@ export function createApp<B extends AppBindings>(makeDb: (env: B) => Db, auth: A
   app.route("/api", transactionEditRoutes<B>());
   app.route("/api", merchantRoutes<B>());
   app.route("/api", importRoutes<B>());
+  app.route("/api", budgetTypeRoutes<B>());
 
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 

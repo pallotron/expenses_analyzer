@@ -50,7 +50,32 @@ describe("the merchant editor from a transaction", () => {
     await waitFor(() => expect(within(sheet).getByRole("textbox", { name: "Pattern" })).toHaveValue("^SHOP"));
     expect(within(sheet).getByRole("textbox", { name: "Display name" })).toHaveValue("Shop");
     expect(within(sheet).getByRole("combobox", { name: "Category" })).toHaveValue("Groceries");
-    expect(sheet).toHaveTextContent("Budget: Essential (from category)");
+    const budget = await within(sheet).findByRole("group", { name: "Groceries type" });
+    expect(within(budget).getByRole("button", { pressed: true })).toHaveTextContent("Essential");
+  });
+
+  it("changes the category's budget type on the spot, without saving the rule", async () => {
+    const { mock } = page(() => ({ body: { rule: { id: 4, pattern: "^SHOP" }, merchant: "Shop", category: "Groceries" } }),
+      { "POST /api/budget-types/category": () => ({ body: { ok: true } }) });
+    const sheet = await openEditor();
+    const budget = await within(sheet).findByRole("group", { name: "Groceries type" });
+    expect(sheet).toHaveTextContent("for every merchant in Groceries");
+    await userEvent.click(within(budget).getByRole("button", { name: "Discretionary" }));
+    await waitFor(() => expect(posted(mock, "/api/budget-types/category")).toEqual([
+      { name: "Groceries", spendingType: "discretionary" },
+    ]));
+    expect(posted(mock, "/api/merchants/decision")).toEqual([]);
+  });
+
+  it("shows a new category's type read-only, as there is nothing saved to change", async () => {
+    page(() => ({ body: { rule: { id: 4, pattern: "^SHOP" }, merchant: "Shop", category: "Groceries" } }));
+    const sheet = await openEditor();
+    await within(sheet).findByRole("group", { name: "Groceries type" });
+    const category = within(sheet).getByRole("combobox", { name: "Category" });
+    await userEvent.clear(category);
+    await userEvent.type(category, "Brand new");
+    expect(sheet).toHaveTextContent("Budget: Discretionary (from category)");
+    expect(within(sheet).queryByRole("group", { name: /type$/ })).toBeNull();
   });
 
   it("previews what the pattern claims", async () => {

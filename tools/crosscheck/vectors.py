@@ -41,7 +41,10 @@ from expenses.data_handler import (
     clean_amount,
     normalize_merchant_name,
 )
+from expenses.payslip_handler import aggregate_runs
+from expenses.payslip_parser import PayslipRun
 from expenses.merchant_editor import pattern_claiming, preview_alias_change
+from expenses.analysis import _coverage_label, get_enhanced_savings_totals
 from expenses.screens.summary_screen import SummaryScreen
 from expenses.screens.import_screen import ImportScreen
 from expenses.transaction_filter import apply_filters
@@ -671,6 +674,142 @@ def run_import_scenario(spec: dict) -> list:
     return out
 
 
+# ------------------------------------------------------------- payslips
+
+RUN_FIELDS = [
+    "salary", "bonus", "oncall", "reimbursements", "non_taxable_adj", "misc_deductions",
+    "pension_ee", "avc", "pension_er", "paye", "prsi_ee", "usc",
+    "pension_ee_ytd", "avc_ytd", "pension_er_ytd",
+]
+
+
+def run_spec(month, source, stated_net=None, **cents):
+    """One synthetic run, in cents, with every unnamed field 0."""
+    unknown = set(cents) - set(RUN_FIELDS)
+    if unknown:
+        raise ValueError(f"unknown run fields: {unknown}")
+    return {
+        "month": month,
+        "sourceFile": source,
+        "cents": {f: cents.get(f, 0) for f in RUN_FIELDS},
+        "statedNet": stated_net,
+    }
+
+
+def _monthly(month, source, ytd, **extra):
+    """A plain monthly run: 5,000 salary, 500 EE + 100 AVC pension, 1,350 tax."""
+    base = dict(salary=500000, pension_ee=50000, avc=10000, pension_er=50000,
+                paye=100000, prsi_ee=20000, usc=15000,
+                pension_ee_ytd=ytd - ytd // 6, avc_ytd=ytd // 6, pension_er_ytd=ytd - ytd // 6)
+    base.update(extra)
+    return run_spec(month, source, stated_net=305000, **base)
+
+
+AGGREGATE_SCENARIOS = {
+    "january compares with zero and february with january": [
+        _monthly("2026-01", "2026-01 pay.pdf", 60000),
+        _monthly("2026-02", "2026-02 pay.pdf", 120000),
+    ],
+    "a bonus run joins its month": [
+        _monthly("2026-01", "2026-01 pay.pdf", 60000),
+        _monthly("2026-02", "2026-02 pay.pdf", 120000),
+        run_spec("2026-02", "2026-02 bonus.pdf", bonus=200000, paye=80000,
+                 pension_ee_ytd=100000, avc_ytd=20000),
+    ],
+    "a missing month still compares with the latest earlier one": [
+        _monthly("2026-02", "2026-02 pay.pdf", 120000),
+        _monthly("2026-04", "2026-04 pay.pdf", 180000),
+    ],
+    "a wrong year-to-date is flagged": [
+        _monthly("2026-01", "2026-01 pay.pdf", 60000),
+        _monthly("2026-02", "2026-02 pay.pdf", 150000),
+    ],
+    "a new employer restarts the count": [
+        _monthly("2026-06", "2026-06 pay.pdf", 360000),
+        _monthly("2026-07", "2026-07 new.pdf", 60000),
+    ],
+    "a new tax year starts from zero": [
+        _monthly("2025-12", "2025-12 pay.pdf", 720000),
+        _monthly("2026-01", "2026-01 pay.pdf", 60000),
+    ],
+    "a net that differs from the payslip is flagged": [
+        run_spec("2026-03", "2026-03 pay.pdf", stated_net=305100,
+                 salary=500000, pension_ee=50000, avc=10000, pension_er=50000,
+                 paye=100000, prsi_ee=20000, usc=15000,
+                 pension_ee_ytd=50000, avc_ytd=10000, pension_er_ytd=50000),
+    ],
+    "adjustments and deductions reach net": [
+        run_spec("2026-05", "2026-05 pay.pdf", stated_net=302500,
+                 salary=500000, reimbursements=4000, non_taxable_adj=2500, misc_deductions=9000,
+                 pension_ee=50000, avc=10000, pension_er=50000,
+                 paye=100000, prsi_ee=20000, usc=15000,
+                 pension_ee_ytd=50000, avc_ytd=10000, pension_er_ytd=50000),
+    ],
+}
+
+
+def run_aggregate(specs: list) -> list:
+    runs = []
+    for s in specs:
+        run = PayslipRun(month=s["month"], source_file=s["sourceFile"])
+        for field, cents in s["cents"].items():
+            setattr(run, field, cents / 100)
+        run.stated_net = None if s["statedNet"] is None else s["statedNet"] / 100
+        runs.append(run)
+    df = aggregate_runs(runs)
+    return [
+        {
+            "month": row.Month,
+            "grossCents": to_cents(row.Gross),
+            "netCents": to_cents(row.Net),
+            "taxTotalCents": to_cents(row.TaxTotal),
+            "pensionEeCents": to_cents(row.PensionEE),
+            "avcCents": to_cents(row.AVC),
+            "pensionErCents": to_cents(row.PensionER),
+            "bonusCents": to_cents(row.Bonus),
+            "onCallCents": to_cents(row.OnCall),
+            "sourceFiles": sorted(row.SourceFiles.split(", ")),
+            "netReconciled": bool(row.NetReconciled),
+            "ytdReconciled": bool(row.YTDReconciled),
+        }
+        for row in df.itertuples()
+    ]
+
+
+SAVINGS_TXNS = [
+    ("2025-10-05", 4000.0, "income"), ("2025-10-09", 1200.5, "expense"),
+    ("2025-12-15", 4000.0, "income"),
+    ("2026-01-15", 5000.0, "income"), ("2026-01-20", 3000.0, "expense"),
+    ("2026-02-15", 5000.0, "income"), ("2026-02-18", 3500.25, "expense"),
+    ("2026-03-10", 200.0, "expense"),
+]
+SAVINGS_PAYSLIPS = [
+    ("2025-10", 600.0, 100.0, 600.0, True), ("2025-12", 600.0, 100.0, 600.0, True),
+    ("2026-01", 600.0, 100.0, 600.0, True), ("2026-02", 600.0, 0.0, 600.0, False),
+    ("2026-03", 600.0, 100.0, 650.5, True), ("2026-05", 600.0, 100.0, 600.0, True),
+]
+SAVINGS_CASES = [(2026, None), (2026, 1), (2026, 2), (2026, 4), (2026, 5), (2025, None), (2024, None)]
+
+
+def run_savings(year: int, month) -> dict | None:
+    tx = pd.DataFrame(SAVINGS_TXNS, columns=["Date", "Amount", "Type"])
+    tx["Date"] = pd.to_datetime(tx["Date"])
+    ps = pd.DataFrame(SAVINGS_PAYSLIPS, columns=["Month", "PensionEE", "AVC", "PensionER", "YTDReconciled"])
+    ps["Owner"] = "self"
+    r = get_enhanced_savings_totals(tx, ps, year, month)
+    if r is None:
+        return None
+    return {
+        "pensionCents": to_cents(r["pension_saved"]),
+        "savedCents": to_cents(r["enhanced_saved"]),
+        "incomeCents": to_cents(r["income_with_pension"]),
+        "rate": float(r["rate_with_pension"]),
+        "months": [int(m) for m in r["months_covered"]],
+        "coverageLabel": r["coverage_label"],
+        "reconciled": bool(r["reconciled"]),
+    }
+
+
 def build() -> dict:
     stored_cents = (
         clean_amount(pd.Series(AMOUNTS)).round(2).apply(to_cents).tolist()
@@ -750,6 +889,21 @@ def build() -> dict:
                 {"name": name, **spec, "expected": run_import_scenario(spec)}
                 for name, spec in IMPORT_ROW_SCENARIOS.items()
             ],
+        },
+        "payslips": {
+            "aggregate": [
+                {"name": name, "runs": specs, "expected": run_aggregate(specs)}
+                for name, specs in AGGREGATE_SCENARIOS.items()
+            ],
+            "savings": {
+                "transactions": [[d, to_cents(a), t] for d, a, t in SAVINGS_TXNS],
+                "payslips": [[m, to_cents(ee), to_cents(avc), to_cents(er), ok]
+                             for m, ee, avc, er, ok in SAVINGS_PAYSLIPS],
+                "cases": [{"year": y, "month": m, "expected": run_savings(y, m)} for y, m in SAVINGS_CASES],
+            },
+            "coverageLabels": [[ms, _coverage_label(ms)] for ms in (
+                [], [3], [1, 2, 3, 4, 5, 6, 7, 8, 9], [9, 10, 11, 12], [1, 3], [2, 3, 5],
+            )],
         },
     }
 

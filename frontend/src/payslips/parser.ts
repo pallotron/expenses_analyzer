@@ -10,6 +10,11 @@
  * arithmetic is exact and those rounds disappear.
  */
 
+import type { RunParts } from "../../../worker/src/api/payslips";
+import { deriveRun, monthFromFilename } from "../../../worker/src/domain/payslips";
+
+export { monthFromFilename };
+
 /** A two-decimal number, optionally negative, with thousands separators. */
 const AMOUNT = /-?\d[\d,]*\.\d{2}/g;
 
@@ -60,13 +65,25 @@ export class PayslipRun {
     this.sourceFile = sourceFile;
   }
 
+  /** The parsed figures, as the import request sends them. */
+  toParts(): RunParts {
+    return {
+      salaryCents: this.salary, bonusCents: this.bonus, onCallCents: this.oncall,
+      reimbursementsCents: this.reimbursements, nonTaxableAdjCents: this.nonTaxableAdj,
+      miscDeductionsCents: this.miscDeductions, pensionEeCents: this.pensionEe, avcCents: this.avc,
+      pensionErCents: this.pensionEr, payeCents: this.paye, prsiEeCents: this.prsiEe, uscCents: this.usc,
+      pensionEeYtdCents: this.pensionEeYtd, avcYtdCents: this.avcYtd, pensionErYtdCents: this.pensionErYtd,
+      statedNetCents: this.statedNet,
+    };
+  }
+
   /** Cash earnings; excludes notional BIK and non-taxable adjustments. */
   get gross(): number {
-    return this.salary + this.bonus + this.oncall + this.reimbursements;
+    return deriveRun(this.toParts()).grossCents;
   }
 
   get taxTotal(): number {
-    return this.paye + this.prsiEe + this.usc;
+    return deriveRun(this.toParts()).taxTotalCents;
   }
 
   get dedsFromGross(): number {
@@ -75,13 +92,7 @@ export class PayslipRun {
 
   /** Take-home pay, mirroring the payslip's own NETT PAY arithmetic. */
   get net(): number {
-    return (
-      this.gross -
-      this.dedsFromGross -
-      this.taxTotal -
-      this.miscDeductions +
-      this.nonTaxableAdj
-    );
+    return deriveRun(this.toParts()).netCents;
   }
 
   /**
@@ -93,8 +104,7 @@ export class PayslipRun {
    * when the payslip states no net, since there is nothing to check.
    */
   get netReconciled(): boolean {
-    if (this.statedNet === null) return true;
-    return Math.abs(this.net - this.statedNet) < 1;
+    return deriveRun(this.toParts()).netReconciled;
   }
 }
 
@@ -324,21 +334,4 @@ export function parseLines(
 
   if (!(sawPension && sawTax)) return null;
   return run;
-}
-
-/**
- * Constrained to a real year and month so an unrelated digit run in a filename
- * cannot be mistaken for a date.
- */
-const MONTH_RE = /((?:19|20)\d{2}-(?:0[1-9]|1[0-2]))/;
-
-/**
- * A YYYY-MM from anywhere in a payslip filename, or null.
- *
- * Not anchored to the start: a folder from a different employer may prefix its
- * payslips with a word, and those files still carry a usable month.
- */
-export function monthFromFilename(name: string): string | null {
-  const base = name.split("/").pop() ?? name;
-  return MONTH_RE.exec(base)?.[1] ?? null;
 }

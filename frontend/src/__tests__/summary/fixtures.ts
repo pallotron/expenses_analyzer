@@ -31,6 +31,7 @@ export function summary(overrides: Partial<SummaryResponse> = {}): SummaryRespon
       income: emptyGrid,
     },
     monthAverage: null,
+    pension: null,
     hiddenCents: 124_000,
     hiddenIncomeCents: 0,
     excludedPatterns: ["emergency"],

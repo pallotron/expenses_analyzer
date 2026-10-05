@@ -209,6 +209,15 @@ describe("parseLines", () => {
     expect(run.month).toBe("2026-07");
     expect(run.sourceFile).toBe("2026-07.pdf");
   });
+
+  it("hands the import every parsed figure, in cents", () => {
+    const run = parseLines(JULY_LINES, "2026-07", "july.pdf")!;
+    const parts = run.toParts();
+    expect(parts.pensionEeCents).toBe(run.pensionEe);
+    expect(parts.pensionEeYtdCents).toBe(run.pensionEeYtd);
+    expect(parts.statedNetCents).toBe(run.statedNet);
+    expect(Object.keys(parts)).toHaveLength(16);
+  });
 });
 
 describe("netReconciled", () => {

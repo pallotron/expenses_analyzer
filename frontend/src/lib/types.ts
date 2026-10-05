@@ -1,6 +1,6 @@
 /** The Worker's API types, shared rather than copied, so the two cannot drift. */
 export type {
-  CategoryItem, Grid, GridCell, GridRow, HiddenTagsBody, Trend, MerchantItem, MonthTotals, PeriodsResponse, SummaryResponse,
+  CategoryItem, Grid, GridCell, GridRow, HiddenTagsBody, Trend, MerchantItem, MonthTotals, PeriodsResponse, PensionSummary, SummaryResponse,
 } from "../../../worker/src/api/summary";
 export { averageCents, monthTrends } from "../../../worker/src/api/summary";
 
@@ -33,3 +33,9 @@ export type {
   BudgetCategory, BudgetRequest, BudgetTypesResponse, CategoryTypeRequest, SpendingKind,
 } from "../../../worker/src/api/budgetTypes";
 export { MAX_BUDGET_CENTS } from "../../../worker/src/api/budgetTypes";
+export type {
+  PayslipImportRequest, PayslipImportResponse, PayslipMonthRow, PayslipPerson, PayslipRemoveRequest,
+  PayslipRemoveResponse, PayslipRunInput, PayslipRunRow, PayslipsResponse, RunParts, SourceOwnerRequest,
+  SourceOwnersResponse,
+} from "../../../worker/src/api/payslips";
+export { MAX_PAYSLIP_FILES } from "../../../worker/src/api/payslips";

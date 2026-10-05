@@ -47,10 +47,10 @@ export function TopBar(props: { hostname?: string }) {
       {/* On a phone the links get their own row, so none is cut off. */}
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-4 text-sm sm:flex-nowrap sm:py-5">
         <span className="flex shrink-0 items-center gap-3 text-lg font-semibold"><Logo size={32} /><span>Expenses</span></span>
-        <span className="order-last flex min-w-0 basis-full items-center gap-3 overflow-x-auto sm:gap-4 whitespace-nowrap sm:order-none sm:mr-auto sm:basis-auto">
-          {([["/", "Summary"], ["/transactions", "Transactions"], ["/merchants", "Merchants"], ["/import", "Import"], ["/budgets", "Budgets"]] as const).map(([to, label]) => (
+        <span className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap sm:gap-x-4 sm:order-none sm:mr-auto sm:basis-auto">
+          {([["/", "Summary"], ["/transactions", "Transactions"], ["/merchants", "Merchants"], ["/import", "Import"], ["/accounts", "Accounts"], ["/payslips", "Payslips"], ["/budgets", "Budgets"]] as const).map(([to, label]) => (
             <NavLink key={to} to={to} end={to === "/"}
-              className={({ isActive }) => (isActive ? "font-semibold underline" : "text-slate-600 dark:text-slate-400")}>
+              className={({ isActive }) => `whitespace-nowrap ${isActive ? "font-semibold underline" : "text-slate-600 dark:text-slate-400"}`}>
               {label}
             </NavLink>
           ))}

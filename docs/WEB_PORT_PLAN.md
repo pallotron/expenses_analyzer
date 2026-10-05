@@ -142,7 +142,7 @@ Each line is a TUI feature, where it lives, and what the web does with it.
 **Order**, one PR each unless noted: Transactions (read) → Transactions
 (edit) → Summary drill-down + hidden-tag editor (done) → Merchants page (done) +
 Gemini (done) →
-Import (done) → Budget types (done) → Payslips → Link Banks (step 3) → PDF (step 4).
+Import (done) → Budget types (done) → Payslips (done) → Link Banks (step 3) → PDF (step 4).
 
 #### Summary (`summary_screen.py`) — core done in PR #30
 
@@ -159,9 +159,9 @@ Import (done) → Budget types (done) → Payslips → Link Banks (step 3) → P
   (`ns:*` rows, tags in use, stale patterns); `POST
   /api/summary/hidden-tags` replaces the list, and a save turns the
   exclusion back on.
-- Pension-aware savings rate (`get_enhanced_savings_totals`) and the
-  payslip-only month note (`_coverage_label`). Needs payslips in D1, so it
-  lands with or after Payslips.
+- ~~Pension-aware savings rate (`get_enhanced_savings_totals`)~~ Done with
+  Payslips, on the Savings rate tile. The payslip-only month note is dropped:
+  the period picker is built from transactions, so such a month can't be chosen.
 - Compact mode (`ctrl+m`), focus mode (`f`): **dropped**, the responsive
   layout replaces them.
 - Export PDF (`e`): step 4.
@@ -288,8 +288,15 @@ sent, as today.
 
 #### Payslips (`y`, `payslips_screen.py`)
 
-- Owners (people), import payslip PDFs, preview, save. The parser is already
-  ported (`frontend/src/payslips/`). Folders become a multi-file picker.
+- ~~Owners (people), import payslip PDFs, preview, save. The parser is already
+  ported (`frontend/src/payslips/`). Folders become a multi-file picker.~~
+  Done: `/payslips`. PDFs (or a dropped folder) are read in the browser, one
+  `payslip_runs` row per file, and the `payslips` month rows are rebuilt from
+  them, so a later bonus PDF joins its month and a re-import replaces its file.
+  An `/accounts` page says whose account each source is, and the Summary shows
+  the savings rate with pension for the owners of the selected sources. Text
+  is read in the PDF's own order, as pypdf did; checked against both people's
+  real payslips. A Dropbox button is a possible follow-up.
 
 Payslips are parsed **client-side** with pdf.js and only the parsed numbers are
 POSTed. A Worker has no filesystem, so the folder scanner cannot survive — and

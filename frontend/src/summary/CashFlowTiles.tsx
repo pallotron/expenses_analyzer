@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatCents, formatPercent, savingsRate } from "../lib/money";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 import type { SummaryResponse } from "../lib/types";
@@ -12,10 +13,40 @@ function versusAverage(cents: number, average: number, higherIsBetter: boolean) 
   return { text: `${higher ? "▲" : "▼"} vs avg ${formatCents(average)}`, tone: higher === higherIsBetter ? GOOD : BAD };
 }
 
+const UNRECONCILED = "A payslip's year-to-date pension does not add up for one of these months; check it on the Payslips page";
+
+/**
+ * "X% with pension · Jan–Mar", under the plain rate. Its meaning is on hover
+ * and in hidden text for screen readers; the ⚠, when there is one, is a
+ * button so a tap (no hover on a phone) shows why.
+ */
+function PensionLine(props: { pension: NonNullable<SummaryResponse["pension"]> }) {
+  const { pension } = props;
+  const [open, setOpen] = useState(false);
+  const meaning = `Adds ${formatCents(pension.pensionCents)} of pension (${pension.people.join(" and ")}) to what was saved and to income`;
+  return (
+    <>
+      <div className={`mt-0.5 text-xs ${pension.rate >= 0 ? GOOD : BAD}`}>
+        <span title={pension.reconciled ? meaning : UNRECONCILED}>
+          {`${formatPercent(pension.rate)} with pension · ${pension.coverageLabel}`}
+        </span>
+        <span className="sr-only">{meaning}</span>
+        {!pension.reconciled && (
+          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
+            aria-label="Year-to-date pension does not add up: why" className="ml-1 text-amber-600 dark:text-amber-400">⚠</button>
+        )}
+      </div>
+      {open && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{UNRECONCILED}</p>}
+    </>
+  );
+}
+
 export function CashFlowTiles(props: {
   cashFlow: SummaryResponse["cashFlow"];
   /** Month view only: what a typical earlier month looked like. */
   monthAverage: SummaryResponse["monthAverage"];
+  /** Savings rate with pension; null hides the line. */
+  pension: SummaryResponse["pension"];
 }) {
   const compact = !useMediaQuery(DESKTOP);
   const { incomeCents, expensesCents } = props.cashFlow;
@@ -28,7 +59,8 @@ export function CashFlowTiles(props: {
     { label: "Expenses", value: formatCents(expensesCents, { compact }), tone: "text-expense",
       versus: avg && versusAverage(expensesCents, avg.expensesCents, false) },
     { label: "Net", value: formatCents(net, { compact }), tone: net >= 0 ? GOOD : BAD, versus: null },
-    { label: "Savings rate", value: formatPercent(rate), tone: rate === null ? "" : rate >= 0 ? GOOD : BAD, versus: null },
+    { label: "Savings rate", value: formatPercent(rate), tone: rate === null ? "" : rate >= 0 ? GOOD : BAD,
+      versus: null, below: props.pension && <PensionLine pension={props.pension} /> },
   ];
   return (
     <section aria-label="Cash flow" className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -37,6 +69,7 @@ export function CashFlowTiles(props: {
           <div className="text-xs uppercase tracking-wide text-slate-500">{t.label}</div>
           <div className={`mt-1 text-xl font-semibold md:text-2xl ${t.tone}`}>{t.value}</div>
           {t.versus && <div className={`mt-0.5 text-xs ${t.versus.tone || "text-slate-500"}`}>{t.versus.text}</div>}
+          {"below" in t && t.below}
         </div>
       ))}
     </section>

@@ -43,7 +43,16 @@ describe("TopBar", () => {
     expect(screen.getByRole("link", { name: "Summary" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Merchants" })).toHaveAttribute("href", "/merchants");
+    expect(screen.getByRole("link", { name: "Payslips" })).toHaveAttribute("href", "/payslips");
     expect(screen.getByRole("link", { name: "Budgets" })).toHaveAttribute("href", "/budgets");
+    expect(screen.getByRole("link", { name: "Accounts" })).toHaveAttribute("href", "/accounts");
+  });
+
+  it("wraps the links onto another line on a phone instead of scrolling", () => {
+    renderBar("expenses.example.com");
+    const row = screen.getByRole("link", { name: "Summary" }).parentElement!;
+    expect(row).toHaveClass("flex-wrap");
+    expect(row).not.toHaveClass("overflow-x-auto");
   });
 
   it("publishes the measured bar height as --topbar-h", () => {

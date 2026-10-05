@@ -12,40 +12,52 @@
  */
 import * as pdfjs from "pdfjs-dist";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
-import { monthFromFilename, parseLines, type PayslipRun } from "./parser";
+import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { PayslipDecryptError } from "./payslipFile";
 
-/** Raised when an encrypted payslip cannot be opened with the given password. */
-export class PayslipDecryptError extends Error {}
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+export { PayslipDecryptError, parsePayslip, type LineExtractor } from "./payslipFile";
 
 /**
- * pdf.js splits a line into several text items and reports each one's
- * position. Items sharing a baseline belong to the same visual line, which is
- * what the parser's label-then-amounts logic assumes; without regrouping them
- * every amount would arrive on a line of its own.
+ * Text items in the PDF's own (content-stream) order, starting a new line
+ * whenever the baseline moves or pdf.js marks an end of line. This mirrors
+ * how pypdf extracted text for the Python app, which is what the parser's
+ * label-then-amounts logic and its NOTE summary block assume. Grouping by
+ * baseline across the whole page instead merges separate columns into one
+ * line ("... PRSI Code A1 + Gross Pay ..."), which the parser misreads.
  */
-function groupItemsIntoLines(items: TextItem[]): string[] {
-  const rows = new Map<number, TextItem[]>();
+export function groupItemsIntoLines(items: TextItem[]): string[] {
+  const lines: string[] = [];
+  let current: string[] = [];
+  let baseline: number | null = null;
+  const flush = () => {
+    const line = current.join(" ").replace(/\s+/g, " ").trim();
+    if (line) lines.push(line);
+    current = [];
+  };
   for (const item of items) {
-    if (!item.str.trim()) continue;
-    // transform[5] is the y translation. Round to absorb sub-pixel drift
-    // between items that are visually on one line.
-    const y = Math.round(item.transform[5]);
-    const row = rows.get(y);
-    if (row) row.push(item);
-    else rows.set(y, [item]);
+    const y = item.transform[5];
+    // Sub-pixel drift between items on one visual line is not a new line.
+    if (baseline !== null && Math.abs(y - baseline) > 1) flush();
+    if (item.str.trim()) current.push(item.str.trim());
+    baseline = y;
+    if (item.hasEOL) flush();
   }
+  flush();
+  return lines;
+}
 
-  return [...rows.entries()]
-    .sort(([a], [b]) => b - a) // top of the page downwards
-    .map(([, row]) =>
-      row
-        .sort((a, b) => a.transform[4] - b.transform[4]) // left to right
-        .map((item) => item.str.trim())
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim(),
-    )
-    .filter((line) => line.length > 0);
+/**
+ * One worker for every parse. Without it pdf.js starts a worker per
+ * getDocument call, and a folder of payslips (plus a re-read per password
+ * typed) would leave dozens running. Created on first use, so importing this
+ * module starts nothing.
+ */
+let shared: pdfjs.PDFWorker | null = null;
+function sharedWorker(): pdfjs.PDFWorker {
+  if (!shared || shared.destroyed) shared = new pdfjs.PDFWorker();
+  return shared;
 }
 
 /** Extract text lines from a (possibly encrypted) PDF. */
@@ -53,50 +65,37 @@ export async function extractTextLines(
   data: ArrayBuffer,
   password?: string,
 ): Promise<string[]> {
-  let document;
+  // The worker is passed in, so destroying the task closes this document
+  // only and leaves the shared worker running.
+  const task = pdfjs.getDocument({ data, password, worker: sharedWorker() });
   try {
-    document = await pdfjs.getDocument({ data, password }).promise;
-  } catch (error) {
-    const name = (error as { name?: string }).name;
-    if (name === "PasswordException") {
-      throw new PayslipDecryptError(
-        password
-          ? "Wrong password for this payslip"
-          : "This payslip is encrypted but no password was provided",
+    let document;
+    try {
+      document = await task.promise;
+    } catch (error) {
+      const name = (error as { name?: string }).name;
+      if (name === "PasswordException") {
+        throw new PayslipDecryptError(
+          password
+            ? "Wrong password for this payslip"
+            : "This payslip is encrypted but no password was provided",
+        );
+      }
+      throw error;
+    }
+
+    const lines: string[] = [];
+    for (let page = 1; page <= document.numPages; page += 1) {
+      const content = await (await document.getPage(page)).getTextContent();
+      lines.push(
+        ...groupItemsIntoLines(
+          content.items.filter((item): item is TextItem => "str" in item),
+        ),
       );
     }
-    throw error;
+    return lines;
+  } finally {
+    // A failed clean-up must not hide the parse's own result or error.
+    await task.destroy().catch(() => {});
   }
-
-  const lines: string[] = [];
-  for (let page = 1; page <= document.numPages; page += 1) {
-    const content = await (await document.getPage(page)).getTextContent();
-    lines.push(
-      ...groupItemsIntoLines(
-        content.items.filter((item): item is TextItem => "str" in item),
-      ),
-    );
-  }
-  return lines;
-}
-
-/** Swappable so parsePayslip can be tested without a PDF fixture. */
-export type LineExtractor = (
-  data: ArrayBuffer,
-  password?: string,
-) => Promise<string[]>;
-
-/**
- * Parse a single payslip PDF into a PayslipRun, or null if the month cannot be
- * derived from the filename or the layout is not recognised.
- */
-export async function parsePayslip(
-  file: File,
-  password?: string,
-  extractor: LineExtractor = extractTextLines,
-): Promise<PayslipRun | null> {
-  const month = monthFromFilename(file.name);
-  if (month === null) return null;
-  const lines = await extractor(await file.arrayBuffer(), password);
-  return parseLines(lines, month, file.name);
 }

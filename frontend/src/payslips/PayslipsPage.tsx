@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { getJson } from "../lib/api";
 import { isImportable } from "./fileList";
+import { AccountsSection } from "./AccountsSection";
 import { PayslipFileRow } from "./PayslipFileRow";
 import { forgetPassword, loadPassword, savePassword } from "./passwords";
 import type { PayslipRun } from "./parser";
@@ -115,6 +116,8 @@ export function PayslipsPage(props: { extractor?: LineExtractor }) {
         <h2 id="saved-payslips" className="font-semibold">Saved payslips: {person.name}</h2>
         <SavedPayslips person={person} />
       </section>
+
+      <AccountsSection />
     </main>
   );
 }

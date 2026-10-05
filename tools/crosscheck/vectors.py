@@ -44,6 +44,7 @@ from expenses.data_handler import (
 from expenses.payslip_handler import aggregate_runs
 from expenses.payslip_parser import PayslipRun
 from expenses.merchant_editor import pattern_claiming, preview_alias_change
+from expenses.analysis import _coverage_label, get_enhanced_savings_totals
 from expenses.screens.summary_screen import SummaryScreen
 from expenses.screens.import_screen import ImportScreen
 from expenses.transaction_filter import apply_filters
@@ -775,6 +776,40 @@ def run_aggregate(specs: list) -> list:
     ]
 
 
+SAVINGS_TXNS = [
+    ("2025-10-05", 4000.0, "income"), ("2025-10-09", 1200.5, "expense"),
+    ("2025-12-15", 4000.0, "income"),
+    ("2026-01-15", 5000.0, "income"), ("2026-01-20", 3000.0, "expense"),
+    ("2026-02-15", 5000.0, "income"), ("2026-02-18", 3500.25, "expense"),
+    ("2026-03-10", 200.0, "expense"),
+]
+SAVINGS_PAYSLIPS = [
+    ("2025-10", 600.0, 100.0, 600.0, True), ("2025-12", 600.0, 100.0, 600.0, True),
+    ("2026-01", 600.0, 100.0, 600.0, True), ("2026-02", 600.0, 0.0, 600.0, False),
+    ("2026-03", 600.0, 100.0, 650.5, True), ("2026-05", 600.0, 100.0, 600.0, True),
+]
+SAVINGS_CASES = [(2026, None), (2026, 1), (2026, 2), (2026, 4), (2026, 5), (2025, None), (2024, None)]
+
+
+def run_savings(year: int, month) -> dict | None:
+    tx = pd.DataFrame(SAVINGS_TXNS, columns=["Date", "Amount", "Type"])
+    tx["Date"] = pd.to_datetime(tx["Date"])
+    ps = pd.DataFrame(SAVINGS_PAYSLIPS, columns=["Month", "PensionEE", "AVC", "PensionER", "YTDReconciled"])
+    ps["Owner"] = "self"
+    r = get_enhanced_savings_totals(tx, ps, year, month)
+    if r is None:
+        return None
+    return {
+        "pensionCents": to_cents(r["pension_saved"]),
+        "savedCents": to_cents(r["enhanced_saved"]),
+        "incomeCents": to_cents(r["income_with_pension"]),
+        "rate": float(r["rate_with_pension"]),
+        "months": [int(m) for m in r["months_covered"]],
+        "coverageLabel": r["coverage_label"],
+        "reconciled": bool(r["reconciled"]),
+    }
+
+
 def build() -> dict:
     stored_cents = (
         clean_amount(pd.Series(AMOUNTS)).round(2).apply(to_cents).tolist()
@@ -860,6 +895,15 @@ def build() -> dict:
                 {"name": name, "runs": specs, "expected": run_aggregate(specs)}
                 for name, specs in AGGREGATE_SCENARIOS.items()
             ],
+            "savings": {
+                "transactions": [[d, to_cents(a), t] for d, a, t in SAVINGS_TXNS],
+                "payslips": [[m, to_cents(ee), to_cents(avc), to_cents(er), ok]
+                             for m, ee, avc, er, ok in SAVINGS_PAYSLIPS],
+                "cases": [{"year": y, "month": m, "expected": run_savings(y, m)} for y, m in SAVINGS_CASES],
+            },
+            "coverageLabels": [[ms, _coverage_label(ms)] for ms in (
+                [], [3], [1, 2, 3, 4, 5, 6, 7, 8, 9], [9, 10, 11, 12], [1, 3], [2, 3, 5],
+            )],
         },
     }
 

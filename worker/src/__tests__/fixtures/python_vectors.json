@@ -4675,6 +4675,224 @@
           }
         ]
       }
+    ],
+    "savings": {
+      "transactions": [
+        [
+          "2025-10-05",
+          400000,
+          "income"
+        ],
+        [
+          "2025-10-09",
+          120050,
+          "expense"
+        ],
+        [
+          "2025-12-15",
+          400000,
+          "income"
+        ],
+        [
+          "2026-01-15",
+          500000,
+          "income"
+        ],
+        [
+          "2026-01-20",
+          300000,
+          "expense"
+        ],
+        [
+          "2026-02-15",
+          500000,
+          "income"
+        ],
+        [
+          "2026-02-18",
+          350025,
+          "expense"
+        ],
+        [
+          "2026-03-10",
+          20000,
+          "expense"
+        ]
+      ],
+      "payslips": [
+        [
+          "2025-10",
+          60000,
+          10000,
+          60000,
+          true
+        ],
+        [
+          "2025-12",
+          60000,
+          10000,
+          60000,
+          true
+        ],
+        [
+          "2026-01",
+          60000,
+          10000,
+          60000,
+          true
+        ],
+        [
+          "2026-02",
+          60000,
+          0,
+          60000,
+          false
+        ],
+        [
+          "2026-03",
+          60000,
+          10000,
+          65050,
+          true
+        ],
+        [
+          "2026-05",
+          60000,
+          10000,
+          60000,
+          true
+        ]
+      ],
+      "cases": [
+        {
+          "year": 2026,
+          "month": null,
+          "expected": {
+            "pensionCents": 385050,
+            "savedCents": 715025,
+            "incomeCents": 1385050,
+            "rate": 51.62449009061044,
+            "months": [
+              1,
+              2,
+              3
+            ],
+            "coverageLabel": "Jan–Mar",
+            "reconciled": false
+          }
+        },
+        {
+          "year": 2026,
+          "month": 1,
+          "expected": {
+            "pensionCents": 130000,
+            "savedCents": 330000,
+            "incomeCents": 630000,
+            "rate": 52.38095238095239,
+            "months": [
+              1
+            ],
+            "coverageLabel": "Jan",
+            "reconciled": true
+          }
+        },
+        {
+          "year": 2026,
+          "month": 2,
+          "expected": {
+            "pensionCents": 120000,
+            "savedCents": 269975,
+            "incomeCents": 620000,
+            "rate": 43.54435483870967,
+            "months": [
+              2
+            ],
+            "coverageLabel": "Feb",
+            "reconciled": false
+          }
+        },
+        {
+          "year": 2026,
+          "month": 4,
+          "expected": null
+        },
+        {
+          "year": 2026,
+          "month": 5,
+          "expected": null
+        },
+        {
+          "year": 2025,
+          "month": null,
+          "expected": {
+            "pensionCents": 260000,
+            "savedCents": 939950,
+            "incomeCents": 1060000,
+            "rate": 88.6745283018868,
+            "months": [
+              10,
+              12
+            ],
+            "coverageLabel": "2 mo",
+            "reconciled": true
+          }
+        },
+        {
+          "year": 2024,
+          "month": null,
+          "expected": null
+        }
+      ]
+    },
+    "coverageLabels": [
+      [
+        [],
+        ""
+      ],
+      [
+        [
+          3
+        ],
+        "Mar"
+      ],
+      [
+        [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "Jan–Sep"
+      ],
+      [
+        [
+          9,
+          10,
+          11,
+          12
+        ],
+        "Sep–Dec"
+      ],
+      [
+        [
+          1,
+          3
+        ],
+        "2 mo"
+      ],
+      [
+        [
+          2,
+          3,
+          5
+        ],
+        "3 mo"
+      ]
     ]
   }
 }

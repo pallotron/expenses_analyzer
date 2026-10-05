@@ -4061,5 +4061,620 @@
         ]
       }
     ]
+  },
+  "payslips": {
+    "aggregate": [
+      {
+        "name": "january compares with zero and february with january",
+        "runs": [
+          {
+            "month": "2026-01",
+            "sourceFile": "2026-01 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 50000,
+              "avc_ytd": 10000,
+              "pension_er_ytd": 50000
+            },
+            "statedNet": 305000
+          },
+          {
+            "month": "2026-02",
+            "sourceFile": "2026-02 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 100000,
+              "avc_ytd": 20000,
+              "pension_er_ytd": 100000
+            },
+            "statedNet": 305000
+          }
+        ],
+        "expected": [
+          {
+            "month": "2026-01",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-01 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": true
+          },
+          {
+            "month": "2026-02",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-02 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": true
+          }
+        ]
+      },
+      {
+        "name": "a bonus run joins its month",
+        "runs": [
+          {
+            "month": "2026-01",
+            "sourceFile": "2026-01 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 50000,
+              "avc_ytd": 10000,
+              "pension_er_ytd": 50000
+            },
+            "statedNet": 305000
+          },
+          {
+            "month": "2026-02",
+            "sourceFile": "2026-02 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 100000,
+              "avc_ytd": 20000,
+              "pension_er_ytd": 100000
+            },
+            "statedNet": 305000
+          },
+          {
+            "month": "2026-02",
+            "sourceFile": "2026-02 bonus.pdf",
+            "cents": {
+              "salary": 0,
+              "bonus": 200000,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 0,
+              "avc": 0,
+              "pension_er": 0,
+              "paye": 80000,
+              "prsi_ee": 0,
+              "usc": 0,
+              "pension_ee_ytd": 100000,
+              "avc_ytd": 20000,
+              "pension_er_ytd": 0
+            },
+            "statedNet": null
+          }
+        ],
+        "expected": [
+          {
+            "month": "2026-01",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-01 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": true
+          },
+          {
+            "month": "2026-02",
+            "grossCents": 700000,
+            "netCents": 425000,
+            "taxTotalCents": 215000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 200000,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-02 bonus.pdf",
+              "2026-02 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": true
+          }
+        ]
+      },
+      {
+        "name": "a missing month still compares with the latest earlier one",
+        "runs": [
+          {
+            "month": "2026-02",
+            "sourceFile": "2026-02 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 100000,
+              "avc_ytd": 20000,
+              "pension_er_ytd": 100000
+            },
+            "statedNet": 305000
+          },
+          {
+            "month": "2026-04",
+            "sourceFile": "2026-04 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 150000,
+              "avc_ytd": 30000,
+              "pension_er_ytd": 150000
+            },
+            "statedNet": 305000
+          }
+        ],
+        "expected": [
+          {
+            "month": "2026-02",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-02 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": false
+          },
+          {
+            "month": "2026-04",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-04 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": true
+          }
+        ]
+      },
+      {
+        "name": "a wrong year-to-date is flagged",
+        "runs": [
+          {
+            "month": "2026-01",
+            "sourceFile": "2026-01 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 50000,
+              "avc_ytd": 10000,
+              "pension_er_ytd": 50000
+            },
+            "statedNet": 305000
+          },
+          {
+            "month": "2026-02",
+            "sourceFile": "2026-02 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 125000,
+              "avc_ytd": 25000,
+              "pension_er_ytd": 125000
+            },
+            "statedNet": 305000
+          }
+        ],
+        "expected": [
+          {
+            "month": "2026-01",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-01 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": true
+          },
+          {
+            "month": "2026-02",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-02 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": false
+          }
+        ]
+      },
+      {
+        "name": "a new employer restarts the count",
+        "runs": [
+          {
+            "month": "2026-06",
+            "sourceFile": "2026-06 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 300000,
+              "avc_ytd": 60000,
+              "pension_er_ytd": 300000
+            },
+            "statedNet": 305000
+          },
+          {
+            "month": "2026-07",
+            "sourceFile": "2026-07 new.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 50000,
+              "avc_ytd": 10000,
+              "pension_er_ytd": 50000
+            },
+            "statedNet": 305000
+          }
+        ],
+        "expected": [
+          {
+            "month": "2026-06",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-06 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": false
+          },
+          {
+            "month": "2026-07",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-07 new.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": true
+          }
+        ]
+      },
+      {
+        "name": "a new tax year starts from zero",
+        "runs": [
+          {
+            "month": "2025-12",
+            "sourceFile": "2025-12 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 600000,
+              "avc_ytd": 120000,
+              "pension_er_ytd": 600000
+            },
+            "statedNet": 305000
+          },
+          {
+            "month": "2026-01",
+            "sourceFile": "2026-01 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 50000,
+              "avc_ytd": 10000,
+              "pension_er_ytd": 50000
+            },
+            "statedNet": 305000
+          }
+        ],
+        "expected": [
+          {
+            "month": "2025-12",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2025-12 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": false
+          },
+          {
+            "month": "2026-01",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-01 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": true
+          }
+        ]
+      },
+      {
+        "name": "a net that differs from the payslip is flagged",
+        "runs": [
+          {
+            "month": "2026-03",
+            "sourceFile": "2026-03 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 0,
+              "non_taxable_adj": 0,
+              "misc_deductions": 0,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 50000,
+              "avc_ytd": 10000,
+              "pension_er_ytd": 50000
+            },
+            "statedNet": 305100
+          }
+        ],
+        "expected": [
+          {
+            "month": "2026-03",
+            "grossCents": 500000,
+            "netCents": 305000,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-03 pay.pdf"
+            ],
+            "netReconciled": false,
+            "ytdReconciled": true
+          }
+        ]
+      },
+      {
+        "name": "adjustments and deductions reach net",
+        "runs": [
+          {
+            "month": "2026-05",
+            "sourceFile": "2026-05 pay.pdf",
+            "cents": {
+              "salary": 500000,
+              "bonus": 0,
+              "oncall": 0,
+              "reimbursements": 4000,
+              "non_taxable_adj": 2500,
+              "misc_deductions": 9000,
+              "pension_ee": 50000,
+              "avc": 10000,
+              "pension_er": 50000,
+              "paye": 100000,
+              "prsi_ee": 20000,
+              "usc": 15000,
+              "pension_ee_ytd": 50000,
+              "avc_ytd": 10000,
+              "pension_er_ytd": 50000
+            },
+            "statedNet": 302500
+          }
+        ],
+        "expected": [
+          {
+            "month": "2026-05",
+            "grossCents": 504000,
+            "netCents": 302500,
+            "taxTotalCents": 135000,
+            "pensionEeCents": 50000,
+            "avcCents": 10000,
+            "pensionErCents": 50000,
+            "bonusCents": 0,
+            "onCallCents": 0,
+            "sourceFiles": [
+              "2026-05 pay.pdf"
+            ],
+            "netReconciled": true,
+            "ytdReconciled": true
+          }
+        ]
+      }
+    ]
   }
 }

@@ -12,10 +12,12 @@
  */
 import * as pdfjs from "pdfjs-dist";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
-import { monthFromFilename, parseLines, type PayslipRun } from "./parser";
+import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { PayslipDecryptError } from "./payslipFile";
 
-/** Raised when an encrypted payslip cannot be opened with the given password. */
-export class PayslipDecryptError extends Error {}
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+export { PayslipDecryptError, parsePayslip, type LineExtractor } from "./payslipFile";
 
 /**
  * pdf.js splits a line into several text items and reports each one's
@@ -78,25 +80,4 @@ export async function extractTextLines(
     );
   }
   return lines;
-}
-
-/** Swappable so parsePayslip can be tested without a PDF fixture. */
-export type LineExtractor = (
-  data: ArrayBuffer,
-  password?: string,
-) => Promise<string[]>;
-
-/**
- * Parse a single payslip PDF into a PayslipRun, or null if the month cannot be
- * derived from the filename or the layout is not recognised.
- */
-export async function parsePayslip(
-  file: File,
-  password?: string,
-  extractor: LineExtractor = extractTextLines,
-): Promise<PayslipRun | null> {
-  const month = monthFromFilename(file.name);
-  if (month === null) return null;
-  const lines = await extractor(await file.arrayBuffer(), password);
-  return parseLines(lines, month, file.name);
 }

@@ -101,3 +101,20 @@ export function aggregateMonths(runs: StoredRun[], runlessMonths: string[]): Mon
     };
   });
 }
+
+/**
+ * Constrained to a real year and month so an unrelated digit run in a filename
+ * cannot be mistaken for a date.
+ */
+const MONTH_RE = /((?:19|20)\d{2}-(?:0[1-9]|1[0-2]))/;
+
+/**
+ * A YYYY-MM from anywhere in a payslip filename, or null.
+ *
+ * Not anchored to the start: a folder from a different employer may prefix its
+ * payslips with a word, and those files still carry a usable month.
+ */
+export function monthFromFilename(name: string): string | null {
+  const base = name.split("/").pop() ?? name;
+  return MONTH_RE.exec(base)?.[1] ?? null;
+}

@@ -81,3 +81,10 @@ export interface PayslipRemoveResponse { months: string[] }
 
 /** Most files one import or removal takes. */
 export const MAX_PAYSLIP_FILES = 500;
+
+export interface SourceOwnersResponse {
+  /** Every import source in use, by name, with its owner or null. */
+  sources: { source: string; userId: number | null }[];
+  users: { id: number; name: string }[];
+}
+export interface SourceOwnerRequest { source: string; userId: number | null }

@@ -67,7 +67,7 @@ describe("the Payslips page", () => {
     renderPage();
     expect(await screen.findByRole("combobox", { name: "Person" })).toHaveValue("1");
     expect(await screen.findByText("2025-12")).toBeInTheDocument();
-    expect(screen.getByText("from the TUI")).toBeInTheDocument();
+    expect(screen.getByText("1 month · 1 from the TUI")).toBeInTheDocument();
   });
 
   it("previews each dropped file and imports the ready ones for the chosen person", async () => {

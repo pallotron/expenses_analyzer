@@ -4,7 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AccountsSection } from "../../payslips/AccountsSection";
+import { AccountsPage } from "../../accounts/AccountsPage";
 
 function setup(saveStatus?: number) {
   const posts: unknown[] = [];
@@ -24,13 +24,13 @@ function setup(saveStatus?: number) {
     }
     return json({});
   }));
-  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><AccountsSection /></QueryClientProvider>);
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><AccountsPage /></QueryClientProvider>);
   return { posts };
 }
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-describe("AccountsSection", () => {
+describe("the Accounts page", () => {
   it("shows each source's owner and saves a change", async () => {
     const { posts } = setup();
     const card = await screen.findByLabelText("Owner of Card");

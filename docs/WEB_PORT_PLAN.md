@@ -293,7 +293,7 @@ sent, as today.
   Done: `/payslips`. PDFs (or a dropped folder) are read in the browser, one
   `payslip_runs` row per file, and the `payslips` month rows are rebuilt from
   them, so a later bonus PDF joins its month and a re-import replaces its file.
-  An Accounts section says whose account each source is, and the Summary shows
+  An `/accounts` page says whose account each source is, and the Summary shows
   the savings rate with pension for the owners of the selected sources. Text
   is read in the PDF's own order, as pypdf did; checked against both people's
   real payslips. A Dropbox button is a possible follow-up.

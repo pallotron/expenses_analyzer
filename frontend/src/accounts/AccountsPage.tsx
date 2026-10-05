@@ -1,16 +1,16 @@
 import { useSetSourceOwner, useSourceOwners } from "./queries";
 
 /**
- * Whose account each import source is. The Summary counts only the owners'
- * pension when filtered by source; "No one" is for shared accounts and
- * accounts that belong to neither person.
+ * /accounts: whose account each import source is. Today the Summary uses it to
+ * count only the owners' pension when filtered by source. "No one" is for
+ * shared accounts and accounts that belong to neither person.
  */
-export function AccountsSection() {
+export function AccountsPage() {
   const owners = useSourceOwners();
   const save = useSetSourceOwner();
   return (
-    <section aria-labelledby="accounts" className="flex flex-col gap-2 text-sm">
-      <h2 id="accounts" className="font-semibold">Accounts</h2>
+    <main className="mx-auto flex max-w-3xl flex-col gap-3 p-4 text-sm">
+      <h1 className="text-lg font-semibold">Accounts</h1>
       <p className="text-slate-600 dark:text-slate-400">
         Whose account each source is. When the Summary is filtered by source, only the owners' pension is counted.
       </p>
@@ -35,6 +35,6 @@ export function AccountsSection() {
         </ul>
       )}
       {save.error && <p role="alert" className="text-expense">Couldn't save: {save.error.message}</p>}
-    </section>
+    </main>
   );
 }

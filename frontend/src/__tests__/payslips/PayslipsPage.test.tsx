@@ -42,7 +42,6 @@ function api(opts: { importStatus?: number } = {}) {
       return json({ months: ["2026-01", "2026-02", "2026-03"], imported: ["2026-01", "2026-02"], replaced: 0, ytdMismatches: ["2026-02"] });
     }
     if (url.pathname === "/api/payslips/remove") return json({ months: ["2026-01"] });
-    if (url.pathname === "/api/source-owners") return json({ sources: [], users: [{ id: 1, name: "A" }, { id: 2, name: "B" }] });
     return json({});
   };
   return { fetch, calls, posts: (path: string) => calls.filter((c) => c.method === "POST" && c.path === path).map((c) => c.body) };

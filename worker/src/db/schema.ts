@@ -236,6 +236,55 @@ export const payslips = sqliteTable("payslips", {
   updatedAt: integer("updated_at").notNull().default(now),
 }, (t) => [uniqueIndex("payslips_owner_month_idx").on(t.userId, t.month)]);
 
+/**
+ * One payslip PDF's figures. The month rows in `payslips` are rebuilt from
+ * these (services/payslips.ts), so a re-imported file replaces its run and a
+ * later bonus run joins its month. Only figures: no PDF, text or employer.
+ */
+export const payslipRuns = sqliteTable("payslip_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull().references(() => users.id),
+  sourceFile: text("source_file").notNull(),
+  /** "YYYY-MM", from the file name. */
+  month: text("month").notNull(),
+
+  salaryCents: integer("salary_cents").notNull().default(0),
+  bonusCents: integer("bonus_cents").notNull().default(0),
+  onCallCents: integer("on_call_cents").notNull().default(0),
+  reimbursementsCents: integer("reimbursements_cents").notNull().default(0),
+  nonTaxableAdjCents: integer("non_taxable_adj_cents").notNull().default(0),
+  miscDeductionsCents: integer("misc_deductions_cents").notNull().default(0),
+  pensionEeCents: integer("pension_ee_cents").notNull().default(0),
+  avcCents: integer("avc_cents").notNull().default(0),
+  pensionErCents: integer("pension_er_cents").notNull().default(0),
+  payeCents: integer("paye_cents").notNull().default(0),
+  prsiEeCents: integer("prsi_ee_cents").notNull().default(0),
+  uscCents: integer("usc_cents").notNull().default(0),
+  pensionEeYtdCents: integer("pension_ee_ytd_cents").notNull().default(0),
+  avcYtdCents: integer("avc_ytd_cents").notNull().default(0),
+  pensionErYtdCents: integer("pension_er_ytd_cents").notNull().default(0),
+  statedNetCents: integer("stated_net_cents"),
+
+  /** Derived by the Worker (domain/payslips.ts), never taken from the client. */
+  grossCents: integer("gross_cents").notNull(),
+  taxTotalCents: integer("tax_total_cents").notNull(),
+  netCents: integer("net_cents").notNull(),
+  netReconciled: integer("net_reconciled", { mode: "boolean" }).notNull(),
+
+  importedBy: integer("imported_by").notNull().references(() => users.id),
+  createdAt: integer("created_at").notNull().default(now),
+  updatedAt: integer("updated_at").notNull().default(now),
+}, (t) => [uniqueIndex("payslip_runs_owner_file_idx").on(t.userId, t.sourceFile)]);
+
+/**
+ * Whose account each import source is, so the Summary counts only the owners'
+ * pension when filtered by source. No row, or a null user, means no one.
+ */
+export const sourceOwners = sqliteTable("source_owners", {
+  source: text("source").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+});
+
 /*
  * NOTE: there is deliberately no payslip_folders table.
  *

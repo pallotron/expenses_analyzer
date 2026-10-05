@@ -33,3 +33,51 @@ export interface DerivedRun {
   netCents: number;
   netReconciled: boolean;
 }
+
+export interface PayslipRunRow {
+  sourceFile: string;
+  grossCents: number;
+  netCents: number;
+  pensionEeCents: number;
+  avcCents: number;
+  pensionErCents: number;
+  netReconciled: boolean;
+}
+
+export interface PayslipMonthRow {
+  month: string;
+  grossCents: number;
+  netCents: number;
+  taxTotalCents: number;
+  pensionEeCents: number;
+  avcCents: number;
+  pensionErCents: number;
+  bonusCents: number;
+  onCallCents: number;
+  netReconciled: boolean | null;
+  ytdReconciled: boolean | null;
+  /** Empty for a month the TUI saved. Sorted by file name. */
+  runs: PayslipRunRow[];
+}
+
+export interface PayslipPerson {
+  id: number;
+  name: string;
+  /** Newest first. */
+  months: PayslipMonthRow[];
+}
+
+export interface PayslipsResponse { people: PayslipPerson[] }
+
+export interface PayslipRunInput extends RunParts {
+  sourceFile: string;
+  month: string;
+}
+
+export interface PayslipImportRequest { userId: number; runs: PayslipRunInput[] }
+export interface PayslipImportResponse { months: string[]; replaced: number; ytdMismatches: string[] }
+export interface PayslipRemoveRequest { userId: number; sourceFiles: string[] }
+export interface PayslipRemoveResponse { months: string[] }
+
+/** Most files one import or removal takes. */
+export const MAX_PAYSLIP_FILES = 500;

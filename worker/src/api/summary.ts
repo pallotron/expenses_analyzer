@@ -111,6 +111,8 @@ export interface SummaryResponse {
   monthAverage: { incomeCents: number; expensesCents: number; months: number } | null;
   /** Expense total the tag exclusion hides in this period and these sources. */
   hiddenCents: number;
+  /** Income total it hides there; the TUI never showed this. */
+  hiddenIncomeCents: number;
   excludedPatterns: string[];
 }
 

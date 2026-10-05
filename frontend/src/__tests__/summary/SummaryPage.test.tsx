@@ -58,7 +58,12 @@ describe("SummaryPage", () => {
 
   it("shows what the exclusion hides", async () => {
     renderAt("/?year=2026");
-    expect(await screen.findByText(/excluding emergency/i)).toHaveTextContent("€1,240.00 hidden");
+    expect(await screen.findByText(/excluding emergency/i)).toHaveTextContent("€1,240.00 expenses hidden");
+  });
+
+  it("names hidden income, which the totals also leave out", async () => {
+    renderAt("/?year=2026", mockApi({ summary: () => summary({ hiddenCents: 0, hiddenIncomeCents: 9_063_334 }) }));
+    expect(await screen.findByText(/excluding emergency/i)).toHaveTextContent("€90,633.34 income hidden");
   });
 
   it("says so when there is no data at all", async () => {

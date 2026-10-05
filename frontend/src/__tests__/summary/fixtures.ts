@@ -32,6 +32,7 @@ export function summary(overrides: Partial<SummaryResponse> = {}): SummaryRespon
     },
     monthAverage: null,
     hiddenCents: 124_000,
+    hiddenIncomeCents: 0,
     excludedPatterns: ["emergency"],
     ...overrides,
   };

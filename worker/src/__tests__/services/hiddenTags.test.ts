@@ -51,4 +51,26 @@ describe("setHiddenTagPatterns", () => {
     expect(after.hiddenCents).toBe(5_000);
     expect(after.excludedPatterns).toEqual(["trip:*"]);
   });
+
+  it("reports hidden income apart from hidden expenses", async () => {
+    const { sqlite, db } = store([]);
+    seed(sqlite, [
+      { date: "2026-09-01", merchant: "Shop", amount: 10, deleted: false },
+      { date: "2026-09-02", merchant: "Settlement", amount: 900, deleted: false },
+      { date: "2026-09-03", merchant: "Hotel", amount: 50, deleted: false },
+    ], []);
+    sqlite.exec(`
+      UPDATE transactions SET type = 'income' WHERE merchant_raw = 'Settlement';
+      INSERT INTO tags (id, name) VALUES (1, 'legal'), (2, 'trip');
+      INSERT INTO transaction_tags (transaction_id, tag_id)
+        SELECT id, 1 FROM transactions WHERE merchant_raw = 'Settlement';
+      INSERT INTO transaction_tags (transaction_id, tag_id)
+        SELECT id, 2 FROM transactions WHERE merchant_raw = 'Hotel';
+    `);
+    const query = { year: 2026, month: 9, includeHidden: false };
+    await setHiddenTagPatterns(db, ["legal"]);
+    expect(await buildSummary(db, query)).toMatchObject({ hiddenCents: 0, hiddenIncomeCents: 90_000 });
+    await setHiddenTagPatterns(db, ["legal", "trip"]);
+    expect(await buildSummary(db, query)).toMatchObject({ hiddenCents: 5_000, hiddenIncomeCents: 90_000 });
+  });
 });

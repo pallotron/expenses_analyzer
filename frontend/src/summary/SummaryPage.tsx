@@ -62,8 +62,11 @@ export function SummaryPage() {
   const tab: Tab = tabs.some((t) => t.id === view.tab) ? view.tab : "expenses";
   const summary = useSummary(view);
   // Survives a load or an error, so the tag filter does not flicker or vanish.
-  const tags = useRef<{ patterns: string[]; hiddenCents: number } | undefined>(undefined);
-  if (summary.data) tags.current = { patterns: summary.data.excludedPatterns, hiddenCents: summary.data.hiddenCents };
+  const tags = useRef<{ patterns: string[]; hiddenCents: number; hiddenIncomeCents: number } | undefined>(undefined);
+  if (summary.data) {
+    const { excludedPatterns: patterns, hiddenCents, hiddenIncomeCents } = summary.data;
+    tags.current = { patterns, hiddenCents, hiddenIncomeCents };
+  }
   const update = (patch: Partial<SummaryParams>) => setSearch(toSearchParams({ ...view, ...patch }));
   const [editingHidden, setEditingHidden] = useState(false);
   const [editingBudgets, setEditingBudgets] = useState(false);
@@ -97,7 +100,7 @@ export function SummaryPage() {
           <PeriodPicker periods={periods.data} year={year} month={view.month}
             onChange={(y, m) => update({ year: y, month: m })} />
           <FiltersBar sources={periods.data.sources} selected={view.sources} hidden={view.hidden}
-            hiddenCents={tags.current?.hiddenCents ?? 0} excludedPatterns={tags.current?.patterns}
+            hiddenCents={tags.current?.hiddenCents ?? 0} hiddenIncomeCents={tags.current?.hiddenIncomeCents ?? 0} excludedPatterns={tags.current?.patterns}
             onSources={(s) => update({ sources: s })} onHidden={(h) => update({ hidden: h })}
             onEditHidden={() => setEditingHidden(true)} />
         </header>

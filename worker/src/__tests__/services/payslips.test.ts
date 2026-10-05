@@ -32,7 +32,7 @@ describe("importRuns", () => {
   it("stores each file and builds its month, deriving gross and net itself", async () => {
     const { db, months, sqlite } = setup();
     const res = await importRuns(db, 1, [run("2026-01 pay.pdf", "2026-01", 60000)], 1);
-    expect(res).toEqual({ months: ["2026-01"], replaced: 0, ytdMismatches: [] });
+    expect(res).toEqual({ months: ["2026-01"], imported: ["2026-01"], replaced: 0, ytdMismatches: [] });
     expect(months()).toEqual([{
       month: "2026-01", gross_cents: 500000, pension_ee_cents: 50000, avc_cents: 10000,
       source_files: '["2026-01 pay.pdf"]', net_reconciled: 1, ytd_reconciled: 1,
@@ -61,6 +61,8 @@ describe("importRuns", () => {
     });
     const res = await importRuns(db, 1, [bonus], 1);
     expect(res.months).toEqual(["2026-01", "2026-02"]);
+    // February was only re-checked, not imported.
+    expect(res.imported).toEqual(["2026-01"]);
     expect(months()).toMatchObject([
       { month: "2026-01", gross_cents: 600000, pension_ee_cents: 75000, source_files: '["2026-01 bonus.pdf","2026-01 pay.pdf"]', ytd_reconciled: 1 },
       { month: "2026-02", ytd_reconciled: 1 },
@@ -134,6 +136,29 @@ describe("removeRuns", () => {
     await removeRuns(db, 1, ["a.pdf"]);
     expect(runCount()).toBe(0);
     expect(months()).toEqual([]);
+  });
+
+  it("removes more files than D1 allows bound parameters", async () => {
+    const { sqlite, runCount, months } = setup();
+    const db = createDb(fakeD1(sqlite));
+    const pad = (n: number) => String(n).padStart(2, "0");
+    // 150 runs over 2025-01 … 2026-06 (18 months, 8 or 9 files each).
+    const monthOf = (i: number) => (i % 18 < 12 ? `2025-${pad((i % 18) + 1)}` : `2026-${pad((i % 18) - 11)}`);
+    const runs = Array.from({ length: 150 }, (_, i) => run(`${monthOf(i)} part ${i}.pdf`, monthOf(i), 0));
+    await importRuns(db, 1, runs, 1);
+    // Remove the first 120 in one call; the 30 left still span all 18 months.
+    const gone = runs.slice(0, 120).map((r) => r.sourceFile);
+    await removeRuns(db, 1, gone);
+    expect(runCount()).toBe(30);
+    const left = sqlite.prepare(`SELECT source_file FROM payslip_runs ORDER BY source_file`).all() as { source_file: string }[];
+    expect(left.map((r) => r.source_file).sort()).toEqual(runs.slice(120).map((r) => r.sourceFile).sort());
+    const expectedMonths = [...new Set(runs.slice(120).map((r) => r.month))].sort();
+    const rows = months() as { month: string; source_files: string }[];
+    expect(rows.map((r) => r.month)).toEqual(expectedMonths);
+    for (const row of rows) {
+      const files = runs.slice(120).filter((r) => r.month === row.month).map((r) => r.sourceFile).sort();
+      expect(JSON.parse(row.source_files)).toEqual(files);
+    }
   });
 
   it("ignores a file it does not know", async () => {

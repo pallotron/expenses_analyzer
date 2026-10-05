@@ -55,4 +55,12 @@ describe("the Summary's pension figure", () => {
     expect(await setup().pension(undefined, 2)).toMatchObject({ months: [2], pensionCents: 40000 });
     expect(await setup().pension(undefined, 3)).toBeNull();
   });
+
+  it("names only the people with a payslip in the covered months", async () => {
+    // February: only B has a payslip, though A is counted too.
+    expect((await setup().pension(undefined, 2))?.people).toEqual(["B"]);
+    const s = setup();
+    s.sqlite.exec(`INSERT INTO users (id, email, display_name, owner_key) VALUES (3, 'c@example.com', 'C', 'c')`);
+    expect((await s.pension())?.people).toEqual(["A", "B"]);
+  });
 });

@@ -1,8 +1,13 @@
 import { formatCents } from "../lib/money";
 import { ignoredBy, type PayslipFile } from "./fileList";
 
-/** What a dropped file will do, in words. */
-export function fileStatusText(f: PayslipFile, saved: Set<string>): { text: string; tone: "ok" | "warn" | "off" } {
+/**
+ * What a dropped file will do, in words. `tuiMonths` are the person's months
+ * saved by the TUI (no files): importing into one replaces that whole month.
+ */
+export function fileStatusText(
+  f: PayslipFile, saved: Set<string>, tuiMonths: Set<string>,
+): { text: string; tone: "ok" | "warn" | "off" } {
   switch (f.status.kind) {
     case "reading": return { text: "Reading…", tone: "off" };
     case "needsPassword": return { text: "Needs password", tone: "warn" };
@@ -13,9 +18,11 @@ export function fileStatusText(f: PayslipFile, saved: Set<string>): { text: stri
     case "ready": {
       const token = ignoredBy(f.file.name);
       if (token && !f.useAnyway) return { text: `Left out (name contains "${token}")`, tone: "off" };
-      const what = saved.has(f.file.name) ? "Replaces the saved copy" : "New";
-      return f.status.run.netReconciled
-        ? { text: what, tone: "ok" }
+      const { run } = f.status;
+      const tui = !saved.has(f.file.name) && tuiMonths.has(run.month);
+      const what = saved.has(f.file.name) ? "Replaces the saved copy" : tui ? `Replaces the TUI's ${run.month}` : "New";
+      return run.netReconciled
+        ? { text: what, tone: tui ? "warn" : "ok" }
         : { text: `${what} · Net doesn't match the payslip`, tone: "warn" };
     }
   }
@@ -24,10 +31,10 @@ export function fileStatusText(f: PayslipFile, saved: Set<string>): { text: stri
 const TONE = { ok: "text-income", warn: "text-amber-600 dark:text-amber-400", off: "text-slate-500" };
 
 export function PayslipFileRow(props: {
-  file: PayslipFile; saved: Set<string>; disabled: boolean; onRemove: () => void; onUseAnyway: () => void;
+  file: PayslipFile; saved: Set<string>; tuiMonths: Set<string>; disabled: boolean; onRemove: () => void; onUseAnyway: () => void;
 }) {
   const { file } = props;
-  const status = fileStatusText(file, props.saved);
+  const status = fileStatusText(file, props.saved, props.tuiMonths);
   const run = file.status.kind === "ready" ? file.status.run : null;
   const canUse = run !== null && ignoredBy(file.file.name) !== null && !file.useAnyway;
   return (

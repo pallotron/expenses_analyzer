@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CashFlowTiles } from "../../summary/CashFlowTiles";
 
@@ -54,19 +55,42 @@ describe("CashFlowTiles", () => {
     expect(screen.getByText("-€50.00")).toBeInTheDocument();
   });
 
-  it("shows the savings rate with pension under the plain one", () => {
-    render(<CashFlowTiles cashFlow={{ incomeCents: 100000, expensesCents: 60000 }} monthAverage={null}
-      pension={{ pensionCents: 10000, savedCents: 50000, incomeCents: 110000, rate: 45.4545, months: [1, 2, 3],
-        coverageLabel: "Jan–Mar", reconciled: true, people: ["A", "B"] }} />);
-    const line = screen.getByText("45.5% with pension · Jan–Mar");
-    expect(line).toHaveAttribute("title", expect.stringContaining("A and B"));
+  const pension = (over: Partial<NonNullable<Parameters<typeof CashFlowTiles>[0]["pension"]>> = {}) => ({
+    pensionCents: 10000, savedCents: 50000, incomeCents: 110000, rate: 45.4545, months: [1, 2, 3],
+    coverageLabel: "Jan–Mar", reconciled: true, people: ["A", "B"], ...over,
   });
 
-  it("warns when a month's year-to-date pension does not add up", () => {
+  it("shows the savings rate with pension under the plain one", () => {
+    render(<CashFlowTiles cashFlow={{ incomeCents: 100000, expensesCents: 60000 }} monthAverage={null} pension={pension()} />);
+    const line = screen.getByText("45.5% with pension · Jan–Mar");
+    expect(line).toHaveAttribute("title", expect.stringContaining("A and B"));
+    // What the line means is there for screen readers too, not only on hover.
+    expect(screen.getByText("Adds €100.00 of pension (A and B) to what was saved and to income")).toHaveClass("sr-only");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("warns when a month's year-to-date pension does not add up, and explains on a tap", async () => {
     render(<CashFlowTiles cashFlow={{ incomeCents: 100000, expensesCents: 60000 }} monthAverage={null}
-      pension={{ pensionCents: 10000, savedCents: 50000, incomeCents: 110000, rate: 45.4545, months: [1],
-        coverageLabel: "Jan", reconciled: false, people: ["A"] }} />);
-    expect(screen.getByText("45.5% with pension · Jan ⚠")).toHaveAttribute("title", expect.stringContaining("Payslips page"));
+      pension={pension({ months: [1], coverageLabel: "Jan", reconciled: false, people: ["A"] })} />);
+    expect(screen.getByText("45.5% with pension · Jan")).toHaveAttribute("title", expect.stringContaining("Payslips page"));
+    const warning = screen.getByRole("button", { name: /does not add up/ });
+    expect(warning).toHaveTextContent("⚠");
+    expect(warning).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText(/check it on the Payslips page/)).toBeNull();
+    await userEvent.click(warning);
+    expect(warning).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(/check it on the Payslips page/)).toBeVisible();
+    await userEvent.click(warning);
+    expect(screen.queryByText(/check it on the Payslips page/)).toBeNull();
+  });
+
+  it("colours the pension line like the plain rate", () => {
+    const { rerender } = render(<CashFlowTiles cashFlow={{ incomeCents: 100000, expensesCents: 60000 }} monthAverage={null}
+      pension={pension()} />);
+    expect(screen.getByText("45.5% with pension · Jan–Mar").parentElement).toHaveClass("text-income");
+    rerender(<CashFlowTiles cashFlow={{ incomeCents: 100000, expensesCents: 160000 }} monthAverage={null}
+      pension={pension({ rate: -45.4545 })} />);
+    expect(screen.getByText("-45.5% with pension · Jan–Mar").parentElement).toHaveClass("text-expense");
   });
 
   it("shows no pension line without payslips", () => {

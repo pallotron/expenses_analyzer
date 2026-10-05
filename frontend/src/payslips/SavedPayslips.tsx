@@ -3,11 +3,18 @@ import { formatCents } from "../lib/money";
 import type { PayslipPerson } from "../lib/types";
 import { useRemovePayslips } from "./queries";
 
+/** A ✓, ⚠ or — with its meaning on hover and, as hidden text, for screen readers. */
 function Check(props: { ok: boolean | null; what: string }) {
-  if (props.ok === null) return <span title={`${props.what}: unknown`} className="text-slate-400">—</span>;
-  return props.ok
-    ? <span title={`${props.what} adds up`} className="text-income">✓</span>
-    : <span title={`${props.what} does not add up`} className="text-amber-600 dark:text-amber-400">⚠</span>;
+  const [label, glyph, tone] = props.ok === null
+    ? [`${props.what}: unknown`, "—", "text-slate-400"]
+    : props.ok
+      ? [`${props.what} adds up`, "✓", "text-income"]
+      : [`${props.what} does not add up`, "⚠", "text-amber-600 dark:text-amber-400"];
+  return (
+    <span title={label} className={tone}>
+      <span aria-hidden="true">{glyph}</span><span className="sr-only">{label}</span>
+    </span>
+  );
 }
 
 /** The chosen person's saved months, each expandable to its files. */

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -38,7 +38,8 @@ function api(opts: { importStatus?: number } = {}) {
     if (url.pathname === "/api/payslips") return json(state);
     if (url.pathname === "/api/payslips/import") {
       if (opts.importStatus) return json({ error: "Nope" }, opts.importStatus);
-      return json({ months: ["2026-02"], replaced: 0, ytdMismatches: ["2026-02"] });
+      // 2026-03 was only re-checked, not imported.
+      return json({ months: ["2026-01", "2026-02", "2026-03"], imported: ["2026-01", "2026-02"], replaced: 0, ytdMismatches: ["2026-02"] });
     }
     if (url.pathname === "/api/payslips/remove") return json({ months: ["2026-01"] });
     if (url.pathname === "/api/source-owners") return json({ sources: [], users: [{ id: 1, name: "A" }, { id: 2, name: "B" }] });
@@ -86,7 +87,8 @@ describe("the Payslips page", () => {
     expect(body.runs.map((r) => [r.sourceFile, r.month, r.salaryCents])).toEqual([
       ["2026-02 pay.pdf", "2026-02", 500000], ["2026-01 pay.pdf", "2026-01", 500000],
     ]);
-    expect(await screen.findByRole("status")).toHaveTextContent("Saved 2026-02");
+    expect(await screen.findByRole("status")).toHaveTextContent("Saved 2026-01, 2026-02");
+    expect(screen.getByRole("status")).not.toHaveTextContent("2026-03");
     expect(screen.getByRole("status")).toHaveTextContent("2026-02's year-to-date pension does not add up");
     expect(screen.queryByText("2026-02 pay.pdf")).toBeNull();
   });
@@ -141,5 +143,55 @@ describe("the Payslips page", () => {
     await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Person" }), "2");
     const row = (await screen.findByText("2026-01")).closest("tr")!;
     expect(within(row).getByTitle("Year-to-date pension does not add up")).toBeInTheDocument();
+    // Not only on hover: screen readers get the same words.
+    expect(within(row).getByText("Year-to-date pension does not add up")).toBeInTheDocument();
+    expect(within(row).getByText("Net adds up")).toBeInTheDocument();
+    expect(within(row).getByText("⚠")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("warns that a file replaces a month the TUI saved", async () => {
+    renderPage();
+    await drop(pdf("2025-12 pay.pdf"));
+    await waitFor(() => expect(line("2025-12 pay.pdf")).toHaveTextContent("Replaces the TUI's 2025-12"));
+    expect(within(line("2025-12 pay.pdf")).getByText("Replaces the TUI's 2025-12")).toHaveClass("text-amber-600");
+  });
+
+  it("hides the last import's result when switching person", async () => {
+    renderPage();
+    await drop(pdf("2026-02 pay.pdf"));
+    await waitFor(() => expect(line("2026-02 pay.pdf")).toHaveTextContent("New"));
+    await userEvent.click(screen.getByRole("button", { name: "Import 1 file" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Saved");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Person" }), "2");
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("lists the PDFs inside a dropped folder", async () => {
+    renderPage();
+    const fileEntry = (file: File) => ({ isFile: true, isDirectory: false, name: file.name, file: (ok: (f: File) => void) => ok(file) });
+    const folder = {
+      isFile: false, isDirectory: true, name: "payslips",
+      createReader: () => {
+        let done = false;
+        return { readEntries: (ok: (b: unknown[]) => void) => {
+          ok(done ? [] : [fileEntry(pdf("2026-02 pay.pdf")), fileEntry(new File(["x"], "notes.txt"))]);
+          done = true;
+        } };
+      },
+    };
+    const zone = (await screen.findByLabelText("Payslip PDFs")).closest("[data-dropzone]")!;
+    fireEvent.drop(zone, { dataTransfer: { items: [{ kind: "file", webkitGetAsEntry: () => folder }], files: [new File([], "payslips")] } });
+    await waitFor(() => expect(line("2026-02 pay.pdf")).toHaveTextContent("New"));
+    expect(screen.queryByText("notes.txt")).toBeNull();
+    expect(screen.queryByText("No PDFs in what was dropped")).toBeNull();
+  });
+
+  it("says so when what was dropped holds no PDFs", async () => {
+    renderPage();
+    const zone = (await screen.findByLabelText("Payslip PDFs")).closest("[data-dropzone]")!;
+    fireEvent.drop(zone, { dataTransfer: { items: [], files: [new File(["x"], "notes.txt")] } });
+    expect(await screen.findByText("No PDFs in what was dropped")).toBeInTheDocument();
+    await drop(pdf("2026-02 pay.pdf"));
+    await waitFor(() => expect(screen.queryByText("No PDFs in what was dropped")).toBeNull());
   });
 });

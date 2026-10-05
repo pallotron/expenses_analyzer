@@ -37,7 +37,7 @@ describe("POST /api/payslips/import", () => {
     const { post, runs } = setup();
     const res = await post("/payslips/import", { userId: 2, runs: [run("2026-01 pay.pdf")] });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ months: ["2026-01"], replaced: 0, ytdMismatches: [] });
+    expect(await res.json()).toEqual({ months: ["2026-01"], imported: ["2026-01"], replaced: 0, ytdMismatches: [] });
     expect(runs()).toEqual([{ user_id: 2, source_file: "2026-01 pay.pdf", imported_by: 1 }]);
   });
 
@@ -48,7 +48,8 @@ describe("POST /api/payslips/import", () => {
     ["a file name with no month", { userId: 1, runs: [run("pay.pdf")] }, "pay.pdf"],
     ["the same file twice", { userId: 1, runs: [run("2026-01 a.pdf"), run("2026-01 a.pdf")] }, "more than once"],
     ["fractional cents", { userId: 1, runs: [run("2026-01 a.pdf", { salaryCents: 1.5 })] }, "whole cents"],
-    ["an amount over ten million", { userId: 1, runs: [run("2026-01 a.pdf", { salaryCents: 1_000_000_001 })] }, "10,000,000"],
+    ["an amount over ten million", { userId: 1, runs: [run("2026-01 a.pdf", { salaryCents: 1_000_000_001 })] }, "An amount must be between −10,000,000 and 10,000,000"],
+    ["an amount under minus ten million", { userId: 1, runs: [run("2026-01 a.pdf", { payeCents: -1_000_000_001 })] }, "An amount must be between −10,000,000 and 10,000,000"],
     ["a missing part", { userId: 1, runs: [{ ...run("2026-01 a.pdf"), uscCents: undefined }] }, "uscCents"],
     ["an extra field", { userId: 1, runs: [run("2026-01 a.pdf", { grossCents: 5 })] }, ""],
   ])("refuses %s and saves nothing", async (_label, body, message) => {

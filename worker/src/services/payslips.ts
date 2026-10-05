@@ -116,6 +116,7 @@ export async function importRuns(
 
   return {
     months,
+    imported: [...new Set(inputs.map((i) => i.month))].sort(),
     replaced: replacedRuns.length,
     ytdMismatches: rows.filter((r) => r.ytdReconciled === false).map((r) => r.month),
   };

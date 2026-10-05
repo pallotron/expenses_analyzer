@@ -75,7 +75,14 @@ export interface PayslipRunInput extends RunParts {
 }
 
 export interface PayslipImportRequest { userId: number; runs: PayslipRunInput[] }
-export interface PayslipImportResponse { months: string[]; replaced: number; ytdMismatches: string[] }
+export interface PayslipImportResponse {
+  /** The months rebuilt: those imported plus each one's next month, re-checked. */
+  months: string[];
+  /** The months of the files in the request, sorted. */
+  imported: string[];
+  replaced: number;
+  ytdMismatches: string[];
+}
 export interface PayslipRemoveRequest { userId: number; sourceFiles: string[] }
 export interface PayslipRemoveResponse { months: string[] }
 

@@ -20,10 +20,11 @@ import { listSourceOwners, setSourceOwner } from "../services/sourceOwners";
 import { parseBody } from "./parseBody";
 
 const LIMIT = 1_000_000_000;
+const BOUNDS = "An amount must be between −10,000,000 and 10,000,000";
 
 const cents = (key: string) => z.number(`${key} must be a number`)
   .int("Amounts must be whole cents")
-  .min(-LIMIT, "An amount can be at most 10,000,000").max(LIMIT, "An amount can be at most 10,000,000");
+  .min(-LIMIT, BOUNDS).max(LIMIT, BOUNDS);
 
 const Run = z.object({
   sourceFile: z.string("sourceFile must be text").min(1, "A file needs a name").max(500, "File names can be at most 500 characters"),

@@ -67,6 +67,30 @@ describe("usePayslipFiles", () => {
     expect(result.current.files).toEqual([]);
   });
 
+  it("reads at most three files at once, and the rest as each finishes", async () => {
+    let running = 0;
+    let most = 0;
+    const waiting: (() => void)[] = [];
+    const counted: LineExtractor = async () => {
+      running += 1;
+      most = Math.max(most, running);
+      await new Promise<void>((r) => waiting.push(r));
+      running -= 1;
+      return LINES;
+    };
+    const { result } = renderHook(() => usePayslipFiles("", counted));
+    act(() => result.current.add(Array.from({ length: 6 }, (_, i) => file(`2026-0${i + 1} pay.pdf`))));
+    await waitFor(() => expect(waiting).toHaveLength(3));
+    // The queued files still read as "reading".
+    expect(result.current.files.every((f) => f.status.kind === "reading")).toBe(true);
+    for (let i = 0; i < 6; i += 1) {
+      await waitFor(() => expect(waiting.length).toBeGreaterThan(0));
+      await act(async () => waiting.shift()!());
+    }
+    await waitFor(() => expect(result.current.files.every((f) => f.status.kind === "ready")).toBe(true));
+    expect(most).toBe(3);
+  });
+
   it("marks an ignored name for use when asked", async () => {
     const { result } = renderHook(() => usePayslipFiles("", plain));
     act(() => result.current.add([file("2026-01 draft.pdf")]));

@@ -85,7 +85,7 @@ async function pensionFor(db: Db, q: SummaryQuery, scope: Scope): Promise<Summar
   const [flows, months] = await Promise.all([
     netCashFlow(db, "month", { ...scope, month: undefined }),
     db.select({
-      month: payslips.month, pensionEeCents: payslips.pensionEeCents, avcCents: payslips.avcCents,
+      userId: payslips.userId, month: payslips.month, pensionEeCents: payslips.pensionEeCents, avcCents: payslips.avcCents,
       pensionErCents: payslips.pensionErCents, ytdReconciled: payslips.ytdReconciled,
     }).from(payslips).where(inArray(payslips.userId, people.map((p) => p.id))),
   ]);
@@ -94,7 +94,11 @@ async function pensionFor(db: Db, q: SummaryQuery, scope: Scope): Promise<Summar
     months.map((m) => ({ ...m, ytdReconciled: m.ytdReconciled === null ? null : Boolean(m.ytdReconciled) })),
     q.year, q.month,
   );
-  return result && { ...result, people: people.map((p) => p.name).sort() };
+  if (!result) return null;
+  // Name only those whose payslips are in the figure, not everyone counted.
+  const covered = new Set(result.months.map((m) => `${q.year}-${pad(m)}`));
+  const paid = new Set(months.filter((m) => covered.has(m.month)).map((m) => m.userId));
+  return { ...result, people: people.filter((p) => paid.has(p.id)).map((p) => p.name).sort() };
 }
 
 export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResponse> {

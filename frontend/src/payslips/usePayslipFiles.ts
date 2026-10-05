@@ -20,6 +20,9 @@ async function parse(file: File, password: string, extractor?: LineExtractor): P
   }
 }
 
+/** How many PDFs are read at once. */
+const MAX_PARALLEL = 3;
+
 /** The dropped files, each parsed in the browser as it arrives. */
 export function usePayslipFiles(password: string, extractor?: LineExtractor) {
   const [files, setFiles] = useState<PayslipFile[]>([]);
@@ -30,29 +33,46 @@ export function usePayslipFiles(password: string, extractor?: LineExtractor) {
   const latestPassword = useRef(password);
   latestPassword.current = password;
 
-  const start = useCallback(function run(targets: PayslipFile[], pw: string) {
-    for (const target of targets) {
-      void parse(target.file, pw, extractor).then((status) => {
-        // The password changed while this file was read: read it again with the new one.
-        if ((status.kind === "needsPassword" || status.kind === "wrongPassword") && pw !== latestPassword.current) {
-          const again = { ...target, version: target.version + 1 };
-          setFiles((list) => list.map((f) => (f.id === target.id && f.version === target.version ? again : f)));
-          run([again], latestPassword.current);
-          return;
-        }
-        setFiles((list) => list.map((f) =>
-          f.id === target.id && f.version === target.version ? { ...f, status } : f));
-      });
-    }
+  // Parses wait here so only a few run at once: a folder of payslips would
+  // otherwise read every PDF in parallel. Queued files still show "reading".
+  const queue = useRef<{ target: PayslipFile; pw: string }[]>([]);
+  const running = useRef(0);
+
+  const start = useCallback((targets: PayslipFile[], pw: string) => {
+    const pump = () => {
+      while (running.current < MAX_PARALLEL && queue.current.length > 0) {
+        const job = queue.current.shift()!;
+        const { target } = job;
+        running.current += 1;
+        void parse(target.file, job.pw, extractor).then((status) => {
+          // The password changed while this file was read: read it again with the new one.
+          if ((status.kind === "needsPassword" || status.kind === "wrongPassword") && job.pw !== latestPassword.current) {
+            const again = { ...target, version: target.version + 1 };
+            setFiles((list) => list.map((f) => (f.id === target.id && f.version === target.version ? again : f)));
+            queue.current.unshift({ target: again, pw: latestPassword.current });
+            return;
+          }
+          setFiles((list) => list.map((f) =>
+            f.id === target.id && f.version === target.version ? { ...f, status } : f));
+        }).finally(() => {
+          running.current -= 1;
+          pump();
+        });
+      }
+    };
+    queue.current.push(...targets.map((target) => ({ target, pw })));
+    pump();
   }, [extractor]);
 
-  const add = useCallback((picked: File[]) => {
+  /** Adds the PDFs among `picked` and says how many there were. */
+  const add = useCallback((picked: File[]): number => {
     const pdfs = picked.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
-    if (pdfs.length === 0) return;
+    if (pdfs.length === 0) return 0;
     const next = addFiles(current.current, pdfs, () => ++ids.current);
     const added = next.slice(next.length - pdfs.length);
     setFiles(next);
     start(added, password);
+    return pdfs.length;
   }, [password, start]);
 
   // A new password re-reads the files that wanted one.

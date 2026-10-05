@@ -4,15 +4,18 @@
  * or below.
  */
 
-import { asc, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import type {
   CategoryItem, MerchantItem, MonthTotals, PeriodsResponse, SpendingKind, SummaryResponse,
 } from "../api/summary";
-import { categories, spendingTypeBudgets, tagExclusionPatterns, vLive } from "../db/schema";
+import {
+  categories, payslips, sourceOwners, spendingTypeBudgets, tagExclusionPatterns, users, vLive,
+} from "../db/schema";
 import { atomic } from "../db/atomic";
 import type { Db } from "../db/types";
 import { historicalStats, isAnomaly } from "../domain/anomalies";
 import { buildGrid } from "../domain/grid";
+import { pensionSavings } from "../domain/pensionSavings";
 import {
   cashFlowTotals, categoryBreakdown, categoryMonthTotalsAllTypes, hiddenTagTotal,
   merchantsInScope, netCashFlow, spendingTypeByYear, type Scope, type TransactionType,
@@ -59,6 +62,39 @@ async function averageBefore(db: Db, month: string, scope: Scope): Promise<Summa
   const mean = (pick: (f: (typeof prior)[number]) => number) =>
     Math.round(prior.reduce((a, f) => a + pick(f), 0) / prior.length);
   return { incomeCents: mean((f) => f.incomeCents), expensesCents: mean((f) => f.expensesCents), months: prior.length };
+}
+
+/**
+ * get_enhanced_savings_totals, for the people whose accounts are in scope:
+ * everyone when no source filter is set, else the owners of the selected
+ * sources (source_owners). Null when nobody, or no month, qualifies.
+ */
+async function pensionFor(db: Db, q: SummaryQuery, scope: Scope): Promise<SummaryResponse["pension"]> {
+  let people: { id: number; name: string }[];
+  if (q.sources === undefined) {
+    people = await db.select({ id: users.id, name: users.displayName }).from(users);
+  } else if (q.sources.length === 0) {
+    return null;
+  } else {
+    people = await db.selectDistinct({ id: users.id, name: users.displayName })
+      .from(sourceOwners).innerJoin(users, eq(users.id, sourceOwners.userId))
+      .where(sql`${sourceOwners.source} IN (SELECT value FROM json_each(${JSON.stringify(q.sources)}))`);
+  }
+  if (people.length === 0) return null;
+
+  const [flows, months] = await Promise.all([
+    netCashFlow(db, "month", { ...scope, month: undefined }),
+    db.select({
+      month: payslips.month, pensionEeCents: payslips.pensionEeCents, avcCents: payslips.avcCents,
+      pensionErCents: payslips.pensionErCents, ytdReconciled: payslips.ytdReconciled,
+    }).from(payslips).where(inArray(payslips.userId, people.map((p) => p.id))),
+  ]);
+  const result = pensionSavings(
+    flows.map((f) => ({ month: f.period, incomeCents: f.incomeCents, expensesCents: f.expensesCents })),
+    months.map((m) => ({ ...m, ytdReconciled: m.ytdReconciled === null ? null : Boolean(m.ytdReconciled) })),
+    q.year, q.month,
+  );
+  return result && { ...result, people: people.map((p) => p.name).sort() };
 }
 
 export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResponse> {
@@ -124,6 +160,8 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
 
   const monthAverage = scope.month === undefined ? null : await averageBefore(db, scope.month, scope);
 
+  const pension = await pensionFor(db, q, scope);
+
   return {
     year: q.year,
     month: q.month,
@@ -141,6 +179,7 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
     monthlyTotals,
     monthly,
     monthAverage,
+    pension,
     hiddenCents,
     hiddenIncomeCents,
     excludedPatterns: patternRows.map((p) => p.pattern),

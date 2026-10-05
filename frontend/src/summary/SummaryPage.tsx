@@ -106,7 +106,7 @@ export function SummaryPage() {
         </header>
         {data && (
           <div className={`flex flex-col gap-4 transition-opacity ${summary.isPlaceholderData ? "opacity-60" : ""}`}>
-            <CashFlowTiles cashFlow={data.cashFlow} monthAverage={data.monthAverage} />
+            <CashFlowTiles cashFlow={data.cashFlow} monthAverage={data.monthAverage} pension={data.pension} />
             <SpendingSplit split={data.spendingType} monthView={data.month !== null} onEdit={() => setEditingBudgets(true)} />
           </div>
         )}

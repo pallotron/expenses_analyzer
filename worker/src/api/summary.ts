@@ -83,6 +83,19 @@ export interface MonthTotals {
   expensesCents: number;
 }
 
+export interface PensionSummary {
+  pensionCents: number;
+  savedCents: number;
+  incomeCents: number;
+  /** Percent. */
+  rate: number;
+  months: number[];
+  coverageLabel: string;
+  reconciled: boolean;
+  /** Display names of the people whose pension is counted. */
+  people: string[];
+}
+
 export interface SummaryResponse {
   year: number;
   month: number | null;
@@ -109,6 +122,8 @@ export interface SummaryResponse {
    * selected one that have rows in scope. Null in a year view, or with none.
    */
   monthAverage: { incomeCents: number; expensesCents: number; months: number } | null;
+  /** Savings rate with pension, for the owners of the selected sources (everyone when unfiltered). */
+  pension: PensionSummary | null;
   /** Expense total the tag exclusion hides in this period and these sources. */
   hiddenCents: number;
   /** Income total it hides there; the TUI never showed this. */

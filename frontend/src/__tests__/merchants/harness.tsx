@@ -27,6 +27,15 @@ export function api(rows: MerchantRow[], routes: Record<string, Answer> = {}) {
     if (route) { const r = route(body, url); return json(r.body, r.status); }
     if (url.pathname === "/api/merchants") return json({ merchants: rows });
     if (url.pathname === "/api/lookups") return json({ categories: ["Eating out", "Groceries", "Other"], tags: [], sources: [], essentialCategories: ["Groceries"] });
+    if (url.pathname === "/api/budget-types") {
+      return json({
+        categories: [
+          { name: "Eating out", spendingType: "discretionary", expenseCount: 1 },
+          { name: "Groceries", spendingType: "essential", expenseCount: 2 },
+        ],
+        essentialBudgetCents: null, discretionaryBudgetCents: null,
+      });
+    }
     if (url.pathname === "/api/merchants/preview") return json({ matched: 0, totalCents: 0, currentCategories: {}, merchants: {} });
     return json({});
   };

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { formatCents } from "../lib/money";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
+import { hiddenText } from "./hiddenTags";
 
 /**
  * Sources and the hidden-tags switch. On a phone both sit behind one
@@ -13,6 +13,7 @@ export function FiltersBar(props: {
   selected: string[] | undefined;
   hidden: boolean;
   hiddenCents: number;
+  hiddenIncomeCents: number;
   excludedPatterns: string[] | undefined;
   onSources: (s: string[] | undefined) => void;
   onHidden: (h: boolean) => void;
@@ -37,7 +38,7 @@ export function FiltersBar(props: {
       ? "No tags excluded"
       : props.hidden
         ? `Including all (${list} not applied)`
-        : `Excluding ${list} · ${formatCents(props.hiddenCents)} hidden`;
+        : `Excluding ${list} · ${hiddenText(props.hiddenCents, props.hiddenIncomeCents)}`;
 
   const allNone = (
     <span className="flex gap-2">

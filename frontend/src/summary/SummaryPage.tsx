@@ -8,6 +8,7 @@ import { Toast, useToast } from "../lib/Toast";
 import { BreakdownList } from "./BreakdownList";
 import { CashFlowTiles } from "./CashFlowTiles";
 import { FiltersBar } from "./FiltersBar";
+import { BudgetsSheet } from "../budgets/BudgetsSheet";
 import { HiddenTagsSheet } from "./HiddenTagsSheet";
 import { MonthlyChart } from "./MonthlyChart";
 import { MonthlyGrid } from "./MonthlyGrid";
@@ -61,10 +62,14 @@ export function SummaryPage() {
   const tab: Tab = tabs.some((t) => t.id === view.tab) ? view.tab : "expenses";
   const summary = useSummary(view);
   // Survives a load or an error, so the tag filter does not flicker or vanish.
-  const tags = useRef<{ patterns: string[]; hiddenCents: number } | undefined>(undefined);
-  if (summary.data) tags.current = { patterns: summary.data.excludedPatterns, hiddenCents: summary.data.hiddenCents };
+  const tags = useRef<{ patterns: string[]; hiddenCents: number; hiddenIncomeCents: number } | undefined>(undefined);
+  if (summary.data) {
+    const { excludedPatterns: patterns, hiddenCents, hiddenIncomeCents } = summary.data;
+    tags.current = { patterns, hiddenCents, hiddenIncomeCents };
+  }
   const update = (patch: Partial<SummaryParams>) => setSearch(toSearchParams({ ...view, ...patch }));
   const [editingHidden, setEditingHidden] = useState(false);
+  const [editingBudgets, setEditingBudgets] = useState(false);
   const { toast, notify, dismiss } = useToast();
 
   if (periods.error) return <main className="mx-auto max-w-6xl p-4"><ErrorCard error={periods.error} onRetry={() => periods.refetch()} /></main>;
@@ -95,14 +100,14 @@ export function SummaryPage() {
           <PeriodPicker periods={periods.data} year={year} month={view.month}
             onChange={(y, m) => update({ year: y, month: m })} />
           <FiltersBar sources={periods.data.sources} selected={view.sources} hidden={view.hidden}
-            hiddenCents={tags.current?.hiddenCents ?? 0} excludedPatterns={tags.current?.patterns}
+            hiddenCents={tags.current?.hiddenCents ?? 0} hiddenIncomeCents={tags.current?.hiddenIncomeCents ?? 0} excludedPatterns={tags.current?.patterns}
             onSources={(s) => update({ sources: s })} onHidden={(h) => update({ hidden: h })}
             onEditHidden={() => setEditingHidden(true)} />
         </header>
         {data && (
           <div className={`flex flex-col gap-4 transition-opacity ${summary.isPlaceholderData ? "opacity-60" : ""}`}>
             <CashFlowTiles cashFlow={data.cashFlow} monthAverage={data.monthAverage} />
-            <SpendingSplit split={data.spendingType} monthView={data.month !== null} />
+            <SpendingSplit split={data.spendingType} monthView={data.month !== null} onEdit={() => setEditingBudgets(true)} />
           </div>
         )}
       </StickyPanel>
@@ -143,6 +148,7 @@ export function SummaryPage() {
           </div>
         </div>
       )}
+      <BudgetsSheet open={editingBudgets} onClose={() => setEditingBudgets(false)} />
       <HiddenTagsSheet open={editingHidden} excluded={tags.current?.patterns ?? []} onClose={() => setEditingHidden(false)}
         onSaved={(patterns) => {
           // Like the TUI: a saved list is applied straight away.

@@ -2,7 +2,7 @@ import { formatCents } from "../lib/money";
 import type { SummaryResponse } from "../lib/types";
 
 /** _build_spending_type_line: the split, and each side against its budget. */
-export function SpendingSplit(props: { split: SummaryResponse["spendingType"]; monthView: boolean }) {
+export function SpendingSplit(props: { split: SummaryResponse["spendingType"]; monthView: boolean; onEdit?: () => void }) {
   const { essentialCents, discretionaryCents } = props.split;
   const total = essentialCents + discretionaryCents;
   const share = (c: number) => (total > 0 ? Math.round((c / total) * 100) : 0);
@@ -34,6 +34,9 @@ export function SpendingSplit(props: { split: SummaryResponse["spendingType"]; m
       <div className="flex flex-col gap-1 md:flex-row md:gap-6">
         {side("Essential", essentialCents, props.split.essentialBudgetCents, "bg-essential")}
         {side("Discretionary", discretionaryCents, props.split.discretionaryBudgetCents, "bg-discretionary")}
+        {props.onEdit && (
+          <button type="button" onClick={props.onEdit} aria-label="Edit budgets" className="self-start underline md:ml-auto">Edit…</button>
+        )}
       </div>
     </section>
   );

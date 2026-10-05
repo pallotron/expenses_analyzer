@@ -29,3 +29,7 @@ export {
   columnNames, commaDecimalSample, findHeaderRow, missingColumns, processRows, SKIP_REASONS,
 } from "../../../worker/src/domain/importRows";
 export type { ParsedImport, ParsedRow, SkipReason } from "../../../worker/src/domain/importRows";
+export type {
+  BudgetCategory, BudgetRequest, BudgetTypesResponse, CategoryTypeRequest, SpendingKind,
+} from "../../../worker/src/api/budgetTypes";
+export { MAX_BUDGET_CENTS } from "../../../worker/src/api/budgetTypes";

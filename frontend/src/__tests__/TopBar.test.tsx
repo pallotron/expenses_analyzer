@@ -43,6 +43,7 @@ describe("TopBar", () => {
     expect(screen.getByRole("link", { name: "Summary" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Merchants" })).toHaveAttribute("href", "/merchants");
+    expect(screen.getByRole("link", { name: "Budgets" })).toHaveAttribute("href", "/budgets");
   });
 
   it("publishes the measured bar height as --topbar-h", () => {

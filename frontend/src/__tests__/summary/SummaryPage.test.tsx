@@ -58,7 +58,12 @@ describe("SummaryPage", () => {
 
   it("shows what the exclusion hides", async () => {
     renderAt("/?year=2026");
-    expect(await screen.findByText(/excluding emergency/i)).toHaveTextContent("€1,240.00 hidden");
+    expect(await screen.findByText(/excluding emergency/i)).toHaveTextContent("€1,240.00 expenses hidden");
+  });
+
+  it("names hidden income, which the totals also leave out", async () => {
+    renderAt("/?year=2026", mockApi({ summary: () => summary({ hiddenCents: 0, hiddenIncomeCents: 9_063_334 }) }));
+    expect(await screen.findByText(/excluding emergency/i)).toHaveTextContent("€90,633.34 income hidden");
   });
 
   it("says so when there is no data at all", async () => {
@@ -280,6 +285,18 @@ describe("SummaryPage", () => {
     expect(march.searchParams.get("category")).toBe('"Groceries"');
     expect(march.searchParams.get("budget")).toBe("essential");
     expect(march.searchParams.get("type")).toBe("expense");
+  });
+});
+
+describe("budgets sheet", () => {
+  it("opens the budget editor from the essential/discretionary card, with a link to its page", async () => {
+    renderAt("/?year=2026");
+    await userEvent.click(await screen.findByRole("button", { name: "Edit budgets" }));
+    const sheet = await screen.findByRole("dialog", { name: "Budgets" });
+    const groceries = await within(sheet).findByRole("group", { name: "Groceries type" });
+    expect(within(groceries).getByRole("button", { pressed: true })).toHaveTextContent("Essential");
+    expect(within(sheet).getByLabelText("Essential, per year (€)")).toHaveValue("53000");
+    expect(within(sheet).getByRole("link", { name: "Open the Budgets page" })).toHaveAttribute("href", "/budgets");
   });
 });
 

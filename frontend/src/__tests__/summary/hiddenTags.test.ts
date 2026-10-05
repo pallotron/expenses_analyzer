@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { patternOptions } from "../../summary/hiddenTags";
+import { hiddenText, patternOptions } from "../../summary/hiddenTags";
 
 describe("patternOptions", () => {
   it("lists namespaces, then tags in use, then stale patterns, ticking the excluded ones", () => {
@@ -21,5 +21,16 @@ describe("patternOptions", () => {
 
   it("is empty with no tags and no patterns", () => {
     expect(patternOptions([], [])).toEqual([]);
+  });
+});
+
+describe("hiddenText", () => {
+  it.each([
+    [0, 0, "nothing hidden"],
+    [113_110, 0, "€1,131.10 expenses hidden"],
+    [0, 9_063_334, "€90,633.34 income hidden"],
+    [5_000, 90_000, "€50.00 expenses and €900.00 income hidden"],
+  ])("says %i expense and %i income cents as %j", (expense, income, text) => {
+    expect(hiddenText(expense, income)).toBe(text);
   });
 });

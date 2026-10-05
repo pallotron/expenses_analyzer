@@ -182,15 +182,18 @@ export async function spendingTypeByYear(db: Db, scope?: Scope): Promise<Spendin
 /**
  * hidden_tag_total.sql: expense total of the rows the Summary hides, within
  * the scope's period and sources, as _compute_hidden_tag_total narrows it.
+ * The TUI only counted expenses; `type` also gives the hidden income.
  */
-export async function hiddenTagTotal(db: Db, scope: Omit<Scope, "includeHidden"> = {}): Promise<number> {
+export async function hiddenTagTotal(
+  db: Db, scope: Omit<Scope, "includeHidden"> = {}, type: TransactionType = "expense",
+): Promise<number> {
   const v = vLive as unknown as typeof vSummary;
   const [row] = await db
     .select({ hiddenCents: sql<number>`COALESCE(SUM(${v.amountCents}), 0)`.mapWith(Number) })
     .from(v)
     .where(
       and(
-        eq(v.type, "expense"),
+        eq(v.type, type),
         inArray(v.id, db.select({ id: vExcludedIds.id }).from(vExcludedIds)),
         ...scopeTerms(v, scope),
       ),

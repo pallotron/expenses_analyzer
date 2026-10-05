@@ -2,6 +2,7 @@ import { ImportPage } from "./import/ImportPage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router";
 
+import { BudgetsPage } from "./budgets/BudgetsPage";
 import { ApiError } from "./lib/api";
 import { MerchantsPage } from "./merchants/MerchantsPage";
 import { SummaryPage } from "./summary/SummaryPage";
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/merchants" element={<MerchantsPage />} />
           <Route path="/import" element={<ImportPage />} />
+          <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="*" element={<SummaryPage />} />
         </Routes>
       </BrowserRouter>

@@ -72,7 +72,7 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
 
   const [
     cashFlow, splitRows, budgetRows, typeRows, expenseCats, incomeCats,
-    expenseMerchants, incomeMerchants, hiddenCents, patternRows,
+    expenseMerchants, incomeMerchants, hiddenCents, hiddenIncomeCents, patternRows,
   ] = await Promise.all([
     cashFlowTotals(db, scope),
     spendingTypeByYear(db, scope),
@@ -83,6 +83,7 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
     merchantsInScope(db, "expense", scope),
     merchantsInScope(db, "income", scope),
     hiddenTagTotal(db, { sources: scope.sources, year: scope.year, month: scope.month }),
+    hiddenTagTotal(db, { sources: scope.sources, year: scope.year, month: scope.month }, "income"),
     db.select({ pattern: tagExclusionPatterns.pattern }).from(tagExclusionPatterns).orderBy(asc(tagExclusionPatterns.id)),
   ]);
 
@@ -141,6 +142,7 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
     monthly,
     monthAverage,
     hiddenCents,
+    hiddenIncomeCents,
     excludedPatterns: patternRows.map((p) => p.pattern),
   };
 }

@@ -1,3 +1,5 @@
+import { formatCents } from "../lib/money";
+
 /**
  * The hidden-tag sheet's rows, as the TUI's build_pattern_options lays them
  * out: a `ns:*` row per tag namespace, then every tag in use, then any hidden
@@ -14,4 +16,12 @@ export function patternOptions(tagsInUse: string[], excluded: string[]): Pattern
   return [...new Set([...namespaces, ...tagsInUse, ...excluded])]
     .filter((p) => p !== "")
     .map((pattern) => ({ pattern, ticked: hidden.has(pattern) }));
+}
+
+/** What the exclusion leaves out of the totals, naming only the kinds it hides. */
+export function hiddenText(expenseCents: number, incomeCents: number): string {
+  if (expenseCents === 0 && incomeCents === 0) return "nothing hidden";
+  if (incomeCents === 0) return `${formatCents(expenseCents)} expenses hidden`;
+  if (expenseCents === 0) return `${formatCents(incomeCents)} income hidden`;
+  return `${formatCents(expenseCents)} expenses and ${formatCents(incomeCents)} income hidden`;
 }

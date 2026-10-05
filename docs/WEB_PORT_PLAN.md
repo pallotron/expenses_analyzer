@@ -142,7 +142,7 @@ Each line is a TUI feature, where it lives, and what the web does with it.
 **Order**, one PR each unless noted: Transactions (read) → Transactions
 (edit) → Summary drill-down + hidden-tag editor (done) → Merchants page (done) +
 Gemini (done) →
-Import (done) → Budget types → Payslips → Link Banks (step 3) → PDF (step 4).
+Import (done) → Budget types (done) → Payslips → Link Banks (step 3) → PDF (step 4).
 
 #### Summary (`summary_screen.py`) — core done in PR #30
 
@@ -279,10 +279,12 @@ sent, as today.
 
 #### Budget types (`u`, `budget_types_screen.py`)
 
-- Toggle each category essential/discretionary; set the annual essential and
-  discretionary budgets (`spending_type_budgets`). Small settings screen.
-- Also make the budget type editable in the merchant editor, under its
-  category.
+- ~~Toggle each category essential/discretionary; set the annual essential and
+  discretionary budgets (`spending_type_budgets`). Small settings screen.~~
+  Done: `/budgets`, also opened as a sheet from the Summary's split card.
+  Unused categories are folded; untyped income-only ones are not listed.
+- ~~Also make the budget type editable in the merchant editor, under its
+  category.~~ Done: it saves at once, for the whole category.
 
 #### Payslips (`y`, `payslips_screen.py`)
 

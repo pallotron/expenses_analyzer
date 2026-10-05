@@ -20,34 +20,32 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 export { PayslipDecryptError, parsePayslip, type LineExtractor } from "./payslipFile";
 
 /**
- * pdf.js splits a line into several text items and reports each one's
- * position. Items sharing a baseline belong to the same visual line, which is
- * what the parser's label-then-amounts logic assumes; without regrouping them
- * every amount would arrive on a line of its own.
+ * Text items in the PDF's own (content-stream) order, starting a new line
+ * whenever the baseline moves or pdf.js marks an end of line. This mirrors
+ * how pypdf extracted text for the Python app, which is what the parser's
+ * label-then-amounts logic and its NOTE summary block assume. Grouping by
+ * baseline across the whole page instead merges separate columns into one
+ * line ("... PRSI Code A1 + Gross Pay ..."), which the parser misreads.
  */
-function groupItemsIntoLines(items: TextItem[]): string[] {
-  const rows = new Map<number, TextItem[]>();
+export function groupItemsIntoLines(items: TextItem[]): string[] {
+  const lines: string[] = [];
+  let current: string[] = [];
+  let baseline: number | null = null;
+  const flush = () => {
+    const line = current.join(" ").replace(/\s+/g, " ").trim();
+    if (line) lines.push(line);
+    current = [];
+  };
   for (const item of items) {
-    if (!item.str.trim()) continue;
-    // transform[5] is the y translation. Round to absorb sub-pixel drift
-    // between items that are visually on one line.
-    const y = Math.round(item.transform[5]);
-    const row = rows.get(y);
-    if (row) row.push(item);
-    else rows.set(y, [item]);
+    const y = item.transform[5];
+    // Sub-pixel drift between items on one visual line is not a new line.
+    if (baseline !== null && Math.abs(y - baseline) > 1) flush();
+    if (item.str.trim()) current.push(item.str.trim());
+    baseline = y;
+    if (item.hasEOL) flush();
   }
-
-  return [...rows.entries()]
-    .sort(([a], [b]) => b - a) // top of the page downwards
-    .map(([, row]) =>
-      row
-        .sort((a, b) => a.transform[4] - b.transform[4]) // left to right
-        .map((item) => item.str.trim())
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim(),
-    )
-    .filter((line) => line.length > 0);
+  flush();
+  return lines;
 }
 
 /**

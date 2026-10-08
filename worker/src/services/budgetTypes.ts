@@ -15,17 +15,27 @@ import type { Db } from "../db/types";
  * typed category stays, so a refund-only year never hides it.
  */
 export async function listBudgetTypes(db: Db): Promise<BudgetTypesResponse> {
+  // Counted in one pass over v_live, then joined. Joining v_live directly on its
+  // computed category re-ran the view once per category: ~195k D1 rows read a call.
+  const counts = db
+    .select({
+      category: vLive.category,
+      expenseCount: sql<number>`COUNT(CASE WHEN ${vLive.type} = 'expense' THEN 1 END)`.as("expense_count"),
+      incomeCount: sql<number>`COUNT(CASE WHEN ${vLive.type} = 'income' THEN 1 END)`.as("income_count"),
+    })
+    .from(vLive)
+    .groupBy(vLive.category)
+    .as("counts");
   const rows = await db
     .select({
       name: categories.name,
       spendingType: categories.spendingType,
-      expenseCount: sql<number>`COUNT(CASE WHEN ${vLive.type} = 'expense' THEN 1 END)`,
-      incomeCount: sql<number>`COUNT(CASE WHEN ${vLive.type} = 'income' THEN 1 END)`,
+      expenseCount: sql<number>`COALESCE(${counts.expenseCount}, 0)`,
+      incomeCount: sql<number>`COALESCE(${counts.incomeCount}, 0)`,
     })
     .from(categories)
-    .leftJoin(vLive, eq(vLive.category, categories.name))
+    .leftJoin(counts, eq(counts.category, categories.name))
     .where(eq(categories.isArchived, false))
-    .groupBy(categories.id)
     .orderBy(asc(categories.name));
   const budgets = await db.select().from(spendingTypeBudgets);
   const budget = (kind: SpendingKind) => budgets.find((b) => b.spendingType === kind)?.annualBudgetCents ?? null;

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -216,5 +216,21 @@ describe("MonthlyGrid links", () => {
     expect(screen.getByRole("link", { name: "All Groceries transactions" })).toHaveAttribute("href", "/t?c=Groceries&m=Y");
     expect(hrefs()).toContain("/t?c=Groceries&m=1");
     expect(hrefs()).not.toContain("/t?c=Groceries&m=2");
+  });
+});
+
+describe("MonthlyGrid on paper", () => {
+  const fire = (type: "beforeprint" | "afterprint") => act(() => { window.dispatchEvent(new Event(type)); });
+  afterEach(() => fire("afterprint"));
+
+  it("is a table even from a phone, in whole euros, without the sparkline column", () => {
+    screenIs(false);
+    render(<MonthlyGrid title="Monthly expenses" grid={grid} tone="expense" lastMonth={12} />);
+    fire("beforeprint");
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent).slice(0, 4)).toEqual(["Category", "Total", "Average", "Jan"]);
+    const groceries = within(table).getByRole("row", { name: /Groceries/ });
+    expect(groceries).toHaveTextContent("€300");
+    expect(groceries).not.toHaveTextContent("€300.00");
   });
 });

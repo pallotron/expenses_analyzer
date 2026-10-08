@@ -4,6 +4,7 @@ import { Chevron } from "../lib/Chevron";
 import { formatCents } from "../lib/money";
 import { averageCents, monthTrends, type Grid, type GridCell, type GridRow, type Trend } from "../lib/types";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
+import { usePrinting } from "../lib/usePrinting";
 import { useHorizontalScroll, type HorizontalScroll } from "../lib/useHorizontalScroll";
 import { Sparkline } from "./Sparkline";
 
@@ -16,9 +17,9 @@ const ARROW: Partial<Record<Trend, { className: string; label: string }>> = {
 };
 
 /** The month's amount, its anomaly highlight, and the arrow against the month before. */
-function Amount(props: { cell: GridCell; trend?: Trend | null }) {
+function Amount(props: { cell: GridCell; trend?: Trend | null; whole?: boolean }) {
   if (props.cell.amountCents === 0) return <span className="text-slate-400">–</span>;
-  const text = formatCents(props.cell.amountCents);
+  const text = formatCents(props.cell.amountCents, { whole: props.whole });
   const arrow = props.trend ? ARROW[props.trend] : undefined;
   return (
     <>
@@ -65,7 +66,13 @@ const FROZEN_CLASS = "sticky z-10 bg-white dark:bg-slate-950";
 const EDGE = "shadow-[1px_0_0_0_var(--color-slate-200)] dark:shadow-[1px_0_0_0_var(--color-slate-800)]";
 const frozen = (i: number) => ({ left: FROZEN[i].left, width: FROZEN[i].width, minWidth: FROZEN[i].width, maxWidth: FROZEN[i].width });
 
-function DesktopTable(props: { grid: Grid; lastMonth: number; tone: "income" | "expense"; scroll: HorizontalScroll; cellHref?: CellHref }) {
+function DesktopTable(props: { grid: Grid; lastMonth: number; tone: "income" | "expense"; scroll: HorizontalScroll; cellHref?: CellHref; printing?: boolean }) {
+  // Nothing scrolls on paper: the frozen columns size to their content, leaving the width to the months.
+  // Sixteen columns with cents are wider than a landscape page, so paper gets whole euros, as the
+  // TUI's PDF did, and no sparkline: the months it sums up are printed beside it.
+  const pin = (i: number) => (props.printing ? undefined : frozen(i));
+  const whole = props.printing;
+  const trend = !props.printing;
   const row = (r: GridRow, isTotal = false) => {
     const trends = trendsFor(r, props.tone, isTotal);
     const cat = isTotal ? null : r.category;
@@ -73,12 +80,12 @@ function DesktopTable(props: { grid: Grid; lastMonth: number; tone: "income" | "
     const hover = props.cellHref ? FROZEN_HOVER : "";
     return (
       <tr key={r.category} className={`${isTotal ? "font-semibold" : "border-t border-slate-100 dark:border-slate-800"} ${props.cellHref ? `group ${ROW_HOVER}` : ""}`}>
-        <th scope="row" style={frozen(0)} className={`${FROZEN_CLASS} ${hover} py-1.5 pr-3 text-left font-medium`}><Linked to={yearHref}>{r.category}</Linked></th>
-        <td style={frozen(1)} className={`${FROZEN_CLASS} ${hover} px-2 text-right whitespace-nowrap`}><Linked to={yearHref}>{formatCents(r.totalCents)}</Linked></td>
-        <td style={frozen(2)} className={`${FROZEN_CLASS} ${hover} px-2 text-right whitespace-nowrap`}><Linked to={yearHref}>{formatCents(averageCents(r, isTotal))}</Linked></td>
-        <td style={frozen(3)} className={`${FROZEN_CLASS} ${hover} ${EDGE} px-2`}>{!isTotal && <Sparkline values={r.months.slice(0, props.lastMonth)} label={`${r.category} by month`} />}</td>
+        <th scope="row" style={pin(0)} className={`${FROZEN_CLASS} ${hover} py-1.5 pr-3 text-left font-medium`}><Linked to={yearHref}>{r.category}</Linked></th>
+        <td style={pin(1)} className={`${FROZEN_CLASS} ${hover} px-2 text-right whitespace-nowrap`}><Linked to={yearHref}>{formatCents(r.totalCents, { whole })}</Linked></td>
+        <td style={pin(2)} className={`${FROZEN_CLASS} ${hover} px-2 text-right whitespace-nowrap`}><Linked to={yearHref}>{formatCents(averageCents(r, isTotal), { whole })}</Linked></td>
+        {trend && <td style={pin(3)} className={`${FROZEN_CLASS} ${hover} ${EDGE} px-2`}>{!isTotal && <Sparkline values={r.months.slice(0, props.lastMonth)} label={`${r.category} by month`} />}</td>}
         {r.months.slice(0, props.lastMonth).map((c, i) => <td key={i} className="px-2 text-right whitespace-nowrap">
-          <Linked to={c.amountCents ? props.cellHref?.(cat, i + 1) : undefined}><Amount cell={c} trend={trends[i]} /></Linked>
+          <Linked to={c.amountCents ? props.cellHref?.(cat, i + 1) : undefined}><Amount cell={c} trend={trends[i]} whole={whole} /></Linked>
         </td>)}
       </tr>
     );
@@ -89,14 +96,14 @@ function DesktopTable(props: { grid: Grid; lastMonth: number; tone: "income" | "
       {/* Fades over the months say there are more off that edge. */}
       {props.scroll.canLeft && <div data-testid="fade-left" className={`${fade} bg-linear-to-r`} style={{ left: FROZEN_WIDTH }} />}
       {props.scroll.canRight && <div data-testid="fade-right" className={`${fade} right-0 bg-linear-to-l`} />}
-      <div ref={props.scroll.ref} className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div ref={props.scroll.ref} className="overflow-x-auto print:overflow-visible">
+        <table className="print-dense w-full text-sm">
           <thead>
             <tr className="text-xs text-slate-500">
-              <th style={frozen(0)} className={`${FROZEN_CLASS} text-left`}>Category</th>
-              <th style={frozen(1)} className={`${FROZEN_CLASS} px-2 text-right font-normal`}>Total</th>
-              <th style={frozen(2)} className={`${FROZEN_CLASS} px-2 text-right font-normal`}>Average</th>
-              <th style={frozen(3)} className={`${FROZEN_CLASS} ${EDGE} px-2 text-left font-normal`}>Trend</th>
+              <th style={pin(0)} className={`${FROZEN_CLASS} text-left`}>Category</th>
+              <th style={pin(1)} className={`${FROZEN_CLASS} px-2 text-right font-normal`}>Total</th>
+              <th style={pin(2)} className={`${FROZEN_CLASS} px-2 text-right font-normal`}>Average</th>
+              {trend && <th style={pin(3)} className={`${FROZEN_CLASS} ${EDGE} px-2 text-left font-normal`}>Trend</th>}
               {MONTHS.slice(0, props.lastMonth).map((m) => <th key={m} data-month className="px-2 text-right font-normal">{m}</th>)}
             </tr>
           </thead>
@@ -154,9 +161,11 @@ function PhoneRows(props: { grid: Grid; lastMonth: number; tone: "income" | "exp
 
 /** `lastMonth` is the latest month with data (1–12): later months would be empty columns. */
 export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" | "expense"; lastMonth: number; cellHref?: CellHref }) {
-  const desktop = useMediaQuery(DESKTOP);
+  // Paper gets the table at any width: nothing on it can be opened.
+  const printing = usePrinting();
+  const table = useMediaQuery(DESKTOP) || printing;
   const scroll = useHorizontalScroll(props.grid);
-  const overflows = desktop && (scroll.canLeft || scroll.canRight);
+  const overflows = table && (scroll.canLeft || scroll.canRight);
   // Three month columns per press.
   const step = () => 3 * (scroll.ref.current?.querySelector<HTMLElement>("th[data-month]")?.offsetWidth || 90);
   const arrow = "inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent";
@@ -165,7 +174,7 @@ export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" |
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-400">{props.title}</h2>
         {overflows && (
-          <div className="flex gap-1 text-sm">
+          <div className="flex gap-1 text-sm print:hidden">
             <button type="button" aria-label="Earlier months" disabled={!scroll.canLeft}
               onClick={() => scroll.scrollBy(-step())} className={arrow}><Chevron dir="left" size={20} /></button>
             <button type="button" aria-label="Later months" disabled={!scroll.canRight}
@@ -175,8 +184,8 @@ export function MonthlyGrid(props: { title: string; grid: Grid; tone: "income" |
       </div>
       {props.grid.rows.length === 0
         ? <p className="text-sm text-slate-500">Nothing this year.</p>
-        : desktop
-          ? <DesktopTable grid={props.grid} lastMonth={props.lastMonth} tone={props.tone} scroll={scroll} cellHref={props.cellHref} />
+        : table
+          ? <DesktopTable grid={props.grid} lastMonth={props.lastMonth} tone={props.tone} scroll={scroll} cellHref={props.cellHref} printing={printing} />
           : <PhoneRows grid={props.grid} lastMonth={props.lastMonth} tone={props.tone} cellHref={props.cellHref} />}
     </section>
   );

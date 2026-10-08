@@ -43,7 +43,7 @@ export function TopBar(props: { hostname?: string }) {
   }, []);
 
   return (
-    <nav ref={nav} className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+    <nav ref={nav} className="sticky top-0 z-30 print:hidden border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
       {/* On a phone the links get their own row, so none is cut off. */}
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-4 text-sm sm:flex-nowrap sm:py-5">
         <span className="flex shrink-0 items-center gap-3 text-lg font-semibold"><Logo size={32} /><span>Expenses</span></span>

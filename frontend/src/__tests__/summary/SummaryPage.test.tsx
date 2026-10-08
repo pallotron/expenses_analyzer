@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,9 +32,44 @@ function renderAt(url: string, api = mockApi()) {
 beforeEach(() => {
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {} }));
 });
-afterEach(() => vi.unstubAllGlobals());
+const fire = (type: "beforeprint" | "afterprint") => act(() => { window.dispatchEvent(new Event(type)); });
+
+afterEach(() => { fire("afterprint"); vi.unstubAllGlobals(); });
 
 describe("SummaryPage", () => {
+  it("prints from the Export PDF button", async () => {
+    const print = vi.fn();
+    vi.stubGlobal("print", print);
+    renderAt("/?year=2026");
+    await screen.findByText("€61,400.00");
+    await userEvent.click(screen.getByRole("button", { name: "Export PDF" }));
+    expect(print).toHaveBeenCalledOnce();
+  });
+
+  it("prints every tab's sections under a header naming the period and scope", async () => {
+    renderAt("/?year=2026&sources=Card");
+    await screen.findByText("€61,400.00");
+    expect(screen.queryByRole("region", { name: "Income categories" })).not.toBeInTheDocument();
+    fire("beforeprint");
+    for (const name of ["Expense categories", "Top expense merchants", "Income categories", "Top income sources", "Monthly expenses", "Monthly income"]) {
+      expect(screen.getByRole("region", { name })).toBeInTheDocument();
+    }
+    const header = within(screen.getByRole("banner", { name: "Report" }));
+    expect(header.getByRole("heading", { name: "Summary" })).toBeInTheDocument();
+    expect(header.getByText("2026 · Sources: Card · Hidden tags excluded: emergency")).toBeInTheDocument();
+    expect(document.title).toBe("Summary 2026");
+    fire("afterprint");
+    expect(screen.queryByRole("region", { name: "Income categories" })).not.toBeInTheDocument();
+  });
+
+  it("names a month view in the header and the file name", async () => {
+    renderAt("/?year=2026&month=2&hidden=1");
+    await screen.findByText("€61,400.00");
+    fire("beforeprint");
+    expect(screen.getByText("February 2026 · All sources · Hidden tags included")).toBeInTheDocument();
+    expect(document.title).toBe("Summary 2026-02");
+  });
+
   it("opens on the newest year and shows its figures", async () => {
     const api = renderAt("/");
     expect(await screen.findByText("€61,400.00")).toBeInTheDocument();

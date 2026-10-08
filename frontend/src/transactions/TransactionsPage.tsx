@@ -3,14 +3,16 @@ import { useSearchParams } from "react-router";
 
 import { ApiError } from "../lib/api";
 import { Chevron } from "../lib/Chevron";
+import { ExportPdfButton, PrintHeader } from "../lib/Print";
 import { StickyPanel } from "../lib/StickyPanel";
 import { monthRange, type TransactionRow } from "../lib/types";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
+import { usePrinting } from "../lib/usePrinting";
 import { usePeriods } from "../summary/queries";
 import { Editing } from "./edit/Editing";
 import { DayList } from "./DayList";
 import { defaultMonth } from "./defaultMonth";
-import { parseTxParams, shiftMonth, toTxSearch, transactionsApiPath, wholeMonth, type TxParams } from "./params";
+import { describeFilters, parseTxParams, shiftMonth, toTxSearch, transactionsApiPath, wholeMonth, type TxParams } from "./params";
 import { useLookups, useTransactions } from "./queries";
 import { TotalsStrip } from "./TotalsStrip";
 import { TransactionFilters } from "./TransactionFilters";
@@ -29,6 +31,13 @@ function rangeLabel(p: TxParams): string {
   return "All dates";
 }
 
+/** The browser's suggested PDF name. */
+function printTitle(p: TxParams): string {
+  const m = wholeMonth(p);
+  if (m) return `Transactions ${m.year}-${String(m.month).padStart(2, "0")}`;
+  return ["Transactions", p.from, p.to].filter(Boolean).join(" ");
+}
+
 export function TransactionsPage() {
   const [search, setSearch] = useSearchParams();
   const desktop = useMediaQuery(DESKTOP);
@@ -41,6 +50,9 @@ export function TransactionsPage() {
   const [shown, setShown] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
   const [open, setOpen] = useState<TransactionRow | null>(null);
+  const printing = usePrinting(printTitle(params));
+  // On paper: every row, as a table, whatever the screen size.
+  const table = desktop || printing;
   useEffect(() => { setShown(PAGE_SIZE); setSelected(new Set()); }, [path]);
 
   const start = unset && periods.data ? defaultMonth(periods.data, new Date()) : null;
@@ -67,7 +79,8 @@ export function TransactionsPage() {
   const month = wholeMonth(params);
   const data = list.data;
   const badRequest = list.error instanceof ApiError && list.error.status === 400 ? list.error.message : null;
-  const rows = data ? (desktop ? sortRows(data.rows, params.sort, params.dir) : data.rows) : [];
+  const rows = data ? (table ? sortRows(data.rows, params.sort, params.dir) : data.rows) : [];
+  const visible = printing ? rows : rows.slice(0, shown);
 
   // Only rows still in the list count: one deleted elsewhere drops out of the selection.
   const selectedIds = data ? data.rows.filter((r) => selected.has(r.id)).map((r) => r.id) : [];
@@ -81,8 +94,9 @@ export function TransactionsPage() {
 
   return (
     <main className={`mx-auto flex max-w-6xl flex-col gap-4 p-4 ${selectedIds.length > 0 ? "pb-28 md:pb-4" : ""}`}>
+      {printing && <PrintHeader title="Transactions" scope={[rangeLabel(params), describeFilters(params)].filter(Boolean).join(" · ")} />}
       <StickyPanel label="Transaction controls">
-        <header className="flex items-center justify-between gap-3">
+        <header className="flex items-center justify-between gap-3 print:hidden">
           <h1 className="text-lg font-semibold">Transactions</h1>
           <div className="flex items-center gap-2 text-sm">
             {month && <button type="button" aria-label="Previous month" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800"
@@ -90,19 +104,24 @@ export function TransactionsPage() {
             <span className="text-base font-medium">{rangeLabel(params)}</span>
             {month && <button type="button" aria-label="Next month" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 dark:border-slate-700 dark:hover:bg-slate-800"
               onClick={() => setSearch(toTxSearch(shiftMonth(params, 1)))}><Chevron dir="right" size={20} /></button>}
+            <ExportPdfButton />
           </div>
         </header>
 
-        <TransactionFilters params={params} lookups={lookups.data} onChange={update} onClear={clear} desktop={desktop} />
+        <div className="print:hidden">
+          <TransactionFilters params={params} lookups={lookups.data} onChange={update} onClear={clear} desktop={desktop} />
+        </div>
         {data && data.count > 0 && (
           <div className={`transition-opacity ${list.isPlaceholderData ? "opacity-60" : ""}`}>
             <TotalsStrip count={data.count} incomeCents={data.incomeCents} expensesCents={data.expensesCents} type={params.type} />
           </div>
         )}
-        <Editing rows={data?.rows ?? []} selectedIds={selectedIds} lookups={lookups.data}
-          onSelectAll={() => setSelected(new Set(data?.rows.map((r) => r.id)))} onClearSelection={() => setSelected(new Set())}
-          onDeselect={(ids) => setSelected((s) => { const n = new Set(s); for (const id of ids) n.delete(id); return n; })}
-          open={open} onCloseOpen={() => setOpen(null)} />
+        <div className="print:hidden">
+          <Editing rows={data?.rows ?? []} selectedIds={selectedIds} lookups={lookups.data}
+            onSelectAll={() => setSelected(new Set(data?.rows.map((r) => r.id)))} onClearSelection={() => setSelected(new Set())}
+            onDeselect={(ids) => setSelected((s) => { const n = new Set(s); for (const id of ids) n.delete(id); return n; })}
+            open={open} onCloseOpen={() => setOpen(null)} />
+        </div>
       </StickyPanel>
       {badRequest && <p role="alert" className="text-sm text-expense">{badRequest}</p>}
       {list.error && !badRequest && (
@@ -120,14 +139,14 @@ export function TransactionsPage() {
               No transactions match these filters.{" "}
               <button type="button" onClick={clear} className="underline">Clear filters</button>
             </p>
-          ) : desktop ? (
-            <TransactionTable rows={rows.slice(0, shown)} sort={params.sort} dir={params.dir}
+          ) : table ? (
+            <TransactionTable rows={visible} selectable={!printing} sort={params.sort} dir={params.dir}
               onSort={(sort, dir) => setSearch(toTxSearch({ ...params, sort, dir }), { replace: true })}
               selected={effective} onToggle={toggle} onToggleShown={toggleShown} onOpen={setOpen} />
           ) : (
-            <DayList rows={rows.slice(0, shown)} selected={effective} onToggle={toggle} onOpen={setOpen} />
+            <DayList rows={visible} selected={effective} onToggle={toggle} onOpen={setOpen} />
           )}
-          {rows.length > shown && (
+          {!printing && rows.length > shown && (
             <button type="button" onClick={() => setShown((n) => n + PAGE_SIZE)} className="self-start text-sm underline">
               Show more ({rows.length - shown} left)
             </button>

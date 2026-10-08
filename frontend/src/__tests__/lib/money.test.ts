@@ -7,6 +7,10 @@ describe("formatCents", () => {
     expect(formatCents(0)).toBe("€0.00");
     expect(formatCents(-1_234)).toBe("-€12.34");
   });
+  it("has a whole-euro form for dense printed grids, rounding the cents", () => {
+    expect(formatCents(123_456, { whole: true })).toBe("€1,235");
+    expect(formatCents(-1_249, { whole: true })).toBe("-€12");
+  });
   it("has a compact form for small tiles", () => {
     expect(formatCents(6_140_000, { compact: true })).toBe("€61.4K");
     expect(formatCents(100_000, { compact: true })).toBe("€1K");

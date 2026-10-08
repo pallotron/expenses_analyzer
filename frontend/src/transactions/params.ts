@@ -68,3 +68,19 @@ export function activeFilterCount(p: TransactionsQuery): number {
     + (p.sources !== undefined ? 1 : 0)
     + (p.excludeHidden ? 1 : 0);
 }
+
+/** The filters in one line, for the printed report. The date range is named apart. */
+export function describeFilters(p: TransactionsQuery): string {
+  const parts: string[] = [];
+  if (p.merchant) parts.push(`Merchant: ${p.merchant}`);
+  if (p.category) parts.push(`Category: ${p.category}`);
+  if (p.tags) parts.push(`Tags: ${p.tags}`);
+  if (p.min && p.max) parts.push(`Amount: €${p.min} to €${p.max}`);
+  else if (p.min) parts.push(`Amount: from €${p.min}`);
+  else if (p.max) parts.push(`Amount: up to €${p.max}`);
+  if (p.type) parts.push(p.type === "income" ? "Income" : "Expense");
+  if (p.budget) parts.push(p.budget === "essential" ? "Essential" : "Discretionary");
+  if (p.sources) parts.push(`Sources: ${p.sources.length ? p.sources.join(", ") : "none"}`);
+  if (p.excludeHidden) parts.push("Hidden tags excluded");
+  return parts.join(" · ");
+}

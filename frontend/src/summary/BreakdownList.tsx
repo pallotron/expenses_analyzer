@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Chevron } from "../lib/Chevron";
 import { formatCents } from "../lib/money";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
+import { usePrinting } from "../lib/usePrinting";
 
 export interface BreakdownItem {
   label: string;
@@ -39,7 +40,8 @@ export function BreakdownList(props: {
   const [expanded, setExpanded] = useState(false);
   const [smallOpen, setSmallOpen] = useState(false);
   const desktop = useMediaQuery(DESKTOP);
-  const toggles = !!props.collapsible && !desktop;
+  const printing = usePrinting();
+  const toggles = !!props.collapsible && !desktop && !printing;
   const open = !toggles || expanded;
   const total = props.items.reduce((a, i) => a + i.amountCents, 0);
   const max = Math.max(1, ...props.items.map((i) => i.amountCents));
@@ -111,7 +113,7 @@ export function BreakdownList(props: {
         </ul>
       ))}
       {open && props.limit !== undefined && main.length > props.limit && (
-        <button type="button" onClick={() => setAll((a) => !a)} className="mt-3 text-sm underline">
+        <button type="button" onClick={() => setAll((a) => !a)} className="mt-3 text-sm underline print:hidden">
           {all ? "Show fewer" : `Show all ${main.length}`}
         </button>
       )}

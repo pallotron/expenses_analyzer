@@ -142,7 +142,7 @@ Each line is a TUI feature, where it lives, and what the web does with it.
 **Order**, one PR each unless noted: Transactions (read) → Transactions
 (edit) → Summary drill-down + hidden-tag editor (done) → Merchants page (done) +
 Gemini (done) →
-Import (done) → Budget types (done) → Payslips (done) → Link Banks (step 3) → PDF (step 4).
+Import (done) → Budget types (done) → Payslips (done) → PDF (step 4, done) → Link Banks (step 3).
 
 #### Summary (`summary_screen.py`) — core done in PR #30
 
@@ -164,7 +164,7 @@ Import (done) → Budget types (done) → Payslips (done) → Link Banks (step 3
   the period picker is built from transactions, so such a month can't be chosen.
 - Compact mode (`ctrl+m`), focus mode (`f`): **dropped**, the responsive
   layout replaces them.
-- Export PDF (`e`): step 4.
+- ~~Export PDF (`e`)~~ Done, see [step 4](#4-pdf-export).
 
 #### Transactions (`transaction_screen.py` + modals)
 
@@ -219,7 +219,7 @@ Edit PR A (row actions) and PR B (merchant editor, budget type):
   Discretionary).~~ Done: the Budget filter. Changing a category's type
   belongs to Budget types; the merchant editor shows it read-only and will
   offer it once that service exists.
-- Export PDF (`p`): step 4.
+- ~~Export PDF (`p`)~~ Done, see [step 4](#4-pdf-export).
 
 #### Merchants page (`/merchants`) (replaces Categorize)
 
@@ -322,7 +322,30 @@ TrueLayer.
 
 ### 4. PDF export
 
-`pdf_export.py` (543) → `pdfmake`. Last, because nothing depends on it.
+~~`pdf_export.py` (543) → `pdfmake`.~~ Done, but as the browser's print rather
+than a second document. The PDFs are for reading the Summary off screen, not
+records anyone else depends on, so a separate layout to keep in step with the
+screens was not worth a 1–2 MB library.
+
+- "Export PDF" on the Summary and Transactions calls `window.print()`; "Save as
+  PDF" in the dialog writes the file. Cmd+P gives the same output.
+- `usePrinting()` (`lib/usePrinting.ts`) is true between `beforeprint` and
+  `afterprint`, flushed synchronously, because CSS alone cannot print what is
+  not rendered. While it holds, the Summary renders every tab's sections, the
+  Transactions every row as a table, and the monthly grid its table even from
+  a phone. It also sets the document title, which browsers use as the PDF's
+  file name (`Summary 2026-09`, `Transactions 2026-09`).
+- A print-only header names the period and scope (sources, hidden tags, the
+  Transactions filters via `describeFilters`); the controls do not print.
+- A year Summary prints landscape (`@page landscape`, on the whole page,
+  because Chromium lays every page out at the first page's width). Sixteen
+  columns with cents do not fit even so, so its grid prints in whole euros, as
+  the TUI's PDF did, and without the sparkline column.
+- Dark mode is `screen` only, so a printout is always light, and
+  `print-color-adjust: exact` keeps the bars.
+
+Checked by printing a year, a month, a month's list and a filtered list to
+PDF with headless Chromium, at desktop and phone widths.
 
 ### 5. Cutover
 
@@ -414,12 +437,8 @@ fallback. The Access application's session duration is longer than the
 24-hour default, so a login lasts across days.
 
 Still to do:
-- The parquet is still the TUI's live data, so D1 is a copy as of
-  2026-09-29. Anything imported in the TUI from now on is not in D1. Decide
-  when to stop writing through the TUI, or re-seed (wipe the tables and repeat
-  the seed) before cutover.
-- Secrets: `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`, `GEMINI_API_KEY`,
-  `TOKEN_ENCRYPTION_KEY`, when bank sync and categorisation are ported.
+- Secrets: `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`,
+  `TOKEN_ENCRYPTION_KEY`, when bank sync is ported.
 
 Done 2026-09-30:
 - **Tracked migrations.** `migrations_dir = "drizzle"` on the D1 binding.

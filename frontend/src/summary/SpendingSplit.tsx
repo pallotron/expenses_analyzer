@@ -35,7 +35,7 @@ export function SpendingSplit(props: { split: SummaryResponse["spendingType"]; m
         {side("Essential", essentialCents, props.split.essentialBudgetCents, "bg-essential")}
         {side("Discretionary", discretionaryCents, props.split.discretionaryBudgetCents, "bg-discretionary")}
         {props.onEdit && (
-          <button type="button" onClick={props.onEdit} aria-label="Edit budgets" className="self-start underline md:ml-auto">Edit…</button>
+          <button type="button" onClick={props.onEdit} aria-label="Edit budgets" className="self-start underline md:ml-auto print:hidden">Edit…</button>
         )}
       </div>
     </section>

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -60,9 +60,29 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-01T09:00:00"));
 });
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+const fire = (type: "beforeprint" | "afterprint") => act(() => { window.dispatchEvent(new Event(type)); });
+afterEach(() => { fire("afterprint"); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("TransactionsPage", () => {
+  it("prints every row as a table, even from a phone, under a header naming the filters", async () => {
+    desktop = false;
+    const print = vi.fn();
+    vi.stubGlobal("print", print);
+    const many = Array.from({ length: PAGE_SIZE + 5 }, (_, i) => row(i + 1, "2026-09-10", 100));
+    renderAt("/transactions?from=2026-09-01&to=2026-09-30&type=expense", api({ rows: many }));
+    await screen.findByText(`${PAGE_SIZE + 5} transactions`, { exact: false });
+    await userEvent.click(screen.getByRole("button", { name: "Export PDF" }));
+    expect(print).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    fire("beforeprint");
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(PAGE_SIZE + 6); // + header
+    expect(within(screen.getByRole("table")).queryByRole("checkbox")).not.toBeInTheDocument();
+    const header = within(screen.getByRole("banner", { name: "Report" }));
+    expect(header.getByRole("heading", { name: "Transactions" })).toBeInTheDocument();
+    expect(header.getByText("September 2026 · Expense")).toBeInTheDocument();
+    expect(document.title).toBe("Transactions 2026-09");
+  });
+
   it("opens on the previous month while the current one is empty", async () => {
     const mock = renderAt("/transactions");
     await waitFor(() => expect(location).toBe("?from=2026-09-01&to=2026-09-30"));

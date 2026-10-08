@@ -2,6 +2,7 @@ import { useNavigate } from "react-router";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatAxisCents, formatCents } from "../lib/money";
 import type { MonthTotals } from "../lib/types";
+import { usePrinting } from "../lib/usePrinting";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -15,6 +16,8 @@ export type MonthHref = (type: "income" | "expense" | null, month: number) => st
  * keyboard route to the same lists.
  */
 export function MonthlyChart(props: { totals: MonthTotals[]; lastMonth: number; monthHref?: MonthHref }) {
+  // The browser prints straight after beforeprint: a growing bar would print half drawn.
+  const animate = !usePrinting();
   const navigate = useNavigate();
   const data = props.totals
     .filter((t) => t.month <= props.lastMonth)
@@ -45,9 +48,9 @@ export function MonthlyChart(props: { totals: MonthTotals[]; lastMonth: number; 
             {/* Recharts sorts legend items by name unless told otherwise. */}
             <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }}
               itemSorter={(item) => ["Income", "Expenses", "Net"].indexOf(String(item.value))} />
-            <Bar dataKey="incomeCents" name="Income" fill="var(--color-income)" radius={[3, 3, 0, 0]} onClick={onBar("income")} />
-            <Bar dataKey="expensesCents" name="Expenses" fill="var(--color-expense)" radius={[3, 3, 0, 0]} onClick={onBar("expense")} />
-            <Line dataKey="netCents" name="Net" type="monotone" stroke="#64748b" strokeWidth={2} dot={{ r: 2.5 }} />
+            <Bar dataKey="incomeCents" name="Income" fill="var(--color-income)" radius={[3, 3, 0, 0]} onClick={onBar("income")} isAnimationActive={animate} />
+            <Bar dataKey="expensesCents" name="Expenses" fill="var(--color-expense)" radius={[3, 3, 0, 0]} onClick={onBar("expense")} isAnimationActive={animate} />
+            <Line dataKey="netCents" name="Net" type="monotone" stroke="#64748b" strokeWidth={2} dot={{ r: 2.5 }} isAnimationActive={animate} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>

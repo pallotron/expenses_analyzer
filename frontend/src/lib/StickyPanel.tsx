@@ -41,7 +41,7 @@ export function StickyPanel(props: { children: ReactNode; label: string }) {
       <div ref={sentinel} aria-hidden="true" className="pointer-events-none absolute h-px w-px"
         style={{ marginTop: "calc(-1 * var(--topbar-h, 0px))" }} />
       <div ref={panel} role="region" aria-label={props.label} data-stuck={stuck ? "true" : "false"}
-        className="-mx-4 flex flex-col gap-4 bg-white px-4 dark:bg-slate-950 md:sticky md:top-[var(--topbar-h,0px)] md:z-[25] md:pb-3 data-[stuck=true]:md:shadow-[0_8px_12px_-10px_rgba(15,23,42,0.25)]">
+        className="-mx-4 flex flex-col gap-4 bg-white px-4 dark:bg-slate-950 md:sticky md:top-[var(--topbar-h,0px)] md:z-[25] md:pb-3 data-[stuck=true]:md:shadow-[0_8px_12px_-10px_rgba(15,23,42,0.25)] print:static! print:shadow-none!">
         {props.children}
       </div>
     </>

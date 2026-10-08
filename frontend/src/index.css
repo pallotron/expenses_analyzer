@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Dark mode is for screens: a printout is always light. */
+@custom-variant dark (@media screen and (prefers-color-scheme: dark));
+
 /* Colour meaning, used everywhere a figure is shown. */
 @theme {
   --color-income: oklch(0.62 0.15 155);
@@ -11,3 +14,22 @@
 
 html { font-feature-settings: "tnum"; } /* figures line up in columns */
 body { @apply bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased; }
+
+/* Export PDF is the browser's print. Keep the bars and colours, which browsers
+   drop by default, and don't split a row across pages. */
+@media print {
+  @page { margin: 12mm; }
+  html { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  tr, li { break-inside: avoid; }
+  h1, h2 { break-after: avoid; }
+  /* Paper has no hover or tap targets: tables can be dense. Unlayered, so
+     this wins over the utilities' screen sizes. */
+  table { font-size: 0.75rem; line-height: 1rem; }
+  td, th { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+  /* Sixteen columns across a landscape page. */
+  .print-dense { font-size: 0.625rem; }
+  .print-dense td, .print-dense th { padding-left: 0.25rem; padding-right: 0.25rem; }
+  .print-landscape { page: landscape; }
+}
+
+@page landscape { size: A4 landscape; }

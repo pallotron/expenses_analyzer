@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activeFilterCount, parseTxParams, shiftMonth, toTxSearch, transactionsApiPath, wholeMonth } from "../../transactions/params";
+import { activeFilterCount, describeFilters, parseTxParams, shiftMonth, toTxSearch, transactionsApiPath, wholeMonth } from "../../transactions/params";
 
 const parse = (qs: string) => parseTxParams(new URLSearchParams(qs));
 
@@ -50,5 +50,19 @@ describe("activeFilterCount", () => {
   it("counts filters other than the dates", () => {
     expect(activeFilterCount(parse("from=2026-01-01&to=2026-01-31"))).toBe(0);
     expect(activeFilterCount(parse("merchant=a&min=1&max=2&sources=Card&excludeHidden=1&type=expense"))).toBe(6);
+  });
+});
+
+describe("describeFilters", () => {
+  it("lists every filter in one line, as given", () => {
+    expect(describeFilters(parse('merchant=tes&category="Groceries"&tags=gift&min=1&max=2.5&type=income&budget=essential&sources=Card&sources=Bank%20A&excludeHidden=1')))
+      .toBe('Merchant: tes · Category: "Groceries" · Tags: gift · Amount: €1 to €2.5 · Income · Essential · Sources: Card, Bank A · Hidden tags excluded');
+  });
+  it("says one-sided amounts and an empty source list in words", () => {
+    expect(describeFilters(parse("min=10&sources="))).toBe("Amount: from €10 · Sources: none");
+    expect(describeFilters(parse("max=5"))).toBe("Amount: up to €5");
+  });
+  it("is empty when there are none, leaving the dates to the period", () => {
+    expect(describeFilters(parse("from=2026-09-01&to=2026-09-30"))).toBe("");
   });
 });

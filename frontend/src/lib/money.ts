@@ -10,8 +10,14 @@ const compact = new Intl.NumberFormat("en-IE", {
   style: "currency", currency: "EUR", notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1,
 });
 
-/** Compact only from €1,000 up: below that, compact notation would show "€29.4". */
-export function formatCents(cents: number, opts: { compact?: boolean } = {}): string {
+const whole = new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+/**
+ * Compact only from €1,000 up: below that, compact notation would show "€29.4".
+ * `whole` drops the cents, for a grid too wide for them on paper.
+ */
+export function formatCents(cents: number, opts: { compact?: boolean; whole?: boolean } = {}): string {
+  if (opts.whole) return whole.format(cents / 100);
   return (opts.compact && Math.abs(cents) >= 100_000 ? compact : full).format(cents / 100);
 }
 

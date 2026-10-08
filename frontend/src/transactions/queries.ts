@@ -15,5 +15,5 @@ export function useTransactions(p: TransactionsQuery, enabled: boolean) {
 }
 
 export function useLookups() {
-  return useQuery({ queryKey: ["lookups"], queryFn: () => getJson<LookupsResponse>("/api/lookups"), staleTime: 5 * 60_000 });
+  return useQuery({ queryKey: ["lookups"], queryFn: () => getJson<LookupsResponse>("/api/lookups") });
 }

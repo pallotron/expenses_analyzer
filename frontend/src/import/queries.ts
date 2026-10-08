@@ -7,6 +7,3 @@ export function useImportSources() {
 }
 
 export const postImport = (body: ImportRequest) => send<ImportResponse>("POST", "/api/import", body);
-
-/** New rows touch every list and total, the sources' last dates, and the saved mappings. */
-export const IMPORT_WRITES = ["transactions", "summary", "periods", "lookups", "merchants", "import-sources"];

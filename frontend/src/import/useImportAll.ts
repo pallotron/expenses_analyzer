@@ -5,7 +5,8 @@ import { ApiError } from "../lib/api";
 import { useSuggestCategories } from "../merchants/mutations";
 import { suggestMessage } from "../merchants/suggest";
 import { requestFor, type Action, type FileRow } from "./importList";
-import { IMPORT_WRITES, postImport } from "./queries";
+import { invalidateData } from "../lib/queryClient";
+import { postImport } from "./queries";
 import { checkFailure } from "./useDryRun";
 
 /**
@@ -71,7 +72,7 @@ export function useImportAll(rows: FileRow[], dispatch: Dispatch<Action>, askGem
         }
       }
     } finally {
-      await Promise.all(IMPORT_WRITES.map((key) => client.invalidateQueries({ queryKey: [key] })));
+      await invalidateData(client);
       // Rows left out of the run now count against the new rows. Recheck skips imported ones.
       if (importedAny) dispatch({ type: "recheck", ids: latest.current.filter((r) => r.run.state === "no").map((r) => r.id) });
       setRunning(false);

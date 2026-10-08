@@ -5,21 +5,18 @@ import type {
 } from "../lib/types";
 import { useWrite } from "../transactions/edit/mutations";
 
-/** A rule change can rename any row, so everything that shows rows refetches. */
-const MERCHANT_WRITES = ["transactions", "summary", "periods", "lookups", "merchants", "merchant-rule", "alias-preview"];
-
 export const useSaveDecision = () =>
-  useWrite((body: DecisionRequest) => send<DecisionResponse>("POST", "/api/merchants/decision", body), MERCHANT_WRITES);
+  useWrite((body: DecisionRequest) => send<DecisionResponse>("POST", "/api/merchants/decision", body));
 export const useDeleteRule = () =>
-  useWrite((id: number) => send<RuleDeletedResponse>("POST", `/api/merchants/rules/${id}/delete`, {}), MERCHANT_WRITES);
+  useWrite((id: number) => send<RuleDeletedResponse>("POST", `/api/merchants/rules/${id}/delete`, {}));
 export const useSetMerchantCategory = () =>
-  useWrite((body: MerchantCategoryRequest) => send<MerchantCategoryResponse>("POST", "/api/merchants/category", body), MERCHANT_WRITES);
+  useWrite((body: MerchantCategoryRequest) => send<MerchantCategoryResponse>("POST", "/api/merchants/category", body));
 export const useSuggestCategories = () =>
-  useWrite(() => send<SuggestResponse>("POST", "/api/merchants/suggest", {}), MERCHANT_WRITES);
+  useWrite(() => send<SuggestResponse>("POST", "/api/merchants/suggest", {}));
 export const useConfirmSuggestions = () =>
-  useWrite((ids: number[]) => send<ConfirmResponse>("POST", "/api/merchants/confirm", { ids }), MERCHANT_WRITES);
+  useWrite((ids: number[]) => send<ConfirmResponse>("POST", "/api/merchants/confirm", { ids }));
 /** Gemini's opinion only: nothing is saved, so nothing refetches. */
 export const useAskGemini = () =>
-  useWrite((ids: number[]) => send<AskResponse>("POST", "/api/merchants/ask", { ids }), []);
+  useWrite((ids: number[]) => send<AskResponse>("POST", "/api/merchants/ask", { ids }), { saves: false });
 export const useApplyCategories = () =>
-  useWrite((changes: CategoryChange[]) => send<CategoryChangesResponse>("POST", "/api/merchants/categories", { changes }), MERCHANT_WRITES);
+  useWrite((changes: CategoryChange[]) => send<CategoryChangesResponse>("POST", "/api/merchants/categories", { changes }));

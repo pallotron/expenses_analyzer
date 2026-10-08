@@ -6,11 +6,8 @@ import { useWrite } from "../transactions/edit/mutations";
 export const useBudgetTypes = () =>
   useQuery({ queryKey: ["budget-types"], queryFn: () => getJson<BudgetTypesResponse>("/api/budget-types") });
 
-/** A type moves spend between the Summary's two sides and changes the Budget filter. */
-const AFFECTED = ["budget-types", "summary", "transactions", "lookups", "merchants"];
-
 export const useSetCategoryType = () =>
-  useWrite((body: CategoryTypeRequest) => send<{ ok: true }>("POST", "/api/budget-types/category", body), AFFECTED);
+  useWrite((body: CategoryTypeRequest) => send<{ ok: true }>("POST", "/api/budget-types/category", body));
 
 export const useSetBudget = () =>
-  useWrite((body: BudgetRequest) => send<{ ok: true }>("POST", "/api/budget-types/budget", body), ["budget-types", "summary"]);
+  useWrite((body: BudgetRequest) => send<{ ok: true }>("POST", "/api/budget-types/budget", body));

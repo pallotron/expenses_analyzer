@@ -14,6 +14,7 @@ import { count, isNull } from "drizzle-orm";
 import { getUser, type AuthDeps, type User } from "./auth";
 import { transactions } from "./db/schema";
 import type { Db } from "./db/types";
+import { isReadLimit, nextReset, readLimitMessage, readLimitPage } from "./readLimit";
 import { budgetTypeRoutes } from "./routes/budgetTypes";
 import { payslipRoutes } from "./routes/payslips";
 import { summaryRoutes } from "./routes/summary";
@@ -72,6 +73,20 @@ export function sameOrigin(origin: string | null, requestUrl: string): boolean {
 
 export function createApp<B extends AppBindings>(makeDb: (env: B) => Db, auth: AuthDeps = {}) {
   const app = new Hono<AppEnv<B>>();
+
+  app.onError((err, c) => {
+    if (!isReadLimit(err)) {
+      console.error(err);
+      return c.text("Internal Server Error", 500);
+    }
+    console.warn(`D1 read limit: ${err.message}`);
+    const now = new Date();
+    const headers = { "Cache-Control": "no-store", "Retry-After": String(Math.ceil((nextReset(now).getTime() - now.getTime()) / 1000)) };
+    if (new URL(c.req.url).pathname.startsWith("/api/")) {
+      return c.json({ error: readLimitMessage(now) }, 503, headers);
+    }
+    return c.html(readLimitPage(now), 503, headers);
+  });
 
   app.use("*", async (c, next) => {
     const db = makeDb(c.env);

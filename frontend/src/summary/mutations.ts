@@ -4,4 +4,4 @@ import { useWrite } from "../transactions/edit/mutations";
 
 /** The patterns decide which rows the Summary totals and its drill-downs show. */
 export const useSaveHiddenTags = () =>
-  useWrite((body: HiddenTagsBody) => send<HiddenTagsBody>("POST", "/api/summary/hidden-tags", body), ["summary", "transactions"]);
+  useWrite((body: HiddenTagsBody) => send<HiddenTagsBody>("POST", "/api/summary/hidden-tags", body));

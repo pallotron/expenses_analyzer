@@ -1,17 +1,17 @@
 import { ImportPage } from "./import/ImportPage";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router";
 
 import { AccountsPage } from "./accounts/AccountsPage";
 import { BudgetsPage } from "./budgets/BudgetsPage";
-import { ApiError } from "./lib/api";
+import { createQueryClient } from "./lib/queryClient";
 import { PayslipsPage } from "./payslips/PayslipsPage";
 import { MerchantsPage } from "./merchants/MerchantsPage";
 import { SummaryPage } from "./summary/SummaryPage";
 import { TransactionsPage } from "./transactions/TransactionsPage";
 import { TopBar } from "./TopBar";
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 60_000, retry: (count, error) => count < 1 && !(error instanceof ApiError && error.status < 500) } } });
+const queryClient = createQueryClient();
 
 export default function App() {
   return (

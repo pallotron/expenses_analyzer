@@ -1,17 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { send } from "../../lib/api";
+import { invalidateData } from "../../lib/queryClient";
 import type {
   BulkEditRequest, DeletedResponse, RestoredResponse, TaggedResponse, TagRequest, TransactionEdit, UpdatedResponse,
 } from "../../lib/types";
 
-/** Every query a write can change: the list, the Summary, the periods, the lookups, and merchants. */
-const AFFECTED = ["transactions", "summary", "periods", "lookups", "merchants"];
-
-export function useWrite<V, R>(fn: (vars: V) => Promise<R>, keys: string[] = AFFECTED) {
+/** Every write marks every view stale; `saves: false` is for a call that changes nothing. */
+export function useWrite<V, R>(fn: (vars: V) => Promise<R>, opts: { saves?: boolean } = {}) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => Promise.all(keys.map((key) => client.invalidateQueries({ queryKey: [key] }))),
+    onSuccess: () => (opts.saves === false ? undefined : invalidateData(client)),
   });
 }
 

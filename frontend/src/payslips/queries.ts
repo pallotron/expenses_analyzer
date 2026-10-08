@@ -9,7 +9,7 @@ export const usePayslips = () =>
   useQuery({ queryKey: ["payslips"], queryFn: () => getJson<PayslipsResponse>("/api/payslips") });
 
 export const useImportPayslips = () =>
-  useWrite((body: PayslipImportRequest) => send<PayslipImportResponse>("POST", "/api/payslips/import", body), ["payslips", "summary"]);
+  useWrite((body: PayslipImportRequest) => send<PayslipImportResponse>("POST", "/api/payslips/import", body));
 
 export const useRemovePayslips = () =>
-  useWrite((body: PayslipRemoveRequest) => send<PayslipRemoveResponse>("POST", "/api/payslips/remove", body), ["payslips", "summary"]);
+  useWrite((body: PayslipRemoveRequest) => send<PayslipRemoveResponse>("POST", "/api/payslips/remove", body));

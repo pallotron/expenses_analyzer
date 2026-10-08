@@ -7,4 +7,4 @@ export const useSourceOwners = () =>
   useQuery({ queryKey: ["source-owners"], queryFn: () => getJson<SourceOwnersResponse>("/api/source-owners") });
 
 export const useSetSourceOwner = () =>
-  useWrite((body: SourceOwnerRequest) => send<{ ok: true }>("POST", "/api/source-owners", body), ["source-owners", "summary"]);
+  useWrite((body: SourceOwnerRequest) => send<{ ok: true }>("POST", "/api/source-owners", body));

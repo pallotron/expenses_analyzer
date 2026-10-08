@@ -5,20 +5,36 @@ import { ApiError } from "../lib/api";
 import { Chevron } from "../lib/Chevron";
 import { ExportPdfButton, PrintHeader } from "../lib/Print";
 import { StickyPanel } from "../lib/StickyPanel";
-import { monthRange, type TransactionRow } from "../lib/types";
+import { monthRange, quote, type TransactionRow } from "../lib/types";
 import { DESKTOP, useMediaQuery } from "../lib/useMediaQuery";
 import { usePrinting } from "../lib/usePrinting";
+import { BreakdownList } from "../summary/BreakdownList";
 import { usePeriods } from "../summary/queries";
 import { Editing } from "./edit/Editing";
 import { DayList } from "./DayList";
 import { defaultMonth } from "./defaultMonth";
 import { describeFilters, parseTxParams, shiftMonth, toTxSearch, transactionsApiPath, wholeMonth, type TxParams } from "./params";
+import { categoryTotals, merchantTotals } from "./breakdown";
 import { useLookups, useTransactions } from "./queries";
 import { TotalsStrip } from "./TotalsStrip";
 import { TransactionFilters } from "./TransactionFilters";
 import { sortRows, TransactionTable } from "./TransactionTable";
 
 export const PAGE_SIZE = 200;
+
+const BREAKDOWN_KEY = "transactions.breakdownOpen";
+
+/** Whether the category and merchant breakdown is open: this browser's choice, kept across visits. */
+function useBreakdownOpen(): [boolean, (open: boolean) => void] {
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(BREAKDOWN_KEY) === "1"; } catch { return false; }
+  });
+  const set = (next: boolean) => {
+    setOpen(next);
+    try { localStorage.setItem(BREAKDOWN_KEY, next ? "1" : "0"); } catch { /* the choice just isn't remembered */ }
+  };
+  return [open, set];
+}
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -50,6 +66,7 @@ export function TransactionsPage() {
   const [shown, setShown] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
   const [open, setOpen] = useState<TransactionRow | null>(null);
+  const [breakdownOpen, setBreakdownOpen] = useBreakdownOpen();
   const printing = usePrinting(printTitle(params));
   // On paper: every row, as a table, whatever the screen size.
   const table = desktop || printing;
@@ -81,6 +98,8 @@ export function TransactionsPage() {
   const badRequest = list.error instanceof ApiError && list.error.status === 400 ? list.error.message : null;
   const rows = data ? (table ? sortRows(data.rows, params.sort, params.dir) : data.rows) : [];
   const visible = printing ? rows : rows.slice(0, shown);
+  // Without a type filter the breakdown is of spending, as on the Summary.
+  const income = params.type === "income";
 
   // Only rows still in the list count: one deleted elsewhere drops out of the selection.
   const selectedIds = data ? data.rows.filter((r) => selected.has(r.id)).map((r) => r.id) : [];
@@ -128,6 +147,37 @@ export function TransactionsPage() {
         <div className="text-sm">
           <p className="mb-2">{list.error.message}</p>
           <button type="button" onClick={() => list.refetch()} className="rounded-md border px-3 py-1">Retry</button>
+        </div>
+      )}
+
+      {/* A list filtered to one category or merchant has nothing to break down by it. */}
+      {data && data.count > 0 && (!params.category || !params.merchant) && (
+        <div className={`flex flex-col gap-3 transition-opacity ${list.isPlaceholderData ? "opacity-60" : ""} ${breakdownOpen ? "" : "print:hidden"}`}>
+          <button type="button" aria-expanded={breakdownOpen} onClick={() => setBreakdownOpen(!breakdownOpen)}
+            className="inline-flex items-center gap-1 self-start text-sm text-slate-600 hover:underline print:hidden dark:text-slate-400">
+            <Chevron dir={breakdownOpen ? "down" : "right"} size={14} />
+            {breakdownOpen ? "Hide breakdown" : "Show breakdown"}
+          </button>
+          {breakdownOpen && (
+            <div className={`grid items-start gap-4 ${!params.category && !params.merchant ? "md:grid-cols-2" : ""}`}>
+              {!params.category && (
+                <BreakdownList title={income ? "Income categories" : "Expense categories"} tone={income ? "income" : "expense"} showShare limit={10} foldBelow={0.01}
+                  items={categoryTotals(data.rows, income ? "income" : "expense").map((c) => ({
+                    label: c.category, sublabel: income ? undefined : c.budget === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents,
+                    kind: income ? "income" as const : c.budget,
+                    href: `?${toTxSearch({ ...params, category: quote(c.category) })}`,
+                  }))} />
+              )}
+              {!params.merchant && (
+                <BreakdownList title={income ? "Top income sources" : "Top expense merchants"} tone={income ? "income" : "expense"} limit={10} foldBelow={0.01}
+                  items={merchantTotals(data.rows, income ? "income" : "expense").map((m) => ({
+                    label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.count,
+                    kind: income ? "income" as const : m.budget,
+                    href: `?${toTxSearch({ ...params, merchant: quote(m.merchant) })}`,
+                  }))} />
+              )}
+            </div>
+          )}
         </div>
       )}
 

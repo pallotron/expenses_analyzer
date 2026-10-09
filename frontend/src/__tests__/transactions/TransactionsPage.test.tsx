@@ -134,6 +134,53 @@ describe("TransactionsPage", () => {
     expect(await screen.findByRole("heading", { name: "Tue 29 Sep" })).toBeInTheDocument();
   });
 
+  describe("breakdown", () => {
+    const shops = [
+      row(1, "2026-09-10", 1000), row(2, "2026-09-11", 3000), { ...row(3, "2026-09-12", 500), merchant: "Shop 1" },
+      { ...row(5, "2026-09-13", 2000), category: "Eating out", budget: "discretionary" as const },
+      row(4, "2026-09-12", 900000, "income"),
+    ];
+    const links = (name: string) => within(screen.getByRole("region", { name })).getAllByRole("link").map((a) => a.textContent);
+    beforeEach(() => localStorage.clear());
+
+    it("stays closed until asked, then ranks categories and merchants side by side", async () => {
+      renderAt("/transactions?from=2026-09-01&to=2026-09-30", api({ rows: shops }));
+      const toggle = await screen.findByRole("button", { name: "Show breakdown" });
+      expect(screen.queryByRole("region", { name: "Expense categories" })).not.toBeInTheDocument();
+      await userEvent.click(toggle);
+      expect(links("Expense categories")).toEqual(["Groceries", "Eating out"]);
+      expect(within(screen.getByRole("region", { name: "Expense categories" })).getByText("69.2%")).toBeInTheDocument();
+      expect(links("Top expense merchants")).toEqual(["Shop 2", "Shop 5", "Shop 1"]);
+      expect(within(screen.getByRole("region", { name: "Top expense merchants" })).getByText("Groceries · 2 payments")).toBeInTheDocument();
+      expect(localStorage.getItem("transactions.breakdownOpen")).toBe("1");
+    });
+
+    it("remembers it was open, and breaks income down", async () => {
+      localStorage.setItem("transactions.breakdownOpen", "1");
+      renderAt("/transactions?from=2026-09-01&to=2026-09-30&type=income", api({ rows: shops.filter((r) => r.type === "income") }));
+      expect(await screen.findByRole("region", { name: "Income categories" })).toBeInTheDocument();
+      expect(links("Top income sources")).toEqual(["Shop 4"]);
+    });
+
+    it("narrows the list to a category when one is clicked, keeping the merchants", async () => {
+      localStorage.setItem("transactions.breakdownOpen", "1");
+      renderAt("/transactions?from=2026-09-01&to=2026-09-30", api({ rows: shops }));
+      await userEvent.click(await screen.findByRole("link", { name: "Eating out" }));
+      await waitFor(() => expect(new URLSearchParams(location).get("category")).toBe('"Eating out"'));
+      expect(new URLSearchParams(location).get("from")).toBe("2026-09-01");
+      await waitFor(() => expect(screen.queryByRole("region", { name: "Expense categories" })).not.toBeInTheDocument());
+      expect(screen.getByRole("region", { name: "Top expense merchants" })).toBeInTheDocument();
+    });
+
+    it("narrows the list to a merchant when one is clicked, and steps aside once both are set", async () => {
+      localStorage.setItem("transactions.breakdownOpen", "1");
+      renderAt("/transactions?from=2026-09-01&to=2026-09-30&category=%22Groceries%22", api({ rows: shops }));
+      await userEvent.click(await screen.findByRole("link", { name: "Shop 2" }));
+      await waitFor(() => expect(new URLSearchParams(location).get("merchant")).toBe('"Shop 2"'));
+      await waitFor(() => expect(screen.queryByRole("button", { name: /breakdown/ })).not.toBeInTheDocument());
+    });
+  });
+
   it("offers a retry when the periods fail on a bare URL", async () => {
     const fail = { value: true };
     renderAt("/transactions", api({ periodsFail: fail }));

@@ -14,17 +14,30 @@ the placeholder `database_id` in `wrangler.toml` is fine for local use. Run
 these from `worker/` (`make` lists the targets):
 
 ```sh
-npm install
-make seed-fixture   # synthetic data; or `make seed-real` for your own
+npm ci
+make seed-demo      # the made-up demo household, signed in as you@example.com
 make dev            # builds the frontend if needed, serves on :8787
 ```
 
-- `seed-fixture` and `seed-real` both start with `reset-local`, which **wipes
+- `seed-demo` and `seed-snapshot` both start with `reset-local`, which **wipes
   the local D1**, real data included.
-- `seed-real` reads the parquet in your config dir and writes only to
-  `.wrangler/state/`; bank tokens are dropped. It seeds one user, from
-  `EMAIL` (default: `DEV_USER_EMAIL` in `.dev.vars`) and `NAME` (default `Me`).
-- `seed-fixture` creates `.dev.vars` if missing, naming `you@example.com`.
+- `seed-demo` builds the demo household with `scripts/demo-data.ts` and loads
+  it. It creates `.dev.vars` naming `you@example.com` if the file is missing,
+  and tells you if an existing one names someone else.
+- `seed-snapshot` loads a copy of production made by `../tools/snapshot.sh`.
+  `SNAPSHOT=<file>` picks the copy (default
+  `~/.config/expenses_analyzer/snapshot.db`). The snapshot's `self` user is
+  given the email `EMAIL` (default: `DEV_USER_EMAIL` in `.dev.vars`), so you
+  are signed in as yourself. It writes only to the local D1, never to the
+  snapshot file.
+- `PERSIST=<dir>` makes `dev`, `migrate-local`, `reset-local` and the seed
+  targets use a local D1 in `<dir>` instead of `.wrangler/state/`. Use it to
+  keep the demo and your own data side by side:
+
+  ```sh
+  make seed-snapshot PERSIST=.wrangler/mine
+  make dev PERSIST=.wrangler/mine
+  ```
 
 Every route needs a user. There is no Access locally, so `DEV_USER_EMAIL` in
 `worker/.dev.vars` (gitignored) names one of the `users` emails, which must
@@ -39,8 +52,7 @@ so plain `wrangler dev` answers 401 to everything.
 `curl http://localhost:8787/api/me` shows who you are acting as, and
 `curl http://localhost:8787/health` reports the live transaction count.
 
-To seed from some other database, build it with
-`tools/migrate_to_sqlite.py --out x.db --user ...`, then:
+To seed from some other SQLite database with this schema:
 
 ```sh
 make reset-local
@@ -64,25 +76,13 @@ npm run dev               # in frontend/, open the URL it prints
 make test           # typecheck (the Worker, and the tests under Node), then tests
 ```
 
-`src/__tests__/queries/` proves each query module equal to its SQL file in
-`../tools/crosscheck/queries/`. To run that comparison on real data too, point
-it at a database built by `tools/migrate_to_sqlite.py`:
+`src/__tests__/queries/` proves each query module equal to its reference SQL
+file in `src/queries/sql/`.
 
-```sh
-CROSSCHECK_DB=../expenses.db npm test
-```
-
-That also checks the import port on real data. It gets an in-memory copy, so
-the file is never written.
-
-`src/__tests__/fixtures/python_vectors.json` is the Python's own answers, for
-merchant names, amounts, tags and whole import scenarios, which the domain and
-service tests replay. Never edit it by hand. After changing the Python or the
-scenarios in `tools/crosscheck/vectors.py`, regenerate it from the repo root:
-
-```sh
-PYTHONPATH=. .venv/bin/python tools/crosscheck/vectors.py
-```
+`src/__tests__/fixtures/python_vectors.json` is the answers of the Python app
+this replaced, for merchant names, amounts, tags and whole import scenarios,
+frozen when it was removed. The domain and service tests replay them. Never
+edit it by hand.
 
 **Adding a dependency:** `npm install <pkg>` on an existing tree drops every
 other platform's rolldown binding from the lockfile (npm's optional-dependency
@@ -134,11 +134,12 @@ and preview URLs are off, so the custom domain is the only way in.
 **D1:** `npx wrangler d1 create expenses`, with the id in `wrangler.toml`.
 Keep `binding = "DB"`: the code reads `env.DB`. `migrations_dir = "drizzle"`
 makes wrangler apply drizzle-kit's files and record each in `d1_migrations`.
-For a new database, apply the schema, then load data:
+For a new database, apply the schema, then load data from a SQLite file with
+the same schema (a `tools/snapshot.sh` copy, say):
 
 ```sh
 npx wrangler d1 migrations apply expenses --remote
-../tools/dump_for_d1.sh ../expenses.db > /tmp/d1_data.sql
+../tools/dump_for_d1.sh <file.db> > /tmp/d1_data.sql
 npx wrangler d1 execute expenses --remote --file=/tmp/d1_data.sql
 ```
 
@@ -167,12 +168,6 @@ your user.
 
 **Secrets**. `GEMINI_API_KEY` enables "Suggest categories" on the Merchants page; set it
 with `npx wrangler secret put GEMINI_API_KEY` in production and in `worker/.dev.vars`
-locally. `GEMINI_MODEL` in `[vars]` picks the model (default `gemini-2.5-flash`). The
-others are needed once bank sync is ported:
-
-```sh
-npx wrangler secret put TRUELAYER_CLIENT_ID
-npx wrangler secret put TRUELAYER_CLIENT_SECRET
-npx wrangler secret put GEMINI_API_KEY
-npx wrangler secret put TOKEN_ENCRYPTION_KEY
-```
+locally. `GEMINI_MODEL` in `[vars]` picks the model (default `gemini-2.5-flash`). Bank
+sync ([#52](https://github.com/pallotron/expenses_analyzer/issues/52)) will
+add its own secrets when it lands.

@@ -1,6 +1,6 @@
 /**
- * Small stores for service tests, seeded the way tools/migrate_to_sqlite.py
- * seeds the real one, so a test starts from the state an import would meet.
+ * Small stores for service tests, seeded the way the one-off migration
+ * seeded the real one, so a test starts from the state an import would meet.
  */
 
 import type Database from "better-sqlite3";

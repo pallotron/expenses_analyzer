@@ -1,6 +1,6 @@
 /**
  * The Transactions screen's filters: transaction_filter.py plus the screen's
- * budget filter, held to the Python by tools/crosscheck/vectors.py.
+ * budget filter, held to the Python by python_vectors.json (the Python app's answers, frozen).
  *
  * Text filters are case-insensitive substring matches, except that a value in
  * double quotes must match the whole field. That is how a Summary drill-down

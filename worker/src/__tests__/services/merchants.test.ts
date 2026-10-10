@@ -2,16 +2,13 @@
  * The merchant editor, the transaction list, and validation guarding imports.
  *
  * Alias previews replay merchant_editor.preview_alias_change's own answers
- * (tools/crosscheck/vectors.py). Saving is new: the Python re-derived names on
+ * (frozen in python_vectors.json, recorded before the Python app was removed). Saving is new: the Python re-derived names on
  * every load, so these tests pin down the re-pointing that replaces that.
  */
 
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type Database from "better-sqlite3";
 
-import * as schema from "../../db/schema";
-import type { Db } from "../../db/types";
 import { ValidationError } from "../../domain/validation";
 import { listTransactions } from "../../queries/transactions";
 import {
@@ -21,7 +18,6 @@ import {
   importTransactions, loadAliasRules, tagTransactions,
 } from "../../services/transactions";
 import vectors from "../fixtures/python_vectors.json";
-import { inMemoryCopy } from "../helpers/db";
 import { USER, categorise, count, seed, store } from "../helpers/store";
 
 const editor = vectors.merchantEditor as unknown as {
@@ -228,33 +224,6 @@ describe("imports are validated first", () => {
     expect(count(sqlite, "1")).toBe(0);
     expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM import_batches`).get()).toEqual({ n: 0 });
     sqlite.close();
-  });
-});
-
-const REAL_DB = process.env.CROSSCHECK_DB;
-
-describe.runIf(REAL_DB)("on real data (CROSSCHECK_DB)", () => {
-  let sqlite: Database.Database;
-  let db: Db;
-  beforeAll(() => {
-    sqlite = inMemoryCopy(REAL_DB!);
-    db = drizzle(sqlite, { schema }) as unknown as Db;
-  });
-  afterAll(() => sqlite.close());
-
-  it("re-saving every existing rule as it stands moves nothing", async () => {
-    for (const rule of await loadAliasRules(db)) {
-      const result = await saveMerchantDecision(db, { pattern: rule.pattern, alias: rule.canonicalName }, USER);
-      expect(result, rule.pattern).toEqual({ repointed: 0, tagged: 0 });
-    }
-  });
-
-  it("lists every live row, totalling what v_live totals", async () => {
-    const list = await listTransactions(db);
-    const live = sqlite.prepare(`SELECT COUNT(*) AS n, SUM(amount_cents) AS total FROM v_live`).get() as
-      { n: number; total: number };
-    expect(list.rows).toHaveLength(live.n);
-    expect(list.totalCents).toBe(live.total);
   });
 });
 

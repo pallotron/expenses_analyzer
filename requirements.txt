@@ -1,6 +1,0 @@
-pandas
-textual>=0.30.0
-pyarrow
-google-genai
-black
-Flask

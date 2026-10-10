@@ -7,7 +7,7 @@
  * floating point, so "2.675" (267.5 after the multiply) became 268 while
  * "1.005" (100.49999...) became 100. Every amount in the database went through
  * that, so imports must too, or a re-imported row would miss its duplicate by a
- * cent. tools/crosscheck/vectors.py records the Python's answers; the tests
+ * cent. python_vectors.json is a frozen record of the Python's answers; the tests
  * replay them.
  *
  * Only amounts with more than two decimals are affected. Statements have two.

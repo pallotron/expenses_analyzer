@@ -11,51 +11,6 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Lint
-        run: make lint
-
-      - name: Test with Coverage
-        run: make coverage
-
-      # Proves the SQL in tools/crosscheck/queries still reproduces the Python
-      # analysis. Runs on generated data, so CI needs nobody's real parquet.
-      - name: Analysis cross-check
-        run: |
-          FIXTURE=$(mktemp -d)
-          .venv/bin/python tools/crosscheck/make_fixture.py "$FIXTURE"
-          export EXPENSES_ANALYZER_CONFIG_DIR="$FIXTURE"
-          PYTHONPATH=. .venv/bin/python tools/migrate_to_sqlite.py \
-            --out "$FIXTURE/ci.db" --tokens-plaintext \
-            --user a@example.com:"Person A":self \
-            --user b@example.com:"Person B":partner
-          PYTHONPATH=. .venv/bin/python tools/crosscheck/analysis_crosscheck.py "$FIXTURE/ci.db"
-
-      # The Worker's tests replay the Python's answers from this file. If the
-      # Python changed, the file must be regenerated so the TypeScript port is
-      # held to the new behaviour rather than the old.
-      - name: Python vectors are current
-        run: PYTHONPATH=. .venv/bin/python tools/crosscheck/vectors.py --check
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-  # The job id of the Python job above is deliberately left as "build" so any
-  # required status check keeps resolving.
   frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest
@@ -105,7 +60,7 @@ jobs:
         run: npm run typecheck
 
       # Includes the proof that each query module returns exactly what its
-      # tools/crosscheck/queries/ SQL file returns.
+      # src/queries/sql/ reference SQL file returns.
       - name: Test
         run: npm test
 

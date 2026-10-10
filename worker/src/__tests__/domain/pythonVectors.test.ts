@@ -1,5 +1,6 @@
 /**
- * Replays tools/crosscheck/vectors.py's record of the Python's answers.
+ * Replays python_vectors.json, a frozen record of the Python app's answers,
+ * recorded before it was removed.
  * Regenerate that file when the Python changes; CI fails if it is stale.
  */
 

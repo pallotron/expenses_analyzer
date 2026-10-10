@@ -1,12 +1,10 @@
 /**
- * The query modules must return exactly what the cross-check SQL returns.
+ * The query modules must return exactly what the reference SQL returns.
  *
- * tools/crosscheck/ proves those SQL files equal to the Python on real data;
- * this proves the Drizzle modules equal to the SQL files. Together they carry
- * the TUI's numbers through to the Worker unchanged.
- *
- * Runs on a synthetic fixture by default. Set CROSSCHECK_DB to a database built
- * by tools/migrate_to_sqlite.py to run the same comparison on real data too.
+ * The SQL files in src/queries/sql/ are the reviewed reference the Drizzle
+ * modules must equal; they were proven equal to the Python TUI before it was
+ * removed. This proves the Drizzle modules equal to the SQL files, on a
+ * synthetic fixture.
  */
 
 import { readFileSync } from "node:fs";
@@ -17,7 +15,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { Db } from "../../db/types";
 import * as schema from "../../db/schema";
-import { WORKER, emptyDatabase, inMemoryCopy } from "../helpers/db";
+import { WORKER, emptyDatabase } from "../helpers/db";
 import {
   cashFlowTotals,
   categoryBreakdown,
@@ -28,7 +26,7 @@ import {
   type Scope,
 } from "../../queries/analysis";
 
-const QUERIES = resolve(WORKER, "../tools/crosscheck/queries");
+const QUERIES = resolve(WORKER, "src/queries/sql");
 
 /* ------------------------------------------------------------- fixture */
 
@@ -272,12 +270,8 @@ function scopedCases(scopes: Scope[]): Case[] {
 /* ---------------------------------------------------------------- suites */
 
 const databases: [string, () => Database.Database][] = [["synthetic fixture", fixture]];
-if (process.env.CROSSCHECK_DB) {
-  const path = process.env.CROSSCHECK_DB;
-  databases.push([`CROSSCHECK_DB`, () => inMemoryCopy(path)]);
-}
 
-describe.each(databases)("analysis queries match the cross-check SQL: %s", (_label, open) => {
+describe.each(databases)("analysis queries match the reference SQL: %s", (_label, open) => {
   const sqlite = open();
   const db = drizzle(sqlite, { schema }) as unknown as Db;
   afterAll(() => sqlite.close());

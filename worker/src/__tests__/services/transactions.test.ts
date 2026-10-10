@@ -1,31 +1,21 @@
 /**
  * Import, delete, restore, tag and edit.
  *
- * The import scenarios are the Python's own answers (tools/crosscheck/
- * vectors.py ran append_transactions on each): the store is seeded the way
- * tools/migrate_to_sqlite.py seeds it, the same rows are imported, and the
- * surviving live rows must be exactly the ones the Python kept.
- *
- * Set CROSSCHECK_DB to a migrated real database to also check that every
- * stored transaction resolves to the merchant the migration gave it, and that
- * re-importing all of it adds nothing.
+ * The import scenarios are the Python app's own answers, frozen in
+ * python_vectors.json before that app was removed: the store is seeded the way
+ * the migration seeded it, the same rows are imported, and the surviving live
+ * rows must be exactly the ones the Python kept.
  */
 
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { atomic } from "../../db/atomic";
-import * as schema from "../../db/schema";
-import type { Db } from "../../db/types";
-import { resolveMerchantName } from "../../domain/merchants";
 import {
-  importTransactions, loadAliases, restoreTransactions, softDeleteTransactions,
+  importTransactions, restoreTransactions, softDeleteTransactions,
   tagTransactions, updateTransaction, type ImportRow,
 } from "../../services/transactions";
 import vectors from "../fixtures/python_vectors.json";
-import { inMemoryCopy } from "../helpers/db";
 import {
   USER, cents, count, liveRows, seed, store as makeStore, type Spec,
 } from "../helpers/store";
@@ -201,45 +191,5 @@ describe("atomic", () => {
     ])).rejects.toThrow();
     expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM merchants`).get()).toEqual({ n: 0 });
     sqlite.close();
-  });
-});
-
-const REAL_DB = process.env.CROSSCHECK_DB;
-
-describe.runIf(REAL_DB)("on real data (CROSSCHECK_DB)", () => {
-  // Vitest runs this body even when the block is skipped, so the database is
-  // opened in beforeAll. The tests use a private in-memory copy: nothing here
-  // writes to the real file.
-  let sqlite: Database.Database;
-  let db: Db;
-  beforeAll(() => {
-    sqlite = inMemoryCopy(REAL_DB!);
-    db = drizzle(sqlite, { schema }) as unknown as Db;
-  });
-  afterAll(() => sqlite.close());
-
-  it("resolves every stored transaction to the merchant the migration gave it", async () => {
-    const aliases = await loadAliases(db);
-    const rows = sqlite.prepare(`
-      SELECT t.merchant_raw AS raw, m.canonical_name AS canonical
-      FROM transactions t JOIN merchants m ON m.id = t.merchant_id
-    `).all() as { raw: string; canonical: string }[];
-    const wrong = rows.filter((r) => resolveMerchantName(r.raw, aliases) !== r.canonical);
-    expect(rows.length).toBeGreaterThan(0);
-    expect(wrong.slice(0, 10)).toEqual([]);
-  });
-
-  it("re-importing everything, deleted rows included, adds nothing", async () => {
-    const all = sqlite.prepare(`
-      SELECT date(date, 'unixepoch') AS date, merchant_raw AS merchant, amount_cents AS amountCents, type
-      FROM transactions ORDER BY id
-    `).all() as ImportRow[];
-    const before = count(sqlite, "1");
-
-    const result = await importTransactions(db, all, { source: "Re-import", userId: 1 });
-
-    expect(result.inserted).toBe(0);
-    expect(result.suppressedDeleted).toBe(count(sqlite, "deleted_at IS NOT NULL"));
-    expect(count(sqlite, "1")).toBe(before);
   });
 });

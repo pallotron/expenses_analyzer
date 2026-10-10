@@ -1,12 +1,6 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import * as schema from "../../db/schema";
-import type { Db } from "../../db/types";
-import { netCashFlow } from "../../queries/analysis";
 import { buildSummary, summaryPeriods } from "../../services/summary";
-import { inMemoryCopy } from "../helpers/db";
 import { summaryStore, vectorStore } from "../helpers/summaryStore";
 
 describe("summaryPeriods", () => {
@@ -107,23 +101,5 @@ describe("buildSummary", () => {
     expect(s.cashFlow).toEqual({ incomeCents: 0, expensesCents: 0 });
     expect(s.expenseCategories).toEqual([]);
     expect(s.monthly!.expense.rows).toEqual([]);
-  });
-});
-
-describe.runIf(process.env.CROSSCHECK_DB)("buildSummary on real data", () => {
-  // describe bodies run even when skipped, so open the copy only once it is wanted.
-  let sqlite: Database.Database;
-  let db: Db;
-  beforeAll(() => {
-    sqlite = inMemoryCopy(process.env.CROSSCHECK_DB!);
-    db = drizzle(sqlite, { schema }) as unknown as Db;
-  });
-  afterAll(() => sqlite.close());
-
-  it("each year's cash flow equals v_summary's", async () => {
-    for (const row of await netCashFlow(db, "year")) {
-      const s = await buildSummary(db, { year: Number(row.period), month: null, includeHidden: false });
-      expect(s.cashFlow).toEqual({ incomeCents: row.incomeCents, expensesCents: row.expensesCents });
-    }
   });
 });

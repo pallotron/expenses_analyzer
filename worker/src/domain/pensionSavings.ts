@@ -1,7 +1,7 @@
 /**
  * The Summary's savings rate with pension: a port of
  * expenses/analysis.get_enhanced_savings_totals and _coverage_label, held to
- * them by tools/crosscheck/vectors.py. Choosing whose payslips count is the
+ * them by python_vectors.json (the Python app's answers, frozen). Choosing whose payslips count is the
  * caller's job; this sums whatever months it is given.
  */
 

@@ -3,7 +3,7 @@
 # Where the local D1 lives; empty means wrangler's default (.wrangler/state).
 PERSIST ?=
 SNAPSHOT ?= $(HOME)/.config/expenses_analyzer/snapshot.db
-WRANGLER_STATE = $(if $(PERSIST),--persist-to $(PERSIST),)
+WRANGLER_STATE = $(if $(PERSIST),--persist-to "$(PERSIST)",)
 # The seeded user must be the DEV_USER_EMAIL in .dev.vars.
 EMAIL ?= $(shell sed -n 's/^DEV_USER_EMAIL=//p' .dev.vars 2>/dev/null)
 
@@ -32,9 +32,13 @@ test:
 migrate-local:
 	npx wrangler d1 migrations apply expenses --local $(WRANGLER_STATE)
 
-# Discards the local D1, including any real data loaded into it.
+# Discards the local D1 (only <state>/v3/d1, never the directory itself), including any real data loaded into it.
 reset-local:
-	rm -rf $(or $(PERSIST),.wrangler/state)
+	@case "$(PERSIST)" in \
+	  /|/.|./|.|..|../|"~"|"~/"|"$(HOME)"|"$(HOME)/") \
+	    echo "refusing to reset: PERSIST=$(PERSIST) is not a wrangler state directory"; exit 1;; \
+	esac
+	rm -rf "$(or $(PERSIST),.wrangler/state)/v3/d1"
 	$(MAKE) migrate-local
 
 # Reset the local D1 and load the made-up demo household.
@@ -45,7 +49,7 @@ seed-demo: reset-local
 	npx wrangler d1 execute expenses --local $(WRANGLER_STATE) --file="$$tmp/data.sql"; \
 	if [ ! -e .dev.vars ]; then echo 'DEV_USER_EMAIL=you@example.com' > .dev.vars; \
 	elif ! grep -qx 'DEV_USER_EMAIL=you@example.com' .dev.vars; then \
-	  echo "note: the demo user is you@example.com; run 'npx wrangler dev --var DEV_USER_EMAIL:you@example.com' or edit .dev.vars"; fi
+	  echo "note: the demo user is you@example.com; run 'npx wrangler dev $(if $(PERSIST),--persist-to \"$(PERSIST)\" ,)--var DEV_USER_EMAIL:you@example.com' or edit .dev.vars"; fi
 
 # Reset the local D1 and load a tools/snapshot.sh copy of production, signed in as you.
 seed-snapshot:

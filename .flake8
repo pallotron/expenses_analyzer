@@ -1,2 +1,0 @@
-[flake8]
-exclude = .venv/*,frontend/node_modules/*,worker/node_modules/*

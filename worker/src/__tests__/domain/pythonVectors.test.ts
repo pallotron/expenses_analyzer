@@ -1,7 +1,6 @@
 /**
- * Replays python_vectors.json, a frozen record of the Python app's answers,
- * recorded before it was removed.
- * Regenerate that file when the Python changes; CI fails if it is stale.
+ * Replays python_vectors.json, a frozen record of the removed Python app's
+ * answers. It is never regenerated or edited.
  */
 
 import { describe, expect, it } from "vitest";

@@ -1,7 +1,7 @@
 name: Deploy
 
 # Ship the Worker and the frontend when a change to either reaches main: test, migrate D1, deploy.
-# Docs-only and Python-only merges leave production alone.
+# Docs-only merges leave production alone.
 on:
   push:
     branches:

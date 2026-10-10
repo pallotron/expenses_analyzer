@@ -341,8 +341,8 @@ export const settings = sqliteTable("settings", {
  *      DisplayMerchant.map(categories).fillna("Other").
  *   3. Tag exclusion honours the trailing-star prefix patterns.
  *
- * tools/crosscheck/ runs its queries against these views and diffs the result
- * with the Python, so rerun it after changing any of them.
+ * The reference SQL in src/queries/sql/ runs against these views, so rerun the
+ * Worker tests after changing any of them.
  */
 
 export const vLive = sqliteView("v_live", {

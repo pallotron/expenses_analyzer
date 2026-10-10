@@ -1,110 +1,83 @@
-# Payslip & Pension Tracking
+# Payslips and pension
 
-Bank cashflow alone underestimates your savings rate: pension contributions are
-deducted before your salary reaches the bank, so they never show up. This
-feature reads your monthly payslip PDFs, extracts the pension figures, and shows
-an enhanced savings rate on the Summary screen alongside the bank-only rate.
+Bank data alone understates how much you save: pension contributions are taken
+out before your salary reaches the bank, so they never show up there. The
+Payslips page reads your payslip PDFs, records the pension figures, and the
+Summary then shows a savings rate with pension next to the bank-only rate.
+
+![Payslips page](../screenshots/payslips-desktop.png)
 
 ## How it works
 
-1. Press `y` to open the **Payslips** screen.
-2. **Add Folder** — pick a folder containing payslip PDFs. The choice is
-   remembered (stored in `payslip_settings.json`); you only pick it once.
-3. **Scan** — every PDF is parsed and grouped by month. A preview shows gross,
-   net, employee pension, and employer pension per month.
-4. **Import Payslips** — saves the parsed data to `payslips.parquet`.
-5. Open the **Summary** screen (`s`): months/years with payslip data show a
-   "With pension" line showing a pension-aware savings rate on the same base as
-   the bank-only rate (directly comparable).
+1. Open **Payslips** and pick the **Person** the payslips belong to. The people
+   are the household's users.
+2. If the PDFs are password-protected, type the password. It is remembered in
+   this browser only and never sent; **Forget** clears it.
+3. Drop the PDFs on the page, or choose them: one month's or a whole folder's.
+4. Each file is read in the browser with pdf.js. Its row says what was found:
+   new, replaces a saved copy, needs a password, layout not recognised, or no
+   month in the file name.
+5. **Import** sends only the figures (gross, net, pension) for the ready files.
+   The PDFs never leave your device.
 
-Re-scanning is idempotent — each month is upserted, so running it monthly just
-adds the newest payslip.
+Saved payslips are listed below, by year and month, with gross, net and
+pension.
 
-## Several people
+## File names
 
-Payslips are recorded per **person**, keyed on `(Owner, Month)`. Add a name in
-the "Add person…" box, give that person their own folder, then scan and import
-as above. Each person is scanned independently, so re-importing one leaves the
-others untouched. Payslips recorded before this existed belong to `self`.
+- The month comes from the file name, which must contain `YYYY-MM` somewhere
+  (for example `payslip-2026-01.pdf`).
+- Names containing `draft`, `old` or `wrong` are left out, so a corrected
+  payslip can replace a bad one. Each such row has a button to import it
+  anyway.
+- Importing a file with the same name as a saved one replaces it, so
+  re-importing a folder is safe.
+- Several PDFs for one month (a bonus or supplementary run) are added together.
 
-The Summary screen sums pension across everyone. Only pension is added, never a
-second salary: this assumes **everyone's take-home pay already lands in the bank
-accounts you track**, so their net pay is in the cashflow already and only the
-pre-tax pension is invisible. A month counts toward the savings rate when at
-least one person has a payslip for it.
+## Checks
 
-## Several employers for one person
+- **Year-to-date pension**: each month's pension is checked against the
+  payslip's year-to-date figure. A mismatch is flagged with a warning rather
+  than trusted. A drop in year-to-date is read as a new employer, not an error.
+- **Net pay**: the net worked out from the line items is checked against the net
+  the payslip states. They differ when the payslip has a line the parser does
+  not know, and the month is flagged.
 
-A person can have more than one folder. Changing employer part-way through a
-year leaves that year's payslips split across directories, and both folders must
-be scanned for the year to be complete — so **Add Folder** adds to the list
-rather than replacing it, and each folder resolves its own password. Months
-straddling the move sum both employers' payslips into one row.
+## Supported layout
 
-Year-to-date pension restarts at a new employer. A drop in year-to-date is read
-as the start of a new employment rather than a mismatch, so a mid-year move is
-not flagged with `⚠ YTD`.
+Only the **Irish PAYE** payslip layout. Labels are matched case-insensitively,
+so providers that differ only in wording share one parser. A payslip in another
+layout is reported as "Layout not recognised" and not imported.
 
-## Folder and password configuration
+## Owners and the Summary
 
-- **Folder:** picked in the UI and remembered. The `PAYSLIP_DIR` environment
-  variable overrides the folder list for `self` only — naming a single folder
-  cannot express which person it belongs to.
-- **Password:** if your payslip PDFs are encrypted, the password is resolved in
-  this order: a `pin.txt` file in the folder → the `PAYSLIP_PDF_PASSWORD`
-  environment variable. Unencrypted PDFs need no password. If a PDF is encrypted
-  and neither source provides a working password, that file is skipped and listed
-  under "Skipped" in the scan preview. The password is never logged.
+The **Accounts** page says whose account each import source is ("No one" for a
+shared account). When the Summary is filtered by source, only the pension of
+those accounts' owners is counted. Unfiltered, everyone's pension counts.
 
-## Multiple PDFs for one month
+Only pension is added, never a second salary. This assumes everyone's take-home
+pay already lands in the accounts you import, so their net pay is in the bank
+figures and only the pension is missing.
 
-- Files whose names contain an ignore token (`fuckedup`, `wrong`, `old`,
-  `draft`) are skipped, so a corrected payslip can supersede a bad one.
-- Any remaining PDFs for the same month are **summed** (e.g. a supplementary
-  on-call or bonus run adds to the base payslip).
-- **YTD reconciliation:** for January (Irish tax year start) the summed monthly
-  pension is cross-checked against the payslip's year-to-date figure. A mismatch
-  is flagged with `⚠ YTD` rather than silently trusted.
-- **Net reconciliation:** the net derived from the line items is checked against
-  the net the payslip itself states. They diverge when the payslip carries an
-  earnings or deduction label the parser does not recognise, which would
-  otherwise silently understate gross; that is flagged with `⚠ NET`.
+## Savings rate
 
-## Savings-rate formulas
-
-The pension-aware rate is shown on the **same base as the plain bank savings
-rate** (your bank income), with pension added to both sides, so it's directly
-comparable — e.g. "Savings Rate 31.4% → 44.9% with pension".
+The rate with pension uses the same base as the bank-only rate, with pension
+added to both sides, so the two are directly comparable:
 
 ```
-pension_saved       = employee pension + AVC + employer pension
-enhanced_saved      = bank_net (income − expenses) + pension_saved
-income_with_pension = bank_income + pension_saved
+pension             = employee pension + AVC + employer pension
+saved_with_pension  = (bank income - bank expenses) + pension
+income_with_pension = bank income + pension
 
-Savings rate (bank only)   = bank_net / bank_income
-Savings rate (with pension) = enhanced_saved / income_with_pension
+Savings rate (bank only)    = (bank income - bank expenses) / bank income
+Savings rate (with pension) = saved_with_pension / income_with_pension
 ```
 
-`pension_saved` is summed across everyone with a payslip for the month.
-
-Both the bank net and bank income are restricted to the months that have a
-payslip (see reconciliation above), so a partial year isn't compared against a
-full-year bank total.
-
-## Supported formats
-
-Payslip parsing supports the **Irish PAYE payslip layout**, matching labels
-case-insensitively so that providers differing only in vocabulary and casing
-share one parser. Deductions keyed by provider-specific names (a social club, a
-health insurance premium) are recognised by their shape rather than by name, so
-they need no per-employer configuration.
-
-An unrecognized payslip is skipped and listed under "Skipped" rather than parsed
-incorrectly, and a payslip whose stated net disagrees with its line items is
-flagged rather than trusted. The feature is opt-in, so it has no effect unless
-you point it at a payslip folder.
+Only months that have both a payslip and bank transactions count, so a partial
+year is not compared with a full year of bank data. The Summary says which
+months are covered, for example "Jan–Mar".
 
 ## Privacy
 
-Payslips are read locally and never uploaded. Passwords are never written to the
-logs. No employer name or personal path is stored in the application code.
+Payslip PDFs are parsed in your browser. Only the numbers are uploaded. The PDF
+password stays in the browser.

@@ -1,5 +1,5 @@
 /**
- * A store holding tools/crosscheck/vectors.py's summary rows, so the Summary
+ * A store holding the summary rows frozen in python_vectors.json, so the Summary
  * numbers can be computed through the real views and compared with the Python.
  */
 
@@ -21,7 +21,7 @@ export interface ExpectedGrid {
   rows: { category: string; totalCents: number; averageCents: number; months: number[]; anomalies: boolean[]; trends: (string | null)[] }[];
 }
 
-/** The "summary" section of python_vectors.json (tools/crosscheck/vectors.py). */
+/** The "summary" section of python_vectors.json, recorded before the Python app was removed. */
 export const summaryVectors = (rawVectors as unknown as {
   summary: {
     categoryTypes: { essential: { categories: string[] }; discretionary: { categories: string[] } };

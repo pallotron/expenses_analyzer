@@ -16,6 +16,7 @@ DB="${1:?usage: dump_for_d1.sh <path-to-sqlite-db>}"
 
 TABLES="
 users
+source_owners
 categories
 spending_type_budgets
 merchants
@@ -26,6 +27,7 @@ import_batches
 transactions
 transaction_tags
 payslips
+payslip_runs
 bank_connections
 settings
 "

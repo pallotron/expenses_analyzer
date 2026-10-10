@@ -1,10 +1,9 @@
 # Expense Analyzer
 
-[![codecov](https://codecov.io/gh/pallotron/expenses_analyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/pallotron/expenses_analyzer)
+[![CI](https://github.com/pallotron/expenses_analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/pallotron/expenses_analyzer/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-A Textual TUI application for analyzing your personal expenses.
+A self-hosted household expenses app on Cloudflare Workers, D1 and Access.
 
 ## Story time
 
@@ -21,158 +20,133 @@ At the same time, I'd been wanting to learn [Textual](https://textual.textualize
 It's still a work in progress, but it should be useful enough for geeks like us.
 Please contribute if you can or report bugs/issues!
 
+Later the TUI grew into a web app, so the whole household can use it from any
+device, phone included. Once the web app did everything the TUI did, the TUI
+was retired. The last version with the TUI is
+[`09b7f9a`](https://github.com/pallotron/expenses_analyzer/tree/09b7f9a).
+
 ## Features
 
-- **Import Transactions**: Import your financial transactions from CSV files (recommended, most stable).
-- **Bank Integration** (experimental): Link your bank accounts via TrueLayer (UK/Europe) to automatically sync transactions. This feature is still experimental; CSV import is more reliable.
-- **Automatic Categorization**: Automatically categorizes your expenses using Google's Generative AI.
-- **Expense Summary**: View a summary of your expenses, broken down by year and month.
-- **Category Breakdown**: See a detailed breakdown of your spending by category.
-- **Transaction Viewer**: Browse and review individual transactions.
-- **Data Deletion**: Remove transactions you don't want to track.
-- **Transaction Tags**: Tag transactions (e.g. `emergency`, `trip:paris-jun26`) from the Transactions screen (`g` = tag selected, `G` = tag all filtered). The Summary screen hides tags listed in `tag_settings.json` (default: `emergency`) from totals; press `x` to toggle, `Shift+X` to pick which tags/patterns are excluded (trailing `*` matches a prefix, e.g. `travel:*`).
-- **Payslip & Pension Tracking**: Import monthly payslip PDFs to capture pension contributions and see a pension-aware savings rate alongside the bank-only rate. See the [Payslip & Pension Tracking Guide](docs/PAYSLIPS.md). Currently supports the Irish PAYE payslip layout.
+- **Summary**: a year or a single month. Expenses, Income and Monthly tabs;
+  cash-flow tiles with the savings rate; a monthly grid per category with
+  trend arrows and anomaly highlights. Every number links to the transactions
+  behind it.
+- **Transactions**: filter by date range, merchant, category, tags, amount,
+  type, budget type and source. Edit, re-categorise, tag or delete one row or
+  many. An optional breakdown by category and merchant. Print or save the list
+  as a PDF from the browser.
+- **Merchants**: one category per merchant, and rules (regexes) that group
+  statement lines under one merchant name, with a preview of what a rule would
+  change. With a Gemini API key, Gemini suggests categories for uncategorised
+  merchants and gives a second opinion on ones you pick.
+- **Import**: CSV, XLS and XLSX bank exports, several files at once. Each
+  source's column mapping is remembered, and re-importing a file adds nothing.
+- **Budget types**: mark each category essential or discretionary, set an
+  annual budget for each, and see the split on the Summary.
+- **Payslips**: payslip PDFs are read in the browser and only the figures are
+  saved. The Summary then shows a savings rate with pension next to the
+  bank-only one.
+- **Accounts**: say whose account each import source is, so a Summary filtered
+  by source counts only the owners' pension.
+- **Hidden tags**: tag patterns (`emergency`, `trip:*`) left out of the Summary
+  totals, toggled from the Summary.
 
-## Installation
-
-### System-Wide Installation
-
-With the project now packaged, you can install it system-wide using `pip`. This will add an `expenses-analyzer` command to your path.
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/pallotron/expense-analyzer.git
-   cd expense-analyzer
-   ```
-
-2. **Install the package:**
-
-   ```bash
-   make install
-   ```
-
-3. **Run the application:**
-   You can now run the application from any directory:
-
-   ```bash
-   expenses-analyzer
-   ```
-
-### Developer Setup
-
-If you want to work on the code, the recommended approach is to use the Makefile which handles virtual environment creation and dependency installation using `uv`:
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/pallotron/expense-analyzer.git
-   cd expense-analyzer
-   ```
-
-2. **Ensure you have Python 3.12+:**
-
-   ```bash
-   python3 --version
-   ```
-
-3. **Set up the development environment:**
-
-   ```bash
-   make venv
-   source .venv/bin/activate
-   ```
-
-   This will create a virtual environment using `uv` and install all dependencies.
-
-## Additional Tools
-
-The project includes additional scripts in the `tools/` directory that can be used to interact with the application's data directly.
-
-- **`tools/validate_data.py`**: This script provides an example of how to access and validate the `transactions.parquet` database file. It performs checks for data quality, missing values, and duplicates, and provides summaries of key columns. You can run it using:
-
-  ```bash
-  uv run python tools/validate_data.py
-  ```
+Guides: [Importing data](docs/IMPORTING_DATA.md) and
+[Payslips and pension](docs/PAYSLIPS.md).
 
 ## Screenshots
 
-Here’s a glimpse of what Expense Analyzer looks like in action.
+All figures are from a made-up demo household (`make seed-demo`).
 
-### Summary screen
+### Summary
 
-![Summary Screen](screenshots/summary.png)
+![Summary of a year](screenshots/summary-desktop.png)
 
-![Summary Screen](screenshots/summary-monthly.png)
+![Monthly grid](screenshots/summary-monthly-desktop.png)
 
-View your expenses summarized by year and month, with a breakdown by category.
-Cells are clickable to drill down into more detailed views.
-You can some bar charts to visualize your spending patterns over time.
-Trend indicators help you see how your spending is changing month over month.
+### Transactions
 
-### Transactions screen
+![Transactions with the breakdown open](screenshots/transactions-breakdown-desktop.png)
 
-![Transactions Screen](screenshots/transactions.png)
+### Merchants
 
-Browse through your individual transactions with ease. Filter by date, category, or merchant to find exactly what you're looking for.
+![Merchants](screenshots/merchants-desktop.png)
 
-### Categorization Screen
+### On a phone
 
-![Categorize Screen](screenshots/categorize-merchants.jpg)
+<p>
+  <img src="screenshots/summary-phone.png" width="280" alt="Summary on a phone">
+  <img src="screenshots/transactions-phone.png" width="280" alt="Transactions on a phone">
+</p>
 
-Easily categorize new merchants that the application hasn't seen before or move existing merchants to different categories. You can assign categories quickly to keep your data organized.
-Toggle multiple selections with the spacebar, enter the new category, and click "Apply Category" to update all selected merchants at once, once you are happy click "Save Changes" to persist the changes on disk.
+## Running locally
 
-## Importing Data
+No Cloudflare account is needed. You need Node 22 and `sqlite3`.
 
-For detailed instructions on how to import your financial data, please see the [Importing Data Guide](docs/IMPORTING_DATA.md). This guide covers:
+```sh
+npm ci --prefix worker
+npm ci --prefix frontend
+make seed-demo   # wipes the local database and loads the demo household
+make dev
+```
 
-- Importing transactions from CSV files.
-- Optional direct bank integration with TrueLayer (for UK/Europe).
-- An overview of how your data is processed and stored.
+Open <http://localhost:8787>. You are signed in as the demo user,
+`you@example.com`. `make test` runs the Worker and frontend tests and builds
+the frontend.
 
-## Payslip & Pension Tracking
+`worker/README.md` covers the rest: hot reload with Vite, keeping a second
+local database with `PERSIST=<dir>`, and loading a copy of your own data.
 
-Your savings rate from bank data alone misses pension contributions deducted
-before salary reaches your account. Press `y` to open the Payslips screen, point
-it at a folder of payslip PDFs, and import them to see an enhanced savings rate.
-Full details, configuration, and the savings-rate formulas are in the
-[Payslip & Pension Tracking Guide](docs/PAYSLIPS.md).
+## Self-hosting
 
-Environment variables:
-- `PAYSLIP_DIR`: folder containing payslip PDFs (otherwise chosen in the UI and remembered).
-- `PAYSLIP_PDF_PASSWORD`: password for encrypted payslip PDFs (optional).
+See [worker/README.md](worker/README.md#deploying). You need:
 
-## Automatic Categorization with Gemini
+- a Cloudflare account (the free plan is enough),
+- a domain on Cloudflare for the Worker's custom domain,
+- a Cloudflare Access application in front of it, with an Allow policy listing
+  the household's emails.
 
-The application can use the Google Gemini API to automatically suggest categories for new merchants it hasn't seen before. This is an optional feature.
+Each person also needs a row in the `users` table with the same email. The
+Worker trusts only the signed Access token, never a plain header.
 
-### Setup
+## Analysing your data
 
-1. **Get a Gemini API Key**: Obtain an API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-2. **Set the Environment Variable**: For the application to access the key, you must set the `GEMINI_API_KEY` environment variable. You can do this in your shell's configuration file (e.g., `.zshrc`, `.bash_profile`), or by exporting it in your terminal session before running the app:
+`tools/snapshot.sh` copies the production D1 database into a local SQLite file
+(default `~/.config/expenses_analyzer/snapshot.db`, never inside the repo). It
+needs a logged-in `wrangler`. Query it with `sqlite3`:
 
-   ```bash
-   export GEMINI_API_KEY="YOUR_API_KEY_HERE"
-   ```
+- `v_transactions`: one row per live transaction, with date, merchant,
+  category, tags and amount. The easiest place to start.
+- `v_summary`: what the Summary totals, with hidden tags already left out.
 
-If the `GEMINI_API_KEY` is not set, the application will skip the automatic categorization step, and you will need to categorize new merchants manually.
+`year` and `month` in `v_summary` are text: `'2026'` and `'2026-01'`.
+`WHERE year = 2026` silently matches nothing; write `WHERE year = '2026'`.
+Sum `amount_cents`, not `amount`.
 
-## Configuration
+```sh
+sqlite3 ~/.config/expenses_analyzer/snapshot.db \
+  "SELECT category, SUM(amount_cents) / 100.0 FROM v_summary
+   WHERE year = '2026' AND type = 'expense' GROUP BY category ORDER BY 2 DESC;"
+```
 
-The application stores its data, including transactions and category mappings, in a central configuration directory.
+## Backups
 
-- **Default Location**: `~/.config/expenses_analyzer/`
-- **Custom Location**: You can change the storage location by setting the `EXPENSES_ANALYZER_CONFIG_DIR` environment variable:
+D1 Time Travel keeps a restorable history of the database (7 days on the free
+plan). Every deploy logs a restore point first. To go back:
 
-  ```bash
-  export EXPENSES_ANALYZER_CONFIG_DIR="/path/to/your/custom/config"
-  ```
+```sh
+cd worker
+npx wrangler d1 time-travel info expenses       # current bookmark
+npx wrangler d1 time-travel restore expenses --timestamp=<unix time or RFC 3339>
+```
 
-The following files are stored in this directory:
+A restore also discards every write made since that point.
 
-- `categories.json`: Stores the mapping of merchants to categories.
-- `transactions.parquet`: Stores your financial transactions.
-- `payslips.parquet`: Stores parsed payslip data (gross, net, pension) per month.
-- `payslip_settings.json`: Remembers your chosen payslip folder.
-- `app.log`: The application log file.
+## Bank sync
+
+Not yet. Transactions come in through Import. Syncing straight from the bank is
+tracked in [#52](https://github.com/pallotron/expenses_analyzer/issues/52).
+
+## License
+
+MIT. See [LICENSE](LICENSE).

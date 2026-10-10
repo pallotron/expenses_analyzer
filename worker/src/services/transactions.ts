@@ -2,7 +2,7 @@
  * Writing transactions: data_handler.py's append_transactions, the soft
  * delete/restore pair, tagging and editing.
  *
- * Import semantics are the Python's, and tools/crosscheck/vectors.py holds the
+ * Import semantics are the Python's, and python_vectors.json (frozen before the Python app was removed) holds the
  * Python's answers for the tests to replay:
  *
  * - A row's identity is (date, canonical merchant, amount). Type and source do

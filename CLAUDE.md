@@ -15,128 +15,136 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Expense Analyzer is a Textual TUI (Text User Interface) application for analyzing personal financial transactions. Built with Python 3.12+, it uses Pandas for data processing, Parquet for efficient storage, and Google's Gemini AI for automatic expense categorization.
+Expense Analyzer is a self-hosted household expenses app. It runs as one
+Cloudflare Worker that serves both the API and the built React frontend, stores
+everything in D1 (SQLite), and sits behind Cloudflare Access for login. All
+code is TypeScript. Bank exports and payslip PDFs are parsed in the browser;
+the Worker receives rows and figures, never files.
 
-## Development Commands
+- `worker/`: the Worker (Hono, Drizzle, D1). `worker/README.md` covers local
+  development, tests and deploying.
+- `frontend/`: the React app (Vite, React Router, React Query, Tailwind v4).
+- `tools/`: `snapshot.sh` (production to a local SQLite file),
+  `dump_for_d1.sh` (SQLite to INSERTs D1 accepts), `screenshots.py` (retakes
+  `screenshots/`).
+- `docs/`: user guides for importing and payslips.
+- `examples/`: synthetic CSV exports for trying the import.
 
-### Environment Setup
+## Commands
+
+From the repo root:
+
 ```bash
-make install          # Install system-wide with pipx
-make venv            # Create virtual environment with uv and install dependencies
+make test         # worker typecheck + tests, frontend tests, frontend build
+make dev          # build the frontend if needed, serve on http://localhost:8787
+make seed-demo    # wipe the local D1, load the made-up demo household
 ```
 
-### Testing and Quality
+From `worker/` (`make` lists the targets):
+
 ```bash
-make test            # Run pytest test suite (PYTHONPATH=. is set automatically)
-make lint            # Run flake8 linting (error-level and complexity checks)
-make format          # Format code with black
-make all             # Run lint + test
+make seed-snapshot   # wipe the local D1, load tools/snapshot.sh's copy of production
+make migrate-local   # apply pending migrations to the local D1
+make reset-local     # empty the local D1 and re-apply the schema
+npx drizzle-kit generate   # after editing src/db/schema.ts (also `npm run db:generate`)
 ```
 
-### Running the Application
-```bash
-# After installation:
-expenses-analyzer
+`dev`, `migrate-local`, `reset-local` and the seed targets take
+`PERSIST=<dir>` to use a separate local D1 directory. `seed-snapshot` reads
+`SNAPSHOT=<file>` (default `~/.config/expenses_analyzer/snapshot.db`) and signs
+the snapshot's `self` user in as `EMAIL` (default: `DEV_USER_EMAIL` in
+`worker/.dev.vars`). The demo user is `you@example.com`.
 
-# Development mode:
-python -m expenses.main
-# or
-python expenses/main.py
+From `frontend/`:
+
+```bash
+npm test          # vitest
+npm run build     # tsc + vite build into frontend/dist
+npm run dev       # Vite with hot reload; proxies /api to the Worker on :8787
 ```
 
-### Running Single Tests
+Locally there is no Access. `DEV_USER_EMAIL` in `worker/.dev.vars` (gitignored)
+names the user to act as, and is honoured only for requests to `localhost`.
+
+## Architecture
+
+### Worker (`worker/src/`)
+
+- `index.ts` → `app.ts`: the Hono app. Every route is authenticated; there are
+  no public routes, static assets included.
+- `auth.ts`: the only place identity is decided. Verifies the Cloudflare Access
+  JWT (`Cf-Access-Jwt-Assertion`) against the team's keys, issuer, audience and
+  expiry, then maps the email claim to a row in `users`. Never read identity
+  headers such as `Cf-Access-Authenticated-User-Email`.
+- `routes/` → `services/` → Drizzle over D1. Routes parse and validate the
+  request; services hold the logic and the writes. `domain/` is pure logic
+  (merchant names, import rows, tags, payslips, pension savings). `api/` holds
+  request and response types shared with the frontend.
+- `queries/`: the Summary and Transactions reads. Each has a reference SQL file
+  in `queries/sql/`; the tests under `__tests__/queries/` prove the two equal.
+- `db/schema.ts`: the single source of truth for the schema. Money is integer
+  cents everywhere. Writes go through `db/atomic.ts`, so an import, edit or
+  delete lands whole or not at all. Deletes are soft (`deleted_at`).
+- Views in `schema.ts`:
+  - `v_live`: live (not deleted) transactions with merchant, category,
+    spending type, `year` and `month`.
+  - `v_summary`: `v_live` minus transactions carrying a hidden tag. What the
+    Summary totals.
+  - `v_transactions`: one row per live transaction with date, merchant,
+    category, tags and amount. For ad-hoc analysis of a snapshot.
+- Migrations: `drizzle-kit generate` writes SQL from `schema.ts` into
+  `worker/drizzle/`; wrangler applies those files to D1 and records them in
+  `d1_migrations`. CI fails if `schema.ts` changes without a matching migration.
+- `__tests__/fixtures/python_vectors.json` holds the removed Python app's
+  answers, frozen. Tests replay them. Never edit it by hand.
+- Gemini (`services/gemini.ts`) is the only outbound call. It needs the
+  `GEMINI_API_KEY` secret; `GEMINI_MODEL` in `wrangler.toml` picks the model.
+
+### Frontend (`frontend/src/`)
+
+- `App.tsx`: React Router pages, one folder each: `summary/`, `transactions/`,
+  `merchants/`, `import/`, `payslips/`, `accounts/`, `budgets/`. Page state
+  (filters, period, tab) lives in the URL.
+- `lib/queryClient.ts`: React Query with `staleTime: Infinity` and no refetch
+  on focus. Each view is fetched once per visit. Every mutation must call
+  `invalidateData` on success, which marks every view stale; that is what makes
+  fetching once safe. A change from another device shows after a reload.
+- `lib/usePrinting.ts`: true while the browser prints, so pages render what
+  tabs and phone layouts hide. PDF export is the browser's print; there is no
+  PDF library.
+- `import/`: CSV via PapaParse and XLS/XLSX via SheetJS, parsed in the browser.
+- `payslips/`: PDFs read with pdf.js in the browser; `parser.ts` handles the
+  Irish PAYE layout.
+- Styling: Tailwind v4 utility classes, with `dark:` variants.
+
+## Data analysis
+
+The parquet and pandas are gone. To analyse real data, take a snapshot of
+production and query it with `sqlite3`:
+
 ```bash
-PYTHONPATH=. pytest tests/test_data_handler.py -v
-PYTHONPATH=. pytest tests/test_data_handler.py::test_function_name -v
+tools/snapshot.sh   # writes ~/.config/expenses_analyzer/snapshot.db; refuses paths inside the repo
+sqlite3 ~/.config/expenses_analyzer/snapshot.db "SELECT ... FROM v_transactions ..."
 ```
 
-## Architecture Overview
+- Start from `v_transactions`; use `v_summary` to match the Summary's totals.
+- `year` and `month` in `v_summary` and `v_live` are TEXT: `'2026'` and
+  `'2026-01'`. `WHERE year = 2026` silently matches nothing; quote the value.
+- Sum `amount_cents`, not `amount`. `type` is `expense` or `income`; amounts
+  are positive.
+- The snapshot holds real financial data. Never copy it, or anything from it,
+  into the repo.
 
-### Application Structure
+## Deploy
 
-**Main Entry Point**: `expenses/main.py` → `expenses/app.py` (`ExpensesApp` class)
+Merging to main runs `.github/workflows/deploy.yml` when `worker/` or
+`frontend/` changed. It re-runs the checks, logs a D1 Time Travel restore point,
+applies pending migrations, deploys, and checks the hostname still redirects to
+the Access login.
 
-The application follows a screen-based architecture powered by Textual:
-
-- **App Core** (`app.py`): Main `ExpensesApp` class manages screen navigation via keybindings (s=Summary, t=Transactions, i=Import, c=Categorize, d=Bulk Delete, l=Link Banks, y=Payslips)
-- **Screens** (`screens/`): Each major feature is a screen that inherits from `BaseScreen`
-  - `SummaryScreen`: Aggregated expense views with yearly/monthly breakdowns
-  - `TransactionScreen`: Detailed transaction browsing with filtering
-  - `ImportScreen`: CSV import wizard with column mapping
-  - `CategorizeScreen`: Merchant categorization interface
-  - `DeleteScreen`: Transaction deletion interface
-  - `FileBrowserScreen`: File system navigation for imports
-  - `TrueLayerScreen`: Bank account linking and transaction sync (displayed as "Link Banks")
-  - `PayslipsScreen`: Import payslip PDFs and compute pension-aware savings
-  - `ConfirmationScreen`: Reusable confirmation dialogs
-- **Data Layer** (`data_handler.py`): All Parquet I/O and category management
-- **Analysis** (`analysis.py`): Trend calculations and data aggregation
-- **Filtering** (`transaction_filter.py`): Transaction filtering logic
-- **AI Integration** (`gemini_utils.py`): Google Gemini API for merchant categorization
-- **Widgets** (`widgets/`): Reusable UI components (notifications, log viewer)
-
-### Data Storage Model
-
-All user data lives in `~/.config/expenses_analyzer/` (configurable via `EXPENSES_ANALYZER_CONFIG_DIR`):
-
-- `transactions.parquet`: Main transaction database (Pandas DataFrame with Date, Merchant, Amount, Category, Tags columns; Tags is a comma-separated lowercase string)
-- `tag_settings.json`: Tag behaviour settings, currently `{"exclude_from_summary": ["emergency"]}` — tags hidden from Summary totals by default; entries may end in `*` for prefix matching (e.g. `travel:*`) and are edited from the Summary screen via `Shift+X`
-- `categories.json`: Merchant-to-category mappings `{"merchant_name": "category"}`
-- `default_categories.json`: List of available categories (copied from package on first run)
-- `truelayer_connections.json`: TrueLayer linked account metadata (connection_id, access_token, refresh_token, provider_name, last_sync)
-- `payslips.parquet`: Stores parsed payslip data (gross, net, pension) keyed on
-  `(Owner, Month)`, so more than one person's pension counts toward the household
-  savings rate. Rows written before owners existed load as owner `"self"`.
-- `payslip_settings.json`: Remembers payslip folders as `{"owners": {name:
-  {"folders": [...]}}}`. An owner has a list because changing employer mid-year
-  splits that year across directories. The older single-`folder` form is read as
-  the default owner's sole folder.
-- `app.log`: Application logs
-
-**Important:** Tags in `transactions.parquet` should only be manipulated via the helpers in `expenses/tags.py` to ensure consistent formatting and validation.
-
-**Critical Data Flow**:
-1. CSV Import → `ImportScreen.import_data()` → `append_transactions()` in `data_handler.py`
-2. Parquet is the single source of truth - all reads/writes go through `load_transactions_from_parquet()` and `save_transactions_to_parquet()`
-3. Category assignments are persisted separately in `categories.json` and merged with transactions on load
-4. Gemini AI suggestions (if `GEMINI_API_KEY` is set) happen during import via `get_gemini_category_suggestions_for_merchants()`
-
-### Key Design Patterns
-
-- **Screen Navigation**: Push/pop stack model with `ExpensesApp.push_screen()` and `action_pop_screen()`
-- **Notifications**: `ExpensesApp.show_notification()` mounts temporary notification widgets
-- **Confirmations**: `ExpensesApp.push_confirmation()` with callback pattern for destructive operations
-- **Mixin Pattern**: `DataTableOperationsMixin` provides shared table interaction logic for screens
-- **Configuration Injection**: `config.py` centralizes all file paths using environment variables
-
-## Important Implementation Notes
-
-### CSV Import Architecture
-The legacy `load_transactions_from_csvs()` function was removed - all imports now flow through:
-`ImportScreen` → `import_data()` method → `append_transactions()` in `data_handler.py`
-
-### Amount Parsing
-The `clean_amount()` function in `data_handler.py` handles various formats:
-- Parenthetical negatives: `(100.00)` → `-100.00`
-- Currency symbols: `€100`, `$100`, `£100`
-- CSV dashes representing zero: `-` → `0.00`
-
-### AI Categorization
-- Optional feature requiring `GEMINI_API_KEY` environment variable
-- Uses `gemini-flash-latest` model (hardcoded, should be configurable per TODO.md)
-- Batches multiple merchants in single API call for efficiency
-- Only suggests categories for merchants not in `categories.json`
-
-### Testing Strategy
-Currently 7 test files covering:
-- Core data handling (`test_data_handler.py`)
-- Analysis utilities (`test_analysis.py`)
-- Transaction filtering (`test_transaction_filter.py`)
-- Gemini integration (`test_gemini_utils.py`)
-- Screen components (transaction, confirmation screens)
-- Widgets (`test_widgets.py`)
-
-Use `PYTHONPATH=.` when running pytest as the project structure requires it.
+Migrations run **before** the new code is live, so each migration must keep the
+previous Worker working: add tables and columns in one deploy, drop them in a
+later one.
 
 ## Version Control
 
@@ -156,138 +164,24 @@ The working copy (`@`) is always a commit in jj. There's no staging area - chang
 **Important Workflow:**
 - **Always run `jj new` before starting a new feature or fix** - This creates a new change on top of the current one, keeping commits organized and avoiding mixing unrelated changes in the working copy.
 
-## Configuration
 
-### Environment Variables
-- `EXPENSES_ANALYZER_CONFIG_DIR`: Override default config location (default: `~/.config/expenses_analyzer/`)
-- `GEMINI_API_KEY`: Google Gemini API key for auto-categorization (optional)
-- `TRUELAYER_CLIENT_ID`: TrueLayer API client ID (required for TrueLayer integration)
-- `TRUELAYER_CLIENT_SECRET`: TrueLayer API client secret (required for TrueLayer integration)
-- `TRUELAYER_ENV`: TrueLayer environment - "sandbox" or "production" (default: "sandbox")
-- `PAYSLIP_DIR`: Folder containing payslip PDFs (optional; if not set, chosen in UI and remembered)
-- `PAYSLIP_PDF_PASSWORD`: Password for encrypted payslip PDFs (optional)
+## D1 free-plan read limits
 
-### Python Version
-Requires Python 3.12+ (specified in `pyproject.toml`)
+The free plan allows 5M rows read per day. Once spent, every query fails until
+midnight UTC (`readLimit.ts` turns that into a clear error). A Summary costs
+about 130k rows read, so reads are kept down by fetching each view once per
+visit (see `queryClient.ts` above).
 
-## Common Workflows
+- Avoid queries that scan `v_live` (or the views built on it) repeatedly, such
+  as one query per month or per category in a loop. Aggregate in one query.
+- Do not add refetch intervals or refetch-on-focus.
+- Check per-query reads with `npx wrangler d1 insights expenses` (from
+  `worker/`) after changing a query.
 
-### Adding a New Screen
-1. Create new screen class in `expenses/screens/` inheriting from `BaseScreen`
-2. Register in `ExpensesApp.SCREENS` dict in `app.py`
-3. Add keybinding in `ExpensesApp.BINDINGS` if needed
-4. Implement `compose()` for UI and action handlers
+## Code style
 
-### Modifying Data Schema
-1. Update DataFrame operations in `data_handler.py`
-2. Parquet files auto-adapt to new columns (backward compatible)
-3. Update `load_transactions_from_parquet()` default columns if needed
-4. Consider migration strategy for existing user data
-
-### Adding Transaction Filters
-1. Extend `TransactionFilter` class in `transaction_filter.py`
-2. Update `TransactionScreen` to expose new filter options
-3. Filters operate on Pandas DataFrames - use `.loc[]` and boolean indexing
-
-## Code Style
-
-- **Linting**: Flake8 with max line length 110, max complexity 10
-- **Formatting**: Black (run `make format` before committing)
-- **Type Hints**: Partially implemented, ongoing work (see TODO.md)
-- **Logging**: Use Python's `logging` module, logs go to `app.log`
-
-## Package Management
-
-The project uses:
-- `uv` for fast virtual environment and dependency management
-- `pipx` for system-wide installation
-- `setuptools` as build backend (pyproject.toml)
-- Entry point: `expenses-analyzer` command → `expenses.main:main`
-
-## Bank Account Integrations
-
-The application supports automatic transaction import from bank accounts via two integration providers: TrueLayer.
-
-### Unified OAuth Server
-
-Both TrueLayer share a unified OAuth callback server:
-
-**File:** `expenses/oauth_server.py`
-- Single Flask server running on port 3000
-- Handles callbacks for TrueLayer (`/truelayer-callback`)
-- Thread-safe token stores for both providers
-- Prevents port conflicts and simplifies deployment
-
-### TrueLayer Integration
-
-**Files:**
-- `expenses/truelayer_handler.py`: Core business logic for TrueLayer API interactions
-- `expenses/screens/truelayer_screen.py`: UI for linking accounts and syncing transactions
-- `tests/test_truelayer_handler.py`: Comprehensive test suite
-
-**Architecture:**
-- Uses `requests` library directly (no official Python SDK available)
-- OAuth flow opens TrueLayer auth in browser, handles redirect to localhost:3000/truelayer-callback
-- Stores connections in `~/.config/expenses_analyzer/truelayer_connections.json`
-- Supports multiple accounts per connection
-- Transactions tagged with source: "TrueLayer - {provider_name}"
-
-**Key Functions:**
-- `exchange_code_for_token()`: Exchanges OAuth code for access/refresh tokens
-- `refresh_access_token()`: Refreshes expired access tokens
-- `get_accounts()`: Fetches all accounts for a connection
-- `fetch_transactions()`: Fetches transactions for a specific account with date range
-- `sync_all_accounts()`: Syncs transactions from all accounts
-- `convert_truelayer_transactions_to_dataframe()`: Converts TrueLayer format to DataFrame
-
-**API Endpoints:**
-- Auth: `https://auth.truelayer.com` (production) or `https://auth.truelayer-sandbox.com` (sandbox)
-- Data API: `https://api.truelayer.com/data/v1` (production) or `https://api.truelayer-sandbox.com/data/v1` (sandbox)
-
-**Supported Regions:** UK, Europe (all TrueLayer-supported countries)
-
-**Keybinding:** Press `l` to access Link Banks screen
-
-### Common Integration Patterns
-
-Both integrations follow similar architecture:
-
-1. **OAuth Flow:**
-   - User clicks "Connect" button in UI
-   - Unified Flask server starts on port 3000 (if not already running)
-   - Browser opens provider's auth page
-   - User authenticates with bank
-   - Provider redirects to localhost:3000 callback (different routes for TrueLayer)
-   - Authorization code/token captured and stored in provider-specific stores
-
-2. **Transaction Sync:**
-   - User clicks "Sync Transactions" button
-   - Worker thread fetches transactions in background
-   - Transactions converted to standard DataFrame format
-   - Preview shown in UI (first 10 transactions)
-   - User confirms import
-   - Transactions appended with source tracking and deduplication
-
-3. **Data Processing:**
-   - Amounts inverted to positive for expenses (TrueLayer return negative for debits)
-   - Credits filtered out (only debits/expenses imported)
-   - Duplicates detected on (Date, Merchant, Amount) tuple
-   - AI categorization triggered via Gemini if `GEMINI_API_KEY` set
-
-4. **Security:**
-   - All credential files stored in `~/.config/expenses_analyzer/` with secure permissions (600)
-   - Access tokens stored locally, never logged
-   - OAuth servers run only during auth flow, automatically stopped after
-
-### Adding a New Bank Integration
-
-To add a new provider (e.g., Yodlee, Finicity):
-
-1. Create `expenses/{provider}_handler.py` with core logic
-2. Create `expenses/{provider}_oauth_server.py` for OAuth handling
-3. Create `expenses/screens/{provider}_screen.py` for UI
-4. Update `expenses/config.py` with required env vars
-5. Register screen in `expenses/app.py` SCREENS dict and add keybinding
-6. Follow the common patterns above for OAuth flow and transaction sync
-7. Create test suite in `tests/test_{provider}_handler.py`
-8. Update dependencies in `pyproject.toml` if new packages needed
+- TypeScript, strict. `make test` typechecks the Worker and its tests.
+- Plain, short comments that say why, not what.
+- In `worker/`, never `npm install <pkg>`: it drops other platforms' rolldown
+  bindings from the lockfile and breaks Vitest in CI. Edit `package.json`, then
+  regenerate the lockfile (see `worker/README.md`).

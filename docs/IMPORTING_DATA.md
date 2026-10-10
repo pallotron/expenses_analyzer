@@ -1,79 +1,70 @@
-# Importing and Processing Data
+# Importing data
 
-This document outlines the various methods for importing your financial data into Expense Analyzer, how the data is processed, and how to set up optional direct bank integration.
+Transactions come in from your bank's exports: CSV, XLS or XLSX. Files are
+parsed in your browser; only the rows are sent to the server.
 
-## CSV Import
+To try it without your own data, use the synthetic exports in
+[`examples/`](../examples):
 
-To get started, you'll need to import your transaction data. The application supports importing CSV files.
+- `bank_statement.csv`: separate "Money In" and "Money Out" columns, day-first
+  dates.
+- `credit_card.csv`: the same shape with a transaction and a posting date.
+- `paypal.csv`: one signed amount column.
+- `revolut.csv`: signed amounts, ISO dates, and a `State` column to filter on.
 
-1. **Navigate to the Import Screen**: Once the application is running, press `i` to go to the "Import" screen.
+## The Import page
 
-   ![Import Screen](screenshots/import-001-start.jpg)
+![Import page](../screenshots/import-desktop.png)
 
-2. **Select your CSV file(s)**: Use the file browser to navigate to and select the CSV file(s) you wish to import.
+1. **Pick files.** Drop statements on the page or choose them. You can import
+   several at once, for example a month's statements from every account.
+2. **Choose a source per file.** The source is the account the file came from.
+   Pick an existing one or "New source…" and name it. Once picked, the row
+   shows the date of that source's latest transaction, so you can check the
+   file starts where the last import stopped.
+3. **Map the columns, once per source.** Say which columns hold the date, the
+   merchant and the amount:
+   - **Amount**: one signed column, or "Money in" plus "Money out" when the
+     export splits them.
+   - **Type**: from the sign (negative is an expense), or everything an expense,
+     or everything income. Ignored when there is a "Money out" column.
+   - **Date order**: day first (01/09 is 1 September) or month first.
+   - **Header row**: found from the column names; pin it if the export has
+     lines above the header.
+   - **Only import rows where** (optional): for example `State` is `COMPLETED`
+     in a Revolut export.
 
-   ![File Browser](screenshots/import-002-browse.jpg)
+   The mapping is saved with the source after a successful import. Next time,
+   a file for that source needs no mapping.
+4. **Preview.** Each file is checked with a dry run that writes nothing. Its
+   row shows how many transactions are new and how many are already there, and
+   the parsed preview shows the rows as they will be saved. Rows that could not
+   be read are listed as skipped.
+5. **Import.** One button imports every ready file. Keep the page open until it
+   finishes. The result table shows, per file, what was imported, what was
+   already there, and what matched a transaction you deleted.
 
-3. **Map Columns**: The application will show a preview of your CSV and guide you through mapping your columns (e.g., 'Date', 'Merchant', 'Amount') to the application's internal fields.
+## Duplicates
 
-   ![Map Columns](screenshots/import-003-csv-preview.jpg)
+A transaction is identified by its date, merchant and amount. The source does
+not count, so the same purchase seen by two accounts is one purchase.
 
-4. **Confirm Import**: After mapping the columns, review the transactions and confirm the import. New transactions will be added to your records.
+- Re-importing a file adds nothing, so overlapping exports are safe.
+- Two identical transactions in one file (two coffees on one day) are kept as
+  two.
+- A transaction you deleted stays deleted when the file is imported again.
 
-## Recommended Workflow: Combining CSV and Bank Sync
+A single file can hold up to 5,000 rows; split larger exports.
 
-For the most complete financial history, we recommend a two-stage approach:
+## Categories
 
-1.  **Bootstrap Your History with CSV**:
-    Log in to your bank's website and export your transaction history as a CSV file. To get a full picture, export data from the beginning of your desired tracking period (e.g., January 1st) up to about 90 days ago. Use the CSV import process described above to load this data into the application.
+New merchants arrive uncategorised. If the server has a Gemini API key, tick
+**Suggest categories for new merchants** before importing. Gemini's
+suggestions are saved flagged, and **Review suggestions** opens the Merchants
+page to confirm or change them. Without Gemini, set categories on the Merchants
+page yourself.
 
-2.  **Automate the Present with Bank Sync**:
-    After your historical data is loaded, use the **TrueLayer** integration to connect your bank account. The first sync will automatically fetch the last 90 days of transactions and, from then on, you can sync to get new transactions as they happen.
+## Bank sync
 
-**Why this approach?**
-
-Due to Open Banking regulations, most banks only provide the most recent **90 days** of transaction history via their APIs. This means the initial sync won't retrieve your entire history. By importing a CSV first, you create a complete historical record, and then use the bank integration for the convenience of automated updates going forward. The application intelligently handles any small overlaps between your CSV and your first bank sync to prevent duplicate entries.
-
-## Bank Account Integration (Optional)
-
-The application can automatically sync transactions directly from your bank accounts using **TrueLayer** (UK/European banks). This is an optional feature that requires a developer account.
-
-### Quick Comparison
-
-| Feature | TrueLayer |
-|---------|-----------|
-| **Best For** | UK, Ireland, Europe |
-| **Keybinding** | Press `Shift+L` |
-| **Free Tier** | Sandbox: unlimited |
-| **Setup** | [TrueLayer Setup Guide](TRUELAYER_SETUP.md) |
-
-### TrueLayer Integration (UK/Europe)
-
-TrueLayer provides access to banks in the UK, Ireland, and across Europe.
-
-**Quick Setup:**
-```bash
-export TRUELAYER_CLIENT_ID="your_client_id"
-export TRUELAYER_CLIENT_SECRET="your_client_secret"
-export TRUELAYER_ENV="sandbox"  # or "production"
-
-# Optional: customize scopes and providers
-export TRUELAYER_SCOPES="info accounts balance transactions offline_access"
-export TRUELAYER_PROVIDERS="uk-ob-all uk-oauth-all ie-ob-all"
-```
-
-📖 **[Full TrueLayer Setup Guide](TRUELAYER_SETUP.md)**
-
-### Without Bank Integration
-
-Don't want to use bank APIs? No problem! You can still use the application by importing CSV exports from your bank's website (press `i` for the Import screen). The CSV import feature works great and doesn't require any external API credentials.
-
-## Data Processing with Pandas and Parquet
-
-Under the hood, Expense Analyzer uses powerful and efficient libraries to handle your financial data.
-
-- **Data Import and Cleaning**: When you import a CSV file, the data is loaded into a **Pandas DataFrame**. This allows for flexible and powerful data manipulation. The application cleans the data, standardizes column names, and handles different data types to ensure consistency.
-
-- **Storage**: Once processed, your transaction data is stored in the **Parquet** format. Parquet is a columnar storage file format that is highly efficient for analytics. It offers excellent compression and performance, which means your data is stored compactly and can be queried quickly. This is especially useful as your transaction history grows over time.
-
-- **Data Access**: Whenever you view your transactions or summaries, the application reads the Parquet file back into a Pandas DataFrame to perform calculations and display the data. This ensures that the application remains fast and responsive, even with large datasets.
+Not available yet: see
+[issue #52](https://github.com/pallotron/expenses_analyzer/issues/52).

@@ -38,7 +38,4 @@ CF_ACCESS_AUD = "af6e9c488346fcaf590728ed831f2adbfb7300a2bc744cbb70464528801a3d7
 # The model the Merchants page's "Suggest categories" asks.
 GEMINI_MODEL = "gemini-2.5-flash"
 
-# Secret: TRUELAYER_CLIENT_ID     (npx wrangler secret put TRUELAYER_CLIENT_ID)
-# Secret: TRUELAYER_CLIENT_SECRET
-# Secret: GEMINI_API_KEY
-# Secret: TOKEN_ENCRYPTION_KEY    (encrypts bank tokens at rest in D1)
+# Secret: GEMINI_API_KEY    (npx wrangler secret put GEMINI_API_KEY)

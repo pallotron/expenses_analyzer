@@ -1,10 +1,10 @@
 /**
  * The Summary screen's numbers: expenses/analysis.py as queries over the views.
  *
- * Each function mirrors one file in tools/crosscheck/queries/, which is the SQL
- * proved equal to the Python on real data. src/__tests__/queries/analysis.test.ts
- * proves these equal to those files, so the chain from the TUI's numbers to
- * these is unbroken. Change the SQL file and rerun the cross-check first.
+ * Each function mirrors one file in src/queries/sql/, the reviewed reference
+ * SQL, which was proved equal to the Python TUI before it was removed.
+ * src/__tests__/queries/analysis.test.ts proves these equal to those files.
+ * Change the SQL file and this module together.
  *
  * All amounts are integer cents. Rates and percentages are the caller's job,
  * so every consumer divides the same way.

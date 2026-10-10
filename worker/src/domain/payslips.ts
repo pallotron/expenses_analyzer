@@ -1,7 +1,7 @@
 /**
  * Payslip arithmetic shared by the browser parser and the Worker, and the
  * month roll-up: a port of expenses/payslip_handler.aggregate_runs, held to it
- * by tools/crosscheck/vectors.py. All money is integer cents, so the Python's
+ * by python_vectors.json (the Python app's answers, frozen). All money is integer cents, so the Python's
  * round(x, 2) calls have no counterpart.
  */
 

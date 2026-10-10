@@ -3,21 +3,15 @@
  * The promise behind every Summary link: the list it opens totals the number
  * that was clicked. Each number goes the whole way a click goes — drillDown,
  * the URL, the route's parser, listTransactions.
- *
- * Runs on the vector rows; with CROSSCHECK_DB, also on real data.
  */
 
-import type Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { drillDown, toTransactionsSearch, type DrillTarget } from "../../api/transactions";
-import * as schema from "../../db/schema";
 import type { Db } from "../../db/types";
 import { listTransactions } from "../../queries/transactions";
 import { parseTransactionsQuery } from "../../routes/transactions";
 import { buildSummary, summaryPeriods } from "../../services/summary";
-import { inMemoryCopy } from "../helpers/db";
 import { vectorStore } from "../helpers/summaryStore";
 
 async function listedCents(db: Db, target: DrillTarget): Promise<number> {
@@ -102,26 +96,4 @@ describe("drill-down totals equal the Summary (vector rows)", () => {
       });
     }
   }
-});
-
-describe.runIf(process.env.CROSSCHECK_DB)("drill-down totals equal the Summary (CROSSCHECK_DB)", () => {
-  let sqlite: Database.Database;
-  let db: Db;
-  beforeAll(() => {
-    sqlite = inMemoryCopy(process.env.CROSSCHECK_DB!);
-    db = drizzle(sqlite, { schema }) as unknown as Db;
-  });
-  afterAll(() => sqlite.close());
-
-  it("every year view, both hidden modes", async () => {
-    for (const { year } of (await summaryPeriods(db)).years) {
-      await expectAllEqual(db, year, null, undefined, false);
-      await expectAllEqual(db, year, null, undefined, true);
-    }
-  }, 600_000);
-
-  it("every month view of the newest year", async () => {
-    const [newest] = (await summaryPeriods(db)).years;
-    for (const month of newest.months) await expectAllEqual(db, newest.year, month, undefined, false);
-  }, 600_000);
 });

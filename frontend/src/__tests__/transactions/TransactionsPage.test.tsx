@@ -71,12 +71,13 @@ describe("TransactionsPage", () => {
     const many = Array.from({ length: PAGE_SIZE + 5 }, (_, i) => row(i + 1, "2026-09-10", 100));
     renderAt("/transactions?from=2026-09-01&to=2026-09-30&type=expense", api({ rows: many }));
     await screen.findByText(`${PAGE_SIZE + 5} transactions`, { exact: false });
-    await userEvent.click(screen.getByRole("button", { name: "Export PDF" }));
+    // Plain DOM queries: role queries over 200 rows are slow enough to time out in CI.
+    await userEvent.click(screen.getByText("Export PDF"));
     expect(print).toHaveBeenCalledOnce();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     fire("beforeprint");
-    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(PAGE_SIZE + 6); // + header
-    expect(within(screen.getByRole("table")).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(document.querySelectorAll("table tr")).toHaveLength(PAGE_SIZE + 6); // + header
+    expect(document.querySelector("table input[type=checkbox]")).toBeNull();
     const header = within(screen.getByRole("banner", { name: "Report" }));
     expect(header.getByRole("heading", { name: "Transactions" })).toBeInTheDocument();
     expect(header.getByText("September 2026 · Expense")).toBeInTheDocument();

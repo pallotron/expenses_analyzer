@@ -1,6 +1,7 @@
 /** The Worker's API types, shared rather than copied, so the two cannot drift. */
 export type {
-  CategoryItem, Grid, GridCell, GridRow, HiddenTagsBody, Trend, MerchantItem, MonthTotals, PeriodsResponse, PensionSummary, SummaryResponse,
+  CategoryItem, Grid, GridCell, GridRow, HiddenTagsBody, Trend, MerchantItem, MonthTotals, PeriodsResponse, PensionSummary,
+  SpendingPacing, SpendingTrendMonth, SummaryResponse,
 } from "../../../worker/src/api/summary";
 export { averageCents, monthTrends } from "../../../worker/src/api/summary";
 

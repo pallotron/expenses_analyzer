@@ -28,12 +28,12 @@ function setup() {
 }
 
 describe("listBudgetTypes", () => {
-  it("lists expense categories by name, untyped as discretionary, with live expense counts", async () => {
+  it("lists expense categories by name, untyped as null, with live expense counts", async () => {
     const { db } = setup();
     expect(await listBudgetTypes(db)).toEqual({
       categories: [
         { name: "Groceries", spendingType: "essential", expenseCount: 2 },
-        { name: "Movies", spendingType: "discretionary", expenseCount: 1 },
+        { name: "Movies", spendingType: null, expenseCount: 1 },
         { name: "Unused", spendingType: "essential", expenseCount: 0 },
       ],
       essentialBudgetCents: null,

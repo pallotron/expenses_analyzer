@@ -44,7 +44,7 @@ export async function listBudgetTypes(db: Db): Promise<BudgetTypesResponse> {
       .filter((r) => r.spendingType !== null || !(r.incomeCount > 0 && r.expenseCount === 0))
       .map((r) => ({
         name: r.name,
-        spendingType: r.spendingType === "essential" ? "essential" : "discretionary",
+        spendingType: r.spendingType,
         expenseCount: r.expenseCount,
       })),
     essentialBudgetCents: budget("essential"),

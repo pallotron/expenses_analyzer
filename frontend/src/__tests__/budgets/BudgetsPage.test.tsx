@@ -10,12 +10,13 @@ import type { BudgetTypesResponse } from "../../lib/types";
 
 type Call = { path: string; method: string; body: unknown };
 
-function api(opts: { status?: number; saveStatus?: number } = {}) {
+function api(opts: { status?: number; saveStatus?: number; extra?: BudgetTypesResponse["categories"] } = {}) {
   const state: BudgetTypesResponse = {
     categories: [
       { name: "Groceries", spendingType: "essential", expenseCount: 12 },
       { name: "Movies", spendingType: "discretionary", expenseCount: 1 },
       { name: "Unused", spendingType: "discretionary", expenseCount: 0 },
+      ...(opts.extra ?? []),
     ],
     essentialBudgetCents: 5_300_000,
     discretionaryBudgetCents: null,
@@ -71,10 +72,39 @@ describe("the Budgets page", () => {
     expect(folded).toContainElement(screen.getByRole("group", { name: "Unused type" }));
     expect(folded).not.toContainElement(groceries);
     expect(folded).not.toContainElement(screen.getByRole("group", { name: "Movies type" }));
-    expect(screen.getByText(/1 essential, 2 discretionary/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "1 essential" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "2 discretionary" })).toBeInTheDocument();
     expect(screen.getByLabelText("Essential, per year (€)")).toHaveValue("53000");
     expect(screen.getByLabelText("Discretionary, per year (€)")).toHaveValue("");
     expect(screen.getByText("€4,416.67 a month")).toBeInTheDocument();
+  });
+
+  it("lists categories with spend and no type first, with neither side pressed", async () => {
+    const mock = renderPage(api({ extra: [
+      { name: "Pets", spendingType: null, expenseCount: 4 },
+      { name: "Spare", spendingType: null, expenseCount: 0 },
+    ] }));
+    const pets = await screen.findByRole("group", { name: "Pets type" });
+    const first = screen.getByRole("region", { name: "No type yet" });
+    expect(first).toContainElement(pets);
+    expect(first).not.toContainElement(screen.getByRole("group", { name: "Spare type" }));
+    expect(within(pets).queryByRole("button", { pressed: true })).toBeNull();
+    expect(screen.getByRole("link", { name: "2 discretionary" })).toBeInTheDocument();
+    expect(screen.getByText(/2 with no type/)).toBeInTheDocument();
+
+    await userEvent.click(within(pets).getByRole("button", { name: "Discretionary" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "No type yet" })).toBeNull());
+    expect(mock.posts()[0].body).toEqual({ name: "Pets", spendingType: "discretionary" });
+    expect(pressed(screen.getByRole("group", { name: "Pets type" }))).toBe("Discretionary");
+  });
+
+  it("links each used category, and each type, to its expenses", async () => {
+    renderPage();
+    const groceries = await screen.findByRole("link", { name: "Groceries 12 rows" });
+    expect(groceries).toHaveAttribute("href", "/transactions?category=%22Groceries%22&type=expense");
+    expect(screen.queryByRole("link", { name: /Unused/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "1 essential" })).toHaveAttribute("href", "/transactions?type=expense&budget=essential");
+    expect(screen.getByRole("link", { name: "2 discretionary" })).toHaveAttribute("href", "/transactions?type=expense&budget=discretionary");
   });
 
   it("narrows the list to matching names, unused ones included, and says when none match", async () => {
@@ -101,7 +131,8 @@ describe("the Budgets page", () => {
     expect(mock.posts()).toEqual([
       { path: "/api/budget-types/category", method: "POST", body: { name: "Movies", spendingType: "essential" } },
     ]);
-    expect(screen.getByText(/2 essential, 1 discretionary/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "2 essential" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "1 discretionary" })).toBeInTheDocument();
   });
 
   it("does not save when the pressed side is pressed again", async () => {

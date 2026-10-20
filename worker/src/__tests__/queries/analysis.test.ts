@@ -22,6 +22,7 @@ import {
   hiddenTagTotal,
   merchantsByYear,
   netCashFlow,
+  spendingTypeByMonth,
   spendingTypeByYear,
   type Scope,
 } from "../../queries/analysis";
@@ -203,6 +204,13 @@ function cases(): Case[] {
         run: async (db) => values(await spendingTypeByYear(db, scope)),
         runScoped: async (db, s) => values(await spendingTypeByYear(db, s)),
       },
+      {
+        name: `essential, discretionary and unclassified by month${tag}`,
+        file: "spending_type_by_month.sql",
+        view,
+        run: async (db) => values(await spendingTypeByMonth(db, scope)),
+        runScoped: async (db, s) => values(await spendingTypeByMonth(db, s)),
+      },
     );
 
     for (const type of ["expense", "income"] as const) {
@@ -330,6 +338,14 @@ describe("the fixture exercises each rule", () => {
       { period: "2025", spendingType: "essential", amountCents: 2 * 4_512 },
       { period: "2026", spendingType: "discretionary", amountCents: 1_999 + 777 + 333 + 900 },
       { period: "2026", spendingType: "essential", amountCents: 150_000 + 2_999 },
+    ]);
+  });
+
+  it("buckets untyped and uncategorised spend as unclassified by month", async () => {
+    const jan = (await spendingTypeByMonth(db)).filter((r) => r.period === "2026-01");
+    expect(jan).toEqual([
+      { period: "2026-01", spendingType: "essential", amountCents: 150_000 + 2_999, lastDate: day("2026-01-09") },
+      { period: "2026-01", spendingType: "unclassified", amountCents: 1_999 + 777 + 333, lastDate: day("2026-01-13") },
     ]);
   });
 

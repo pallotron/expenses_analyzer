@@ -18,6 +18,7 @@ import { parseParams, toSearchParams, type SummaryParams, type Tab } from "./par
 import { PeriodPicker } from "./PeriodPicker";
 import { usePeriods, useSummary } from "./queries";
 import { SpendingSplit } from "./SpendingSplit";
+import { SpendingTrendChart } from "./SpendingTrendChart";
 import { SummaryTabs } from "./SummaryTabs";
 
 function Card(props: { title?: string; children: ReactNode }) {
@@ -115,6 +116,7 @@ export function SummaryPage() {
       {id === "expenses" && (
         <>
           {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} lastMonth={lastMonth} monthHref={monthHref} />}
+          <SpendingTrendChart trend={data.spendingTrend} />
           <div className="grid gap-4 md:grid-cols-2">
             <BreakdownList title="Expense categories" tone="expense" showShare limit={10} foldBelow={0.01}
               items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined, href: href({ type: "expense", category: c.category, budget: c.spendingType }) }))} />
@@ -163,7 +165,7 @@ export function SummaryPage() {
         {data && (
           <div className={`flex flex-col gap-4 transition-opacity ${summary.isPlaceholderData ? "opacity-60" : ""}`}>
             <CashFlowTiles cashFlow={data.cashFlow} monthAverage={data.monthAverage} pension={data.pension} />
-            <SpendingSplit split={data.spendingType} monthView={data.month !== null} onEdit={() => setEditingBudgets(true)} />
+            <SpendingSplit split={data.spendingType} pacing={data.pacing} monthView={data.month !== null} onEdit={() => setEditingBudgets(true)} />
           </div>
         )}
       </StickyPanel>

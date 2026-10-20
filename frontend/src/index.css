@@ -9,6 +9,8 @@
   --color-expense: oklch(0.6 0.19 25);
   --color-essential: oklch(0.75 0.15 75);
   --color-discretionary: oklch(0.62 0.19 25);
+  /* Spend in a category with no type: neutral, it is neither yet. */
+  --color-unclassified: oklch(0.7 0.02 255);
   --color-anomaly: oklch(0.6 0.21 25);
 }
 

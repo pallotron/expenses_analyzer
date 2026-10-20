@@ -2,9 +2,9 @@ import type { SpendingKind } from "../lib/types";
 
 const KINDS: [SpendingKind, string][] = [["essential", "Essential"], ["discretionary", "Discretionary"]];
 
-/** Two buttons, one pressed: a category is essential or discretionary. */
+/** Two buttons, one pressed: a category is essential or discretionary. Neither, for one with no type yet. */
 export function TypeSwitch(props: {
-  label: string; value: SpendingKind; onChange: (v: SpendingKind) => void; disabled?: boolean;
+  label: string; value: SpendingKind | null; onChange: (v: SpendingKind) => void; disabled?: boolean;
 }) {
   return (
     <div role="group" aria-label={props.label}

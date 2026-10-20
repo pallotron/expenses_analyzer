@@ -7,8 +7,8 @@ export type SpendingKind = "essential" | "discretionary";
 
 export interface BudgetCategory {
   name: string;
-  /** A category with no type counts as discretionary, as get_category_spending_type. */
-  spendingType: SpendingKind;
+  /** Null: nobody typed it yet. The Summary counts it as discretionary and shows it as unclassified. */
+  spendingType: SpendingKind | null;
   /** Live expense rows in the category, for showing which ones matter. */
   expenseCount: number;
 }

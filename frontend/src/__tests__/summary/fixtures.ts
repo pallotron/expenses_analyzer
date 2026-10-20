@@ -12,7 +12,9 @@ export function summary(overrides: Partial<SummaryResponse> = {}): SummaryRespon
     year: 2026,
     month: null,
     cashFlow: { incomeCents: 6_140_000, expensesCents: 3_895_000 },
-    spendingType: { essentialCents: 2_410_000, discretionaryCents: 1_485_000, essentialBudgetCents: 3_400_000, discretionaryBudgetCents: null },
+    spendingType: { essentialCents: 2_410_000, discretionaryCents: 1_485_000, unclassifiedCents: 0, essentialBudgetCents: 3_400_000, discretionaryBudgetCents: null },
+    spendingTrend: [],
+    pacing: null,
     expenseCategories: [
       { category: "Groceries", spendingType: "essential", amountCents: 742_000 },
       { category: "Eating out", spendingType: "discretionary", amountCents: 311_000 },

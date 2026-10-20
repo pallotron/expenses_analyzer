@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildSummary, summaryPeriods } from "../../services/summary";
-import { summaryStore, vectorStore } from "../helpers/summaryStore";
+import { summaryStore, summaryVectors, vectorStore } from "../helpers/summaryStore";
 
 describe("summaryPeriods", () => {
   it("lists years newest first with their months, and every source", async () => {
@@ -101,5 +101,41 @@ describe("buildSummary", () => {
     expect(s.cashFlow).toEqual({ incomeCents: 0, expensesCents: 0 });
     expect(s.expenseCategories).toEqual([]);
     expect(s.monthly!.expense.rows).toEqual([]);
+    expect(s.spendingTrend).toEqual([]);
+  });
+
+  it("counts untyped categories as unclassified, inside discretionary", async () => {
+    const s = await buildSummary(db, { year: 2026, month: null, includeHidden: false });
+    const untyped = s.expenseCategories
+      .filter((c) => !summaryVectors.categoryTypes.essential.categories.includes(c.category)
+        && !summaryVectors.categoryTypes.discretionary.categories.includes(c.category))
+      .reduce((a, c) => a + c.amountCents, 0);
+    expect(untyped).toBeGreaterThan(0);
+    expect(s.spendingType.unclassifiedCents).toBe(untyped);
+    expect(s.spendingType.discretionaryCents).toBeGreaterThanOrEqual(untyped);
+  });
+
+  it("trends the split by month up to the period, matching the split", async () => {
+    const year = await buildSummary(db, { year: 2026, month: null, includeHidden: false });
+    expect(year.spendingTrend.at(-1)?.month).toBe("2026-03");
+    expect(year.spendingTrend.length).toBeLessThanOrEqual(24);
+    const in2026 = year.spendingTrend.filter((t) => t.month.startsWith("2026-"));
+    expect(in2026.reduce((a, t) => a + t.essentialCents, 0)).toBe(year.spendingType.essentialCents);
+    expect(in2026.reduce((a, t) => a + t.discretionaryCents, 0)).toBe(year.spendingType.discretionaryCents);
+
+    const feb = await buildSummary(db, { year: 2026, month: 2, includeHidden: false });
+    expect(feb.spendingTrend.at(-1)).toMatchObject({ month: "2026-02", essentialCents: feb.spendingType.essentialCents });
+  });
+
+  it("paces only a year view of the year still running", async () => {
+    const june = new Date("2026-06-01T00:00:00Z");
+    const s = await buildSummary(db, { year: 2026, month: null, includeHidden: false }, june);
+    expect(s.pacing?.asOf.slice(0, 7)).toBe("2026-03");
+    expect(s.pacing?.essential.ytdCents).toBe(s.spendingType.essentialCents);
+    expect(s.pacing?.discretionary.ytdCents).toBe(s.spendingType.discretionaryCents);
+    expect(s.pacing!.essential.projectedCents).toBeGreaterThanOrEqual(s.spendingType.essentialCents);
+
+    expect((await buildSummary(db, { year: 2025, month: null, includeHidden: false }, june)).pacing).toBeNull();
+    expect((await buildSummary(db, { year: 2026, month: 3, includeHidden: false }, june)).pacing).toBeNull();
   });
 });

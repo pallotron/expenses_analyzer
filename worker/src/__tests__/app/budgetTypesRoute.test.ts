@@ -36,7 +36,7 @@ describe("GET /api/budget-types", () => {
     expect(await res.json()).toEqual({
       categories: [
         { name: "Groceries", spendingType: "essential", expenseCount: 0 },
-        { name: "Movies", spendingType: "discretionary", expenseCount: 0 },
+        { name: "Movies", spendingType: null, expenseCount: 0 },
       ],
       essentialBudgetCents: 5300000,
       discretionaryBudgetCents: null,

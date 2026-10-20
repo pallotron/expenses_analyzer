@@ -16,9 +16,10 @@ import type { Db } from "../db/types";
 import { historicalStats, isAnomaly } from "../domain/anomalies";
 import { buildGrid } from "../domain/grid";
 import { pensionSavings } from "../domain/pensionSavings";
+import { spendingPacing, spendingTrend, splitFor } from "../domain/spendingPlan";
 import {
   cashFlowTotals, categoryBreakdown, categoryMonthTotalsAllTypes, hiddenTagTotal,
-  merchantsInScope, netCashFlow, spendingTypeByYear, type Scope, type TransactionType,
+  merchantsInScope, netCashFlow, spendingTypeByMonth, type Scope, type TransactionType,
 } from "../queries/analysis";
 
 export interface SummaryQuery {
@@ -101,7 +102,8 @@ async function pensionFor(db: Db, q: SummaryQuery, scope: Scope): Promise<Summar
   return { ...result, people: people.filter((p) => paid.has(p.id)).map((p) => p.name).sort() };
 }
 
-export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResponse> {
+/** `now` decides whether the year is still running, so whether it has pacing. */
+export async function buildSummary(db: Db, q: SummaryQuery, now = new Date()): Promise<SummaryResponse> {
   const scope: Scope = {
     includeHidden: q.includeHidden,
     sources: q.sources,
@@ -111,11 +113,12 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
   const yearView = q.month === null;
 
   const [
-    cashFlow, splitRows, budgetRows, typeRows, expenseCats, incomeCats,
+    cashFlow, typeMonths, budgetRows, typeRows, expenseCats, incomeCats,
     expenseMerchants, incomeMerchants, hiddenCents, hiddenIncomeCents, patternRows,
   ] = await Promise.all([
     cashFlowTotals(db, scope),
-    spendingTypeByYear(db, scope),
+    // All months in scope's sources: the split, the trend and the pacing all come from this one scan.
+    spendingTypeByMonth(db, { includeHidden: scope.includeHidden, sources: scope.sources }),
     db.select().from(spendingTypeBudgets),
     db.select({ name: categories.name, spendingType: categories.spendingType }).from(categories),
     categoryBreakdown(db, "year", "expense", scope),
@@ -130,8 +133,11 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
   const types = new Map(typeRows.map((t) => [t.name, t.spendingType]));
   const budget = (kind: SpendingKind) =>
     budgetRows.find((b) => b.spendingType === kind)?.annualBudgetCents ?? null;
-  const split = (kind: SpendingKind) =>
-    splitRows.filter((r) => r.spendingType === kind).reduce((a, r) => a + r.amountCents, 0);
+  const inScope = (m: string) => (scope.month === undefined ? m.startsWith(`${scope.year}-`) : m === scope.month);
+  // A year view's trend ends at the year's last month with spend, not at empty months after it.
+  const trendEnd = scope.month
+    ?? typeMonths.map((r) => r.period).filter(inScope).at(-1)
+    ?? `${q.year}-12`;
 
   const categoryItems = (rows: typeof expenseCats, type: TransactionType): CategoryItem[] =>
     rows
@@ -171,11 +177,12 @@ export async function buildSummary(db: Db, q: SummaryQuery): Promise<SummaryResp
     month: q.month,
     cashFlow,
     spendingType: {
-      essentialCents: split("essential"),
-      discretionaryCents: split("discretionary"),
+      ...splitFor(typeMonths, inScope),
       essentialBudgetCents: budget("essential"),
       discretionaryBudgetCents: budget("discretionary"),
     },
+    spendingTrend: spendingTrend(typeMonths, trendEnd),
+    pacing: yearView && q.year === now.getUTCFullYear() ? spendingPacing(typeMonths, q.year) : null,
     expenseCategories: categoryItems(expenseCats, "expense"),
     incomeCategories: categoryItems(incomeCats, "income"),
     topMerchants: merchantItems(expenseMerchants, "expense"),

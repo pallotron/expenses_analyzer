@@ -258,6 +258,43 @@ describe("SummaryPage", () => {
     expect(await screen.findByText(/851% of €2,833\.33\/mo/)).toBeInTheDocument();
   });
 
+  it("points unclassified spend at the Budgets page", async () => {
+    const split = { ...summary().spendingType, unclassifiedCents: 389_500 };
+    renderAt("/?year=2026", mockApi({ summary: () => summary({ spendingType: split }) }));
+    const card = await screen.findByRole("region", { name: "Essential and discretionary" });
+    expect(card).toHaveTextContent("€3,895.00 (10%) is in categories with no type, counted as discretionary.");
+    expect(within(card).getByRole("link", { name: "Give them a type" })).toHaveAttribute("href", "/budgets");
+  });
+
+  it("says nothing about unclassified spend when there is none", async () => {
+    renderAt("/?year=2026");
+    const card = await screen.findByRole("region", { name: "Essential and discretionary" });
+    expect(within(card).queryByRole("link", { name: "Give them a type" })).toBeNull();
+  });
+
+  it("paces each side against the budget for the year so far", async () => {
+    const pacing = {
+      asOf: "2026-03-31", elapsed: 90 / 365, basis: "last-year" as const,
+      essential: { ytdCents: 2_410_000, projectedCents: 3_200_000 },
+      discretionary: { ytdCents: 1_485_000, projectedCents: 5_000_000 },
+    };
+    renderAt("/?year=2026", mockApi({ summary: () => summary({ pacing }) }));
+    const card = await screen.findByRole("region", { name: "Essential and discretionary" });
+    // 3,400,000 × 90/365 = 838,356 cents budgeted so far.
+    expect(within(card).getByText(/€8,383\.56 budgeted so far · heading for €32,000\.00 of €34,000\.00/)).toHaveClass("text-income");
+    expect(card).toHaveTextContent("heading for €50,000.00");
+    expect(card).toHaveTextContent("Year so far: to 31 Mar, the latest expense (25% of the year). The rest of the year is projected as last year spent it.");
+    expect(card).not.toHaveTextContent("% of €34,000.00/yr");
+  });
+
+  it("charts the split by month when there are at least two months", async () => {
+    const month = (m: string) => ({
+      month: m, essentialCents: 100_000, discretionaryCents: 50_000, unclassifiedCents: 0, essentialAvgCents: 100_000, discretionaryAvgCents: 50_000,
+    });
+    renderAt("/?year=2026", mockApi({ summary: () => summary({ spendingTrend: [month("2026-01"), month("2026-02")] }) }));
+    expect(await screen.findByRole("region", { name: "Essential and discretionary by month" })).toBeInTheDocument();
+  });
+
   it("collapses the merchant list on a phone until it is tapped", async () => {
     vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
     renderAt("/?year=2026");

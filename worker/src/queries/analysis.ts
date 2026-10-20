@@ -179,6 +179,35 @@ export async function spendingTypeByYear(db: Db, scope?: Scope): Promise<Spendin
     .orderBy(v.year, bucket);
 }
 
+export interface MonthlySpendingTypeRow {
+  /** "YYYY-MM". */
+  period: string;
+  spendingType: SpendingType | "unclassified";
+  amountCents: number;
+  /** Epoch seconds of the latest row in the bucket. */
+  lastDate: number;
+}
+
+/**
+ * spending_type_by_month.sql. Here a category with no type is "unclassified",
+ * not discretionary, so the Summary can point at it.
+ */
+export async function spendingTypeByMonth(db: Db, scope?: Scope): Promise<MonthlySpendingTypeRow[]> {
+  const v = source(scope);
+  const bucket = sql<MonthlySpendingTypeRow["spendingType"]>`CASE WHEN ${v.spendingType} IS NULL THEN 'unclassified' ELSE ${v.spendingType} END`;
+  return db
+    .select({
+      period: v.month,
+      spendingType: bucket,
+      amountCents: sumCents(v),
+      lastDate: sql<number>`MAX(${v.date})`.mapWith(Number),
+    })
+    .from(v)
+    .where(and(eq(v.type, "expense"), ...scopeTerms(v, scope)))
+    .groupBy(v.month, bucket)
+    .orderBy(v.month, bucket);
+}
+
 /**
  * hidden_tag_total.sql: expense total of the rows the Summary hides, within
  * the scope's period and sources, as _compute_hidden_tag_total narrows it.

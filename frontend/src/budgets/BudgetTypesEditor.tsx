@@ -25,11 +25,15 @@ export function BudgetTypesEditor() {
   }
   const { categories, essentialBudgetCents, discretionaryBudgetCents } = query.data;
   const essential = categories.filter((c) => c.spendingType === "essential").length;
+  const untyped = categories.filter((c) => c.spendingType === null).length;
   return (
     <div className="flex flex-col gap-6 text-sm">
       <section aria-labelledby="annual-budgets" className="flex flex-col gap-3">
         <h2 id="annual-budgets" className="font-semibold">Annual budgets</h2>
-        <p className={muted}>The Summary compares each side's spend with these, divided by 12 in a month. Leave one blank for no budget.</p>
+        <p className={muted}>
+          The Summary compares each side's spend with these: divided by 12 in a month, and in the year still running,
+          with the share of the year gone. Leave one blank for no budget.
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {/* Keyed on the saved value, so a save elsewhere resets the field. */}
           <BudgetField key={`e${essentialBudgetCents}`} kind="essential" label="Essential" cents={essentialBudgetCents} />
@@ -39,8 +43,9 @@ export function BudgetTypesEditor() {
       <section aria-labelledby="category-types" className="flex flex-col gap-3">
         <h2 id="category-types" className="font-semibold">Category types</h2>
         <p className={muted}>
-          {essential} essential, {categories.length - essential} discretionary. A category with no type counts as
-          discretionary. Categories with no type that only income uses are not listed.
+          {essential} essential, {categories.length - essential - untyped} discretionary
+          {untyped > 0 && `, ${untyped} with no type`}. A category with no type counts as discretionary, and the
+          Summary shows it as unclassified. Categories with no type that only income uses are not listed.
         </p>
         {categories.length === 0 ? <p className={muted}>No categories yet</p> : <CategoryTypes categories={categories} />}
       </section>
@@ -88,6 +93,7 @@ function CategoryTypes(props: { categories: BudgetCategory[] }) {
   const needle = search.trim().toLowerCase();
   const matches = props.categories.filter((c) => c.name.toLowerCase().includes(needle));
   const unused = props.categories.filter((c) => c.expenseCount === 0);
+  const untyped = props.categories.filter((c) => c.expenseCount > 0 && c.spendingType === null);
   return (
     <>
       <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search categories"
@@ -97,7 +103,14 @@ function CategoryTypes(props: { categories: BudgetCategory[] }) {
         matches.length === 0 ? <p className={muted}>No category matches "{search.trim()}"</p> : <CategoryList categories={matches} />
       ) : (
         <>
-          <CategoryList categories={props.categories.filter((c) => c.expenseCount > 0)} />
+          {/* Untyped ones with spend first: they are what the Summary's unclassified slice points here for. */}
+          {untyped.length > 0 && (
+            <section aria-labelledby="no-type" className="flex flex-col gap-1">
+              <h3 id="no-type" className="font-medium">No type yet</h3>
+              <CategoryList categories={untyped} />
+            </section>
+          )}
+          <CategoryList categories={props.categories.filter((c) => c.expenseCount > 0 && c.spendingType !== null)} />
           {unused.length > 0 && (
             // Folded: dozens of starter categories nobody uses would bury the rest.
             <details>

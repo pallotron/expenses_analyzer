@@ -96,17 +96,56 @@ export interface PensionSummary {
   people: string[];
 }
 
+export interface SpendingTrendMonth {
+  /** "YYYY-MM". */
+  month: string;
+  essentialCents: number;
+  /** Includes unclassifiedCents. */
+  discretionaryCents: number;
+  unclassifiedCents: number;
+  /** Mean over the up to 12 months ending here, from the first month with spend. */
+  essentialAvgCents: number;
+  discretionaryAvgCents: number;
+}
+
+export interface SpendingPace {
+  ytdCents: number;
+  projectedCents: number;
+}
+
+export interface SpendingPacing {
+  /** "YYYY-MM-DD": the year's latest expense row. The year so far runs to here. */
+  asOf: string;
+  /** Share of the year up to and including asOf, 0–1. */
+  elapsed: number;
+  /** last-year: the rest of the year as last year spent it. run-rate: at the year-to-date rate. */
+  basis: "last-year" | "run-rate";
+  essential: SpendingPace;
+  /** Unclassified included. */
+  discretionary: SpendingPace;
+}
+
 export interface SummaryResponse {
   year: number;
   month: number | null;
   cashFlow: { incomeCents: number; expensesCents: number };
   spendingType: {
     essentialCents: number;
+    /** Includes unclassifiedCents, as budgets count it. */
     discretionaryCents: number;
+    /** Spend in categories with no type, and uncategorised spend. */
+    unclassifiedCents: number;
     /** Annual; the client divides by 12 in a month view, as the TUI does. */
     essentialBudgetCents: number | null;
     discretionaryBudgetCents: number | null;
   };
+  /**
+   * Up to 24 months ending at the selected month, or at the selected year's
+   * last month with spend. Ignores the period; follows sources and hidden tags.
+   */
+  spendingTrend: SpendingTrendMonth[];
+  /** Year view of the current year only. */
+  pacing: SpendingPacing | null;
   /** Descending by amount. */
   expenseCategories: CategoryItem[];
   incomeCategories: CategoryItem[];

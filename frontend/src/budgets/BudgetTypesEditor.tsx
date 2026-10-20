@@ -1,11 +1,18 @@
 import { useId, useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { formatCents } from "../lib/money";
-import type { BudgetCategory, SpendingKind } from "../lib/types";
+import { quote, toTransactionsSearch, type BudgetCategory, type SpendingKind } from "../lib/types";
 import { eurosText, parseEuros } from "./euros";
 import { useBudgetTypes, useSetBudget, useSetCategoryType } from "./queries";
 import { TypeSwitch } from "./TypeSwitch";
 
 const muted = "text-slate-600 dark:text-slate-400";
+
+/** Every expense of a category, or of a type, over all time. */
+const transactionsOf = (filter: { category: string } | { budget: SpendingKind }) =>
+  `/transactions?${toTransactionsSearch("category" in filter
+    ? { type: "expense", category: quote(filter.category) }
+    : { type: "expense", budget: filter.budget })}`;
 
 /**
  * The TUI's Budget types screen: the annual budget for each type, and each
@@ -43,7 +50,10 @@ export function BudgetTypesEditor() {
       <section aria-labelledby="category-types" className="flex flex-col gap-3">
         <h2 id="category-types" className="font-semibold">Category types</h2>
         <p className={muted}>
-          {essential} essential, {categories.length - essential - untyped} discretionary
+          <Link to={transactionsOf({ budget: "essential" })} className="underline">{essential} essential</Link>,{" "}
+          <Link to={transactionsOf({ budget: "discretionary" })} className="underline">
+            {categories.length - essential - untyped} discretionary
+          </Link>
           {untyped > 0 && `, ${untyped} with no type`}. A category with no type counts as discretionary, and the
           Summary shows it as unclassified. Categories with no type that only income uses are not listed.
         </p>
@@ -143,10 +153,14 @@ function CategoryRow(props: { category: BudgetCategory }) {
   return (
     <li className="flex flex-col gap-1 py-2">
       <div className="flex items-center justify-between gap-3">
-        <span className="min-w-0">
-          <span className="font-medium">{name}</span>{" "}
-          {expenseCount > 0 && <span className="text-xs text-slate-500">{expenseCount} row{expenseCount === 1 ? "" : "s"}</span>}
-        </span>
+        {expenseCount > 0 ? (
+          <Link to={transactionsOf({ category: name })} className="min-w-0 hover:underline">
+            <span className="font-medium">{name}</span>{" "}
+            <span className="text-xs text-slate-500">{expenseCount} row{expenseCount === 1 ? "" : "s"}</span>
+          </Link>
+        ) : (
+          <span className="min-w-0 font-medium">{name}</span>
+        )}
         <TypeSwitch label={`${name} type`} value={shown} disabled={save.isPending}
           onChange={(v) => save.mutate({ name, spendingType: v })} />
       </div>

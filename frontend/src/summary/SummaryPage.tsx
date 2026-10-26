@@ -116,7 +116,8 @@ export function SummaryPage() {
       {id === "expenses" && (
         <>
           {data.monthlyTotals && <MonthlyChart totals={data.monthlyTotals} lastMonth={lastMonth} monthHref={monthHref} />}
-          <SpendingTrendChart trend={data.spendingTrend} />
+          {/* A month view is one month, not a trend. */}
+          {month === null && <SpendingTrendChart trend={data.spendingTrend} />}
           <div className="grid gap-4 md:grid-cols-2">
             <BreakdownList title="Expense categories" tone="expense" showShare limit={10} foldBelow={0.01}
               items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined, href: href({ type: "expense", category: c.category, budget: c.spendingType }) }))} />

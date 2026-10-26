@@ -295,6 +295,15 @@ describe("SummaryPage", () => {
     expect(await screen.findByRole("region", { name: "Essential and discretionary by month" })).toBeInTheDocument();
   });
 
+  it("does not chart the split by month in a month view", async () => {
+    const month = (m: string) => ({
+      month: m, essentialCents: 100_000, discretionaryCents: 50_000, unclassifiedCents: 0, essentialAvgCents: 100_000, discretionaryAvgCents: 50_000,
+    });
+    renderAt("/?year=2026&month=2", mockApi({ summary: () => summary({ month: 2, monthlyTotals: null, monthly: null, spendingTrend: [month("2026-01"), month("2026-02")] }) }));
+    await screen.findByRole("region", { name: "Essential and discretionary" });
+    expect(screen.queryByRole("region", { name: "Essential and discretionary by month" })).toBeNull();
+  });
+
   it("collapses the merchant list on a phone until it is tapped", async () => {
     vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
     renderAt("/?year=2026");

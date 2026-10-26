@@ -19,9 +19,12 @@ help:
 	@echo "seed-snapshot  reset-local, then load tools/snapshot.sh's copy of production (EMAIL=)"
 	@echo "(dev, migrate-local, reset-local and the seed targets take PERSIST=<dir>)"
 
-# Run the Worker locally, building the frontend first if it has never been built.
+# Run the Worker locally, building the frontend first if it was never built
+# or its source changed since: the Worker serves frontend/dist as it is.
 dev:
-	@[ -f ../frontend/dist/index.html ] || (cd ../frontend && npm run build)
+	@if [ ! -f ../frontend/dist/index.html ] || [ -n "$$(find ../frontend/src ../frontend/index.html ../frontend/vite.config.ts ../frontend/package.json -newer ../frontend/dist/index.html 2>/dev/null | head -1)" ]; then \
+		cd ../frontend && npm run build; \
+	fi
 	npm run dev -- $(WRANGLER_STATE)
 
 # Typecheck, then run the test suite.

@@ -168,6 +168,6 @@ your user.
 
 **Secrets**. `GEMINI_API_KEY` enables "Suggest categories" on the Merchants page; set it
 with `npx wrangler secret put GEMINI_API_KEY` in production and in `worker/.dev.vars`
-locally. `GEMINI_MODEL` in `[vars]` picks the model (default `gemini-2.5-flash`). Bank
+locally. `GEMINI_MODEL` in `[vars]` picks the model (default `gemini-flash-lite-latest`). Bank
 sync ([#52](https://github.com/pallotron/expenses_analyzer/issues/52)) will
 add its own secrets when it lands.

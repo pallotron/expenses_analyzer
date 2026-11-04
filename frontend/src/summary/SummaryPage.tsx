@@ -119,18 +119,18 @@ export function SummaryPage() {
           {/* A month view is one month, not a trend. */}
           {month === null && <SpendingTrendChart trend={data.spendingTrend} />}
           <div className="grid gap-4 md:grid-cols-2">
-            <BreakdownList title="Expense categories" tone="expense" showShare limit={10} foldBelow={0.01}
+            <BreakdownList title="Expense categories" tone="expense" showShare limit={10}
               items={data.expenseCategories.map((c) => ({ label: c.category, sublabel: c.spendingType === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents, kind: c.spendingType ?? undefined, href: href({ type: "expense", category: c.category, budget: c.spendingType }) }))} />
-            <BreakdownList title="Top expense merchants" tone="expense" limit={10} collapsible foldBelow={0.01}
+            <BreakdownList title="Top expense merchants" tone="expense" limit={10} collapsible
               items={data.topMerchants.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: m.spendingType ?? undefined, href: href({ type: "expense", merchant: m.merchant }) }))} />
           </div>
         </>
       )}
       {id === "income" && (
         <div className="grid items-start gap-4 md:grid-cols-2">
-          <BreakdownList title="Income categories" tone="income" showShare limit={5} foldBelow={0.01}
+          <BreakdownList title="Income categories" tone="income" showShare limit={5}
             items={data.incomeCategories.map((c) => ({ label: c.category, amountCents: c.amountCents, kind: "income" as const, href: href({ type: "income", category: c.category }) }))} />
-          <BreakdownList title="Top income sources" tone="income" limit={5} foldBelow={0.01}
+          <BreakdownList title="Top income sources" tone="income" limit={5}
             items={data.topIncome.map((m) => ({ label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.txnCount, kind: "income" as const, href: href({ type: "income", merchant: m.merchant }) }))} />
         </div>
       )}

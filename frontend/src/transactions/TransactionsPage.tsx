@@ -161,7 +161,7 @@ export function TransactionsPage() {
           {breakdownOpen && (
             <div className={`grid items-start gap-4 ${!params.category && !params.merchant ? "md:grid-cols-2" : ""}`}>
               {!params.category && (
-                <BreakdownList title={income ? "Income categories" : "Expense categories"} tone={income ? "income" : "expense"} showShare limit={10} foldBelow={0.01}
+                <BreakdownList title={income ? "Income categories" : "Expense categories"} tone={income ? "income" : "expense"} showShare limit={10}
                   items={categoryTotals(data.rows, income ? "income" : "expense").map((c) => ({
                     label: c.category, sublabel: income ? undefined : c.budget === "essential" ? "Ess." : "Disc.", amountCents: c.amountCents,
                     kind: income ? "income" as const : c.budget,
@@ -169,7 +169,7 @@ export function TransactionsPage() {
                   }))} />
               )}
               {!params.merchant && (
-                <BreakdownList title={income ? "Top income sources" : "Top expense merchants"} tone={income ? "income" : "expense"} limit={10} foldBelow={0.01}
+                <BreakdownList title={income ? "Top income sources" : "Top expense merchants"} tone={income ? "income" : "expense"} limit={10}
                   items={merchantTotals(data.rows, income ? "income" : "expense").map((m) => ({
                     label: m.merchant, sublabel: m.category, amountCents: m.amountCents, count: m.count,
                     kind: income ? "income" as const : m.budget,

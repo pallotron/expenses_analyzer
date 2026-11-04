@@ -45,11 +45,11 @@ describe("POST /api/merchants/suggest", () => {
     expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain("/models/gemini-test:generateContent");
   });
 
-  it("uses gemini-2.5-flash when no model is configured", async () => {
+  it("uses gemini-flash-lite-latest when no model is configured", async () => {
     const fetchMock = geminiAnswers("{}");
     vi.stubGlobal("fetch", fetchMock);
     await setup().send("POST", "/api/merchants/suggest", {});
-    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain("/models/gemini-2.5-flash:generateContent");
+    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain("/models/gemini-flash-lite-latest:generateContent");
   });
 
   it("is 503 without a key", async () => {

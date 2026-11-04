@@ -8,8 +8,8 @@ import { GeminiResponseError } from "../domain/gemini";
 
 export type GenerateText = (prompt: string) => Promise<string>;
 
-/** What the TUI hardcoded; GEMINI_MODEL overrides it. */
-export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+/** An alias for the current Flash-Lite; GEMINI_MODEL overrides it. */
+export const DEFAULT_GEMINI_MODEL = "gemini-flash-lite-latest";
 
 /** Gemini could not be reached, or answered with an HTTP error. */
 export class GeminiCallError extends Error {

@@ -233,23 +233,21 @@ describe("SummaryPage", () => {
     expect(api.calls.filter((u) => u.pathname === "/api/summary").length).toBe(before);
   });
 
-  it("lists ten merchants and reveals the rest on request", async () => {
+  it("lists every merchant, with no Show all", async () => {
     renderAt("/?year=2026");
     const merchants = await screen.findByRole("region", { name: "Top expense merchants" });
-    expect(within(merchants).getAllByRole("listitem")).toHaveLength(10);
-    await userEvent.click(within(merchants).getByRole("button", { name: /show all 12/i }));
     expect(within(merchants).getAllByRole("listitem")).toHaveLength(12);
+    expect(within(merchants).queryByRole("button", { name: /show all/i })).toBeNull();
   });
 
-  it("lists ten expense categories and reveals the rest on request", async () => {
+  it("lists every expense category, with no Show all", async () => {
     const expenseCategories = Array.from({ length: 12 }, (_, i) => ({
       category: `Category ${i + 1}`, spendingType: "essential" as const, amountCents: 100_000 - i * 1_000,
     }));
     renderAt("/?year=2026", mockApi({ summary: () => summary({ expenseCategories }) }));
     const list = await screen.findByRole("region", { name: "Expense categories" });
-    expect(within(list).getAllByRole("listitem")).toHaveLength(10);
-    await userEvent.click(within(list).getByRole("button", { name: /show all 12/i }));
     expect(within(list).getAllByRole("listitem")).toHaveLength(12);
+    expect(within(list).queryByRole("button", { name: /show all/i })).toBeNull();
   });
 
   it("shows the budget used, prorated to a month in a month view", async () => {
@@ -310,7 +308,7 @@ describe("SummaryPage", () => {
     const merchants = await screen.findByRole("region", { name: "Top expense merchants" });
     expect(within(merchants).queryAllByRole("listitem")).toHaveLength(0);
     await userEvent.click(within(merchants).getByRole("button", { name: /top expense merchants/i }));
-    expect(within(merchants).getAllByRole("listitem")).toHaveLength(10);
+    expect(within(merchants).getAllByRole("listitem")).toHaveLength(12);
   });
 
   it("freezes the pickers, filters, tiles and split, but not the tabs", async () => {
